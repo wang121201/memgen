@@ -1,0 +1,30 @@
+[
+  {
+    "path": "/lib/x86_64-linux-gnu/libc.so.6",
+    "sha256": "b2cf6c33b74d2f22543b7a469a75b538911e690f769d0b238843a49465b83793"
+  },
+  {
+    "path": "/lib/x86_64-linux-gnu/libcrypto.so.3",
+    "sha256": "7be3a37c9d754ec214b30db1d00ce329d22ccebd5654dd7c3f92010a7b1ccf07"
+  },
+  {
+    "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+    "sha256": "fc9d43b2f6c20e53b009238f767c5b949d202389e20de9e202ea684b4ba3729a"
+  },
+  {
+    "path": "/lib/x86_64-linux-gnu/libm.so.6",
+    "sha256": "3dd5511ae94785c9f921429b0f2b2f7aabb461b6f0e6de6dfdbef15f24bdfee6"
+  },
+  {
+    "path": "/lib/x86_64-linux-gnu/libstdc++.so.6",
+    "sha256": "ff0825e113603c3866680d5d52216bc6d8eedf3a59f52a0aef67ff01994db128"
+  },
+  {
+    "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+    "sha256": "5df4f4df42d76270bb6981fabc7c1fdccd8ad28a23d84d67f73203fb3f537667"
+  },
+  {
+    "path": "/lib64/ld-linux-x86-64.so.2",
+    "sha256": "41daf7836f7fce21a40ca63a00c5caf21b05a35a76ccc075d86f1716212cdf01"
+  }
+]

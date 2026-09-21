@@ -1,0 +1,32 @@
+{
+  "status": "PASS_PRIVATE_SOURCE_PREPARED_NOT_BUILT",
+  "observer": {
+    "source": "/home/xmu/nvidiagds/codex-runs/hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r6/nvbit_observer_r3",
+    "destination": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer",
+    "source_manifest": {
+      "bytes": 1931,
+      "sha256": "073be128f6f4eb8d47084741daad29f8c772ecb820ccc88dfc261dd5d012c7dd"
+    },
+    "manifest": {
+      "bytes": 2587,
+      "sha256": "922a407fd479d6fc26342829a5cf5dc967b58cb63eb9668ce4c00f1219790e86"
+    }
+  },
+  "sampler": {
+    "source": "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-sparse-20260919-01a08d87-r5/nvbit_sampler_r4",
+    "destination": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/upstream/nvbit_sampler_r4",
+    "source_manifest": {
+      "bytes": 4867,
+      "sha256": "e839535da020d9fc372facc190d045d04296caf0ceed2d085fb5f22f4519b0c7"
+    },
+    "manifest": {
+      "bytes": 5492,
+      "sha256": "cc0444eab9589b9a56fca3957ce85cdf38c47545f048e892af6e8ce645953453"
+    }
+  },
+  "original_sources_modified": false,
+  "GPU_executed": false,
+  "dynamic_wire_cap_unchanged": 8589934592,
+  "postprocess_record_cap_unchanged": 12000000,
+  "warning": "Host metadata bounds are capacities only; runtime budgets remain explicit."
+}

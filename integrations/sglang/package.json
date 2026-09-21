@@ -1,0 +1,47 @@
+{
+  "label": "sglang-tilegraph-metadata-v0.1.0-dev.1",
+  "files": [
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/run_job.py",
+      "relative": "run_job.py",
+      "bytes": 4684,
+      "sha256": "c82c0fdc9ccb817901f51bbd47f65579b8ba9214f3a893a4ec6d8d9836884ff1"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/vendor/parent_controller.py",
+      "relative": "vendor/parent_controller.py",
+      "bytes": 25391,
+      "sha256": "a7ac038040ae9fc282bdc3216ca62901279a4d7e9c1653851e52d63147e3abde"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/metadata-host/metadata_host.py",
+      "relative": "metadata-host/metadata_host.py",
+      "bytes": 12418,
+      "sha256": "56a9f90f6e357e13afe4b34530e86294dedc62de020ef4107e2b7241b28cdf5b"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/metadata-host/vendor/metadata_host.py",
+      "relative": "metadata-host/vendor/metadata_host.py",
+      "bytes": 24232,
+      "sha256": "f1903c5bbbeecbf2568119702161e2d76b30a2525537d6fa52774f8ed8fa89a6"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/metadata-host/vendor/matrix_common.py",
+      "relative": "metadata-host/vendor/matrix_common.py",
+      "bytes": 1149,
+      "sha256": "0bc07645405854b3b978daa96ef56e2a9dab67b98956acfc75fb0afc624997de"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/metadata-host/vendor/matrix_workload.py",
+      "relative": "metadata-host/vendor/matrix_workload.py",
+      "bytes": 3730,
+      "sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/metadata-host/vendor/contract.json",
+      "relative": "metadata-host/vendor/contract.json",
+      "bytes": 4250,
+      "sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a"
+    }
+  ]
+}

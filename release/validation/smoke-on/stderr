@@ -1,0 +1,2 @@
+hyfiss backend kernel 1 smoke_structural: 4 memory instructions, 4 DRAM requests
+hyfiss backend kernel 2 smoke_affine: 2 memory instructions, 2 DRAM requests

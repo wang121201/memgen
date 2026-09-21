@@ -1,0 +1,77 @@
+{
+  "schema": "SG_NVBIT_METADATA_OBSERVER_MANIFEST_V1",
+  "revision": "r3",
+  "status": "BOUNDED_MEASURED_STATIC_METADATA_CAP_FIX_PENDING_BUILD",
+  "build_inputs": {
+    "observer.cu": {
+      "bytes": 35691,
+      "sha256": "a2ca02f7c24aa0ce82b2987656287bdbc778bf5f9fb6a0c83bddcfbb1ee3a8c8"
+    },
+    "build.py": {
+      "bytes": 4590,
+      "sha256": "f4c290b9ab34741a30c69131cb42810861217583d6f7c4e3dcdfb98076048b54"
+    }
+  },
+  "nvbit_headers": {
+    "cuda.h": {
+      "bytes": 1145929,
+      "sha256": "b7dd24919990c4ebce0b311163eb330a55227335e7e23ef2af4f0800fd3ab620"
+    },
+    "generated_cuda_meta.h": {
+      "bytes": 106473,
+      "sha256": "8ebecd97c4796c801fa58d55e2dcbd7abd5d676342f8687f47221881050abe90"
+    },
+    "instr_types.h": {
+      "bytes": 4943,
+      "sha256": "97250d4ecef29ec6de03d7a2da9af154fadec9d9bcc6798de1c1fd754a482473"
+    },
+    "nvbit.h": {
+      "bytes": 17410,
+      "sha256": "70348229ac8324e0b498fe546b980e5541a78481bbe3c62c4d67c429508b9773"
+    },
+    "nvbit_reg_rw.h": {
+      "bytes": 3534,
+      "sha256": "79854c7a13af635005694edabf99b8da28f90d54b550400e7115667f727e7fe5"
+    },
+    "nvbit_tool.h": {
+      "bytes": 3118,
+      "sha256": "c027a4442277d3a0721cae8af9356ac41ebc719905a55569bb83834fcdbb4bf5"
+    },
+    "tools_cuda_api_meta.h": {
+      "bytes": 75170,
+      "sha256": "1be7ecc9daf8d2cd1ffee2fdb6771bc9585759e162ab317504d5d2fe8ecee4c6"
+    },
+    "utils/channel.hpp": {
+      "bytes": 8265,
+      "sha256": "0db6353681fbb45c891b30104d3848c177fae724239471cc24e4dba576952ac4"
+    },
+    "utils/utils.h": {
+      "bytes": 5244,
+      "sha256": "49922ad83b16e98e6bfe61ca1e3091eb627a2150c59183e723c45b46a180c9e7"
+    }
+  },
+  "runtime_files": [
+    "observer.cu",
+    "build.py",
+    "manifest.json"
+  ],
+  "cpu_tests": 6,
+  "dynamic_address_capture": false,
+  "static_inspection_scope": "marked_epochs_only",
+  "all_launches_counted": true,
+  "max_metadata_bytes": 268435456,
+  "task_derivative": "SGLANG_SINGLE_LAYER_MATRIX_COMPACT_R1",
+  "source_manifest": {
+    "path": "/home/xmu/nvidiagds/codex-runs/hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r6/nvbit_observer_r3/manifest.json",
+    "bytes": 1931,
+    "sha256": "073be128f6f4eb8d47084741daad29f8c772ecb820ccc88dfc261dd5d012c7dd"
+  },
+  "static_instruction_rows_emitted": false,
+  "decoded_sass_hash_unchanged": true,
+  "selected_cta_instrumentation_unchanged": true,
+  "task_plan_max_bytes": 268435456,
+  "task_selected_kernel_capacity": 32768,
+  "task_max_launches": 262144,
+  "task_max_functions": 16384,
+  "task_metadata_max_bytes": 1073741824
+}

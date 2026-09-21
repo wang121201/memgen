@@ -1,0 +1,8 @@
+workload,range,framework,model,dtype,cache_policy,ncu_dram_read_gib,model_dram_read_gib,dram_read_signed_error_pct,ncu_dram_write_mib,model_dram_write_mib,dram_write_signed_error_pct,evidence_class
+P128D2,whole,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,8.64,8.68,0.54,268.54,270.99,0.91,independent_full_workload
+P128D2,prefill,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,2.90,2.92,0.70,264.04,265.10,0.40,independent_range
+P128D2,decode,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,5.73,5.76,0.44,4.23,5.89,39.17,independent_range
+P128D16,whole,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,48.90,49.00,0.20,270.84,310.25,14.55,independent_full_workload
+P128D16,prefill,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,2.90,2.92,0.69,265.27,263.16,-0.80,independent_range
+P128D16,decode,SGLang-0.4.10,Qwen2.5-1.5B-Instruct,BF16,ordinary_lru_disabled,46.00,46.07,0.16,6.29,47.09,648.63,independent_range
+

@@ -1,0 +1,124 @@
+{
+  "schema": "SGLANG_FULL_INFERENCE_24_CASES_V1",
+  "models": {
+    "qwen25_1p5b": {
+      "path": "/home/xmu/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+      "class": "Qwen2ForCausalLM",
+      "layers": 28,
+      "config_sha256": "98d2ff8cc47488d08a2b0b3acf4eb99ef210779b42bd48605f6b8e36acdbf670",
+      "weight_sha256": {
+        "model.safetensors": "dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee"
+      }
+    },
+    "llama3_8b": {
+      "path": "/home/xmu/.cache/modelscope/hub/models/LLM-Research/Meta-Llama-3-8B-Instruct",
+      "class": "LlamaForCausalLM",
+      "layers": 32,
+      "config_sha256": "61f3de03a16ca8046b05dc777bce72717022bc8522152eee61a69072272ef54b",
+      "weight_sha256": {
+        "model-00001-of-00004.safetensors": "d8cf9c4d0dd972e1a2131bfe656235ee98221679711a3beef6d46dadf0f20b5c",
+        "model-00002-of-00004.safetensors": "8d4782b4a69ef03845159ce1a15e272aadaaf134dc138d68f616098e8531729c",
+        "model-00003-of-00004.safetensors": "3acdd690e65c24f42a24581b8467af98bd3ca357444580f8012aacd2bd607921",
+        "model-00004-of-00004.safetensors": "67e9ad31c8c32abf3a55ee7fc7217b3ecb35fd3c74d98a5bd233e0e4d6964f46"
+      }
+    }
+  },
+  "prefills": [
+    128,
+    256,
+    512,
+    1024
+  ],
+  "decodes": [
+    32,
+    64,
+    128
+  ],
+  "batch_size": 1,
+  "dtype": "bfloat16",
+  "max_total_tokens": 1280,
+  "packages": {
+    "sglang": "0.4.10",
+    "torch": "2.7.1+cu126",
+    "sgl-kernel": "0.2.8",
+    "triton": "3.3.1",
+    "flashinfer-python": "0.2.9rc2",
+    "transformers": "4.54.1"
+  },
+  "native_sources": [
+    {
+      "relative": "bench_one_batch.py",
+      "sha256": "912a94c67f241226fa1a411d48366001a63a3f526e14bd8169d6df56e5c98d0b"
+    },
+    {
+      "relative": "srt/model_executor/model_runner.py",
+      "sha256": "a11610a484d02c5d31a9dac9f898ad93ab9453277fe353e3022d3f754fefedf2"
+    },
+    {
+      "relative": "srt/model_executor/forward_batch_info.py",
+      "sha256": "36f52145e7afa32e947cee3df753ffe4c3d0c9f79f0b704ea13c13a94c0c6d89"
+    },
+    {
+      "relative": "srt/model_executor/cuda_graph_runner.py",
+      "sha256": "ea78d11b2b2b8410e2d9b02de43ca31a7cab7b162fb8456c009c100415bc52dd"
+    },
+    {
+      "relative": "srt/managers/schedule_batch.py",
+      "sha256": "c665923c0b259663da5ad28dadff8ff085fa7ee40c4c3faf66e935cb4d6f5230"
+    },
+    {
+      "relative": "srt/mem_cache/memory_pool.py",
+      "sha256": "8d075680eafa86930b6c668425ce229a6060646fcc65bc7c2f23afd36f40495c"
+    },
+    {
+      "relative": "srt/mem_cache/allocator.py",
+      "sha256": "89de2b8ae72c1bd77e3f58a48f7f832c96f384cf3e32e25fbc3981f07e20f7ea"
+    },
+    {
+      "relative": "srt/models/llama.py",
+      "sha256": "36cc6fdacd6c3a62e766c4c79306d3879ddc505110d9f9ca0d08b90456c572c9"
+    },
+    {
+      "relative": "srt/server_args.py",
+      "sha256": "257ce2910e51695465c55ff355046625437ba027605c63a296d172305d325fae"
+    },
+    {
+      "relative": "srt/layers/radix_attention.py",
+      "sha256": "bedcc23df122598ba782570b7ea3bd75c0136fe2d7cd4e2c141c085ac5876e26"
+    },
+    {
+      "relative": "srt/layers/attention/flashinfer_backend.py",
+      "sha256": "1d0a75e11dbd85055762301328fa0668763d2c9f5ed5cc3693e461044985c6df"
+    },
+    {
+      "relative": "srt/layers/attention/triton_backend.py",
+      "sha256": "02bcab3dce24ce2a31922b9c3e4029300fffd07a104ca387369c0dd061209bdf"
+    },
+    {
+      "relative": "srt/layers/linear.py",
+      "sha256": "3738cba99ad935871cdf3d8ab40f7e9faa6749d0471f053a345fc16dc016a78f"
+    },
+    {
+      "relative": "srt/layers/layernorm.py",
+      "sha256": "424c782736f72963adda890054ce88b381430a5a542094a170f1a81255129c44"
+    },
+    {
+      "relative": "srt/layers/activation.py",
+      "sha256": "ba17e1875d0de622e82c4042bc53d18c27c3c6ee635ded5e84725bdc84888e28"
+    },
+    {
+      "relative": "srt/layers/logits_processor.py",
+      "sha256": "b9dbaf68dd691475f78a6971f056e6206e9a24c9e23a83e6a0fd001a29909f9b"
+    },
+    {
+      "relative": "srt/models/qwen2.py",
+      "sha256": "d209e082cdaafbf16d0fbe49f9433828c3415d26a95501b3ef707e0b6c991c38"
+    }
+  ],
+  "rois": [
+    "full",
+    "Prefill",
+    "DecodeAll"
+  ],
+  "source_status": "PINNED_REAL_CHECKPOINTS_AND_NATIVE_SOURCES"
+}

@@ -1,0 +1,85 @@
+# Reproduction and acceptance procedure
+
+HBServe is the full-inference address generator. Memgen is the functional L1
+(Level-1) and L2 (Level-2) cache filter. NCU is NVIDIA Nsight Compute. DRAM is
+off-chip graphics-memory traffic. `P<n>D<m>` denotes `n` prefill tokens and `m`
+decode steps in a batch-one inference.
+
+## 1. Verify the archive
+
+Run the read-only manifest/schema check:
+
+```bash
+python3 scripts/verify_archive.py
+```
+
+Run the bounded CPU smoke in a new output directory:
+
+```bash
+scripts/run_cpu_smoke.sh /tmp/memgen-cpu-smoke-r1
+```
+
+The smoke compiles the frozen C++17 engine with `mpic++`, replays a synthetic
+packed profile twice with cache observation off/on, and requires identical
+`kernel_summary.csv` output with SHA-256
+`9e3b2ee1b69fce3650b9ae2e5a26583ff786d86008f2bb698fc1463915f2d9f2`.
+It is a functional check, not hardware accuracy.
+
+## 2. Exact SGLang workload contract
+
+For current acceptance use:
+
+- Qwen2.5-1.5B-Instruct in BF16 (Brain Floating Point 16-bit);
+- SGLang 0.4.10 + FlashInfer;
+- batch 1, tensor parallelism 1, eager execution, CUDA Graph disabled;
+- RTX 4000 Ada Generation, 48 streaming multiprocessors;
+- a workload-specific sparse sample/profile for every independent P/D point;
+- three NCU runs for each whole, prefill and continuous-decode range.
+
+Do not reuse a P128D16 profile as proof for an independent P128D4 or P128D8
+workload. A prefix sum is diagnostic only.
+
+## 3. Generate without a full raw trace
+
+The current integration source is under `integrations/sglang/`:
+
+1. `compact-sources/upstream/nvbit_sampler_r4/` collects bounded sparse
+   memory-SASS and CTA placement.
+2. `compact-sources/upstream/sglang_sample_to_packed.py` converts qualified
+   samples into packed inputs.
+3. `compact-sources/upstream/template_adapter_r4/hbserve_adapter.py` and its
+   supporting modules construct the HBServe profile/address rules.
+4. `memgen-adapter/expand_profiles.py` expands the workload-specific profiles.
+5. `memgen-adapter/run_memgen.py` streams the generated source into the cache
+   backend and records aggregate counters.
+
+These scripts retain their frozen path contracts and should first be exercised
+with their included manifests. Portability cleanup must be a reviewed change,
+not an unrecorded edit to the archived snapshot.
+
+## 4. NCU comparison
+
+For each independent workload, freeze model/runtime/token/GPU identity before
+profiling. Compare only identical ranges and denominators. Preserve:
+
+- source/profile/config SHA-256 values;
+- number of phases, kernels, memory instructions, lane addresses and 32-byte
+  sectors;
+- NCU whole/prefill/decode counters for three repeats and the median;
+- Memgen whole/prefill/decode counters;
+- explicit missing or incompatible L1/L2 denominators.
+
+Traffic signed relative error is
+`100 * (model_bytes - NCU_bytes) / NCU_bytes`. The current gate is strict
+absolute error below 10% for both read and write in every accepted range.
+Internal conservation is mandatory but does not prove hardware accuracy.
+
+## 5. Promotion rule
+
+`main` keeps ordinary LRU as the minimum-assumption control. An L2 write-back or
+dirty-management candidate may be promoted from
+`research/l2-writeback-dirty-management` only after it passes deterministic
+fixtures, preserves source/phase conservation, improves independent SGLang
+workloads including decode-only write, and does not regress read traffic. A
+single workload fit or aggregate whole-request cancellation is insufficient.
+

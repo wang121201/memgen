@@ -1,0 +1,500 @@
+{
+  "artifacts": [
+    {
+      "bytes": 1175,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/command.json",
+      "sha256": "6933af927fcdc296012a8422d216e1591fe683409dee2eacd9dffe7d8607e3f6"
+    },
+    {
+      "bytes": 102,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/started.json",
+      "sha256": "ec5a307b410a98932d89964d4e27887d7bdcae89b97d5ba25895d57e9d8ff807"
+    },
+    {
+      "bytes": 9691,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/stdout.log",
+      "sha256": "0c23af399ece74ffa2f3a86b4a7eb48600c8b669ae4ba5573bb03f08452086aa"
+    },
+    {
+      "bytes": 30859,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/stderr.log",
+      "sha256": "8f23110a9c27cd36558834d5d4d2e602436ebc6a01b83b514128e2f354a04b5b"
+    },
+    {
+      "bytes": 26178718,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/report.ncu-rep",
+      "sha256": "713fb93da667a904464be9a0e5d32f91146b334ff1ce647781f7664c6bcacd5d"
+    },
+    {
+      "bytes": 12682,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/import/stdout.csv",
+      "sha256": "e8d3fb88790459b46634bdda7af4bd16dd31555cc89c58ed50c119141302d37c"
+    },
+    {
+      "bytes": 0,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/import/stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bytes": 30267,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/loaded_maps.txt",
+      "sha256": "3f8e7f1d89b8df12ba1729b9bc2ba26198d79b74efd8359d2c695747cd0763b7"
+    }
+  ],
+  "claim_boundary": "Hardware cache/DRAM counters for one exact continuous workload range. NCU replayed execution time is diagnostic; this receipt alone does not validate HBServe generation or either cache model.",
+  "counters": {
+    "l1_hit_rate": 0.8465559420559665,
+    "l2_hit_plus_miss_minus_total": 28672,
+    "l2_hit_rate": 0.1511454438301945,
+    "metrics": {
+      "dram__bytes_read.sum": 54448700032,
+      "dram__bytes_write.sum": 574176128,
+      "l1tex__t_sectors.sum": 12779444224,
+      "l1tex__t_sectors_lookup_hit.sum": 10818514444,
+      "lts__t_sectors.sum": 2004480263,
+      "lts__t_sectors_lookup_hit.sum": 302968059,
+      "lts__t_sectors_lookup_miss.sum": 1701540876
+    },
+    "process_id": 1301168,
+    "range_id": 0,
+    "single_application_replay_pass": true,
+    "units": {
+      "dram__bytes_read.sum": "byte",
+      "dram__bytes_write.sum": "byte",
+      "l1tex__t_sectors.sum": "sector",
+      "l1tex__t_sectors_lookup_hit.sum": "sector",
+      "lts__t_sectors.sum": "sector",
+      "lts__t_sectors_lookup_hit.sum": "sector",
+      "lts__t_sectors_lookup_miss.sum": "sector"
+    },
+    "warmup_passes": 0
+  },
+  "elapsed_seconds": 8.889102864079177,
+  "finished_utc": "2026-09-13T12:31:13.299958+00:00",
+  "gpu_after": {
+    "compute_apps": [
+      "GPU-7a22d253-7921-4e49-992e-0199eebd6f86, 1301727, /home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/llm-range-matrix-driver, 2286",
+      "GPU-53a2015e-19cf-83d7-cbc8-fac96aab7d38, 1301776, /home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/llm-range-matrix-driver, 1762",
+      "GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13, 1301716, /home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/llm-range-matrix-driver, 2332"
+    ],
+    "gpus": [
+      "0, GPU-18ace299-5348-e6e4-d48c-1ee5a602859b, NVIDIA RTX 4000 Ada Generation, 24, 20475",
+      "1, GPU-7a22d253-7921-4e49-992e-0199eebd6f86, NVIDIA RTX 4000 Ada Generation, 2309, 20475",
+      "2, GPU-53a2015e-19cf-83d7-cbc8-fac96aab7d38, NVIDIA RTX 4000 Ada Generation, 1785, 20475",
+      "3, GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13, NVIDIA RTX 4000 Ada Generation, 2355, 20475"
+    ]
+  },
+  "gpu_before": {
+    "compute_apps": [],
+    "gpus": [
+      "0, GPU-18ace299-5348-e6e4-d48c-1ee5a602859b, NVIDIA RTX 4000 Ada Generation, 24, 20475",
+      "1, GPU-7a22d253-7921-4e49-992e-0199eebd6f86, NVIDIA RTX 4000 Ada Generation, 15, 20475",
+      "2, GPU-53a2015e-19cf-83d7-cbc8-fac96aab7d38, NVIDIA RTX 4000 Ada Generation, 15, 20475",
+      "3, GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13, NVIDIA RTX 4000 Ada Generation, 15, 20475"
+    ]
+  },
+  "gpu_uuid": "GPU-18ace299-5348-e6e4-d48c-1ee5a602859b",
+  "inputs": {
+    "driver": {
+      "bytes": 38752,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/llm-range-matrix-driver",
+      "sha256": "66c757df426e848cfd0dd5feb44d9faa3c890ba812f2b62087c0f940217ea72f"
+    },
+    "model": {
+      "bytes": 1894532128,
+      "path": "/home/xmu/nvidiagds/models/qwen2.5-1.5b-instruct-q8_0.gguf",
+      "sha256": "d7efb072e7724d25048a4fda0a3e10b04bdef5d06b1403a1c93bd9f1240a63c8"
+    },
+    "ncu": {
+      "bytes": 3826,
+      "path": "/usr/local/cuda-12.8/bin/ncu",
+      "sha256": "02fffd2174c647582a6faa3829bcab06ca66dfb026c7b0e8f863fbbfb0cca877"
+    },
+    "placement_app_config": {
+      "bytes": 9708107,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/configs/app.config",
+      "sha256": "8249103ce62d5888f172020f5d8a471267af70f1f7e78d49294d2cf0706803a7"
+    },
+    "placement_capture_receipt": {
+      "bytes": 1159,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/configs/capture_receipt.json",
+      "sha256": "a82fed1439f900d37aaf8d400a6392c853a72b4c8f86e0edd7a2da66d465801d"
+    },
+    "runner": {
+      "bytes": 12783,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/run_ncu_range_single_r1.py",
+      "sha256": "9dd9c07187d2d10f362cf3e16e1b4f63cdf01628769acfb70dc73a3ab2ce5039"
+    }
+  },
+  "metrics": [
+    "l1tex__t_sectors.sum",
+    "l1tex__t_sectors_lookup_hit.sum",
+    "lts__t_sectors.sum",
+    "lts__t_sectors_lookup_hit.sum",
+    "lts__t_sectors_lookup_miss.sum",
+    "dram__bytes_read.sum",
+    "dram__bytes_write.sum"
+  ],
+  "output_equivalence": {
+    "all_bytes_and_sha256_exact": true,
+    "baseline": {
+      "decode_step_0.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_0.logits.f32",
+        "sha256": "20f91d076c4b836de11468148d77cac0fb2d54143d3602da7843af756ccf7d74"
+      },
+      "decode_step_1.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_1.logits.f32",
+        "sha256": "b9d5d09d894cdb334557a4620ae49a0349d3e1cc5936e2d9a47263e0e557728e"
+      },
+      "decode_step_10.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_10.logits.f32",
+        "sha256": "bbed30df0deb630cb0e8349ee6200ddcf75841c6ba8e166cd6159252341b2aa1"
+      },
+      "decode_step_11.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_11.logits.f32",
+        "sha256": "05ca4a9061a8aa433a65e60cb28a4709ec1c0457e2a06b1adc00fea747ff18c5"
+      },
+      "decode_step_12.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_12.logits.f32",
+        "sha256": "8e224ec27ee75bd8ac39758ab0ee386af893549aec898ed781fec8312e092abc"
+      },
+      "decode_step_13.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_13.logits.f32",
+        "sha256": "8f850f35bb7ca503de93bd7ddf9d26c68a914b98e96a5130ed5146918b5cc2dd"
+      },
+      "decode_step_14.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_14.logits.f32",
+        "sha256": "c9f7e123764d33ef861b93bf88e1d4e7aab3a491c3d2999ccf146f8d6e6bdcd6"
+      },
+      "decode_step_15.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_15.logits.f32",
+        "sha256": "3c2f06635d4275ea9976d19522073d12d76497cf2fa9b902d52698ee1cfb6e27"
+      },
+      "decode_step_16.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_16.logits.f32",
+        "sha256": "82dac2c3f25c6152c9405147ff8faeed97229de03908e452188fde3f27bb0ce4"
+      },
+      "decode_step_17.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_17.logits.f32",
+        "sha256": "d20dd49eb9f08b1f856a98b892fb807ecaad91ff70c6a398622948071764a50b"
+      },
+      "decode_step_18.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_18.logits.f32",
+        "sha256": "0d0879828b9eb665bd20f2cc8625d20b84569fc6c10c577e50bd0aff6b190da3"
+      },
+      "decode_step_19.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_19.logits.f32",
+        "sha256": "4be1496b2cd220ce96b598b7773a1861cbc7c1fd09957922b0aa447054ca76ff"
+      },
+      "decode_step_2.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_2.logits.f32",
+        "sha256": "ec402ad47bb5ab4f94e427ffe4b795c1fb94665161e26a74f64bbb94fee767d1"
+      },
+      "decode_step_20.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_20.logits.f32",
+        "sha256": "aaec721ea142526c8f1f7a353abcd92a8c33d5ed6642cd76cb8b5baace2d545a"
+      },
+      "decode_step_21.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_21.logits.f32",
+        "sha256": "919f2ba693e059700e1db5817a7abd57083640d0ad5025d9ac5329c9ae1675ec"
+      },
+      "decode_step_22.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_22.logits.f32",
+        "sha256": "a128ba80f48bb02fc0b77651d6f0e662caaa7e8463780dd989b7f6fa1ad23543"
+      },
+      "decode_step_23.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_23.logits.f32",
+        "sha256": "b9aad189f2ffd9fdda020ec308588cf7cc9011a75898a485475b4164f3edcab4"
+      },
+      "decode_step_24.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_24.logits.f32",
+        "sha256": "c7c4e20ec8defafbd6d0353b76270cf4c05738adf5326cc19a070e254cc7dd49"
+      },
+      "decode_step_25.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_25.logits.f32",
+        "sha256": "fe5daff6a10caa94e43a5c3d9c705089cc5b875b74bce921a9e0dd2244628515"
+      },
+      "decode_step_26.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_26.logits.f32",
+        "sha256": "d85c7b4d8d3ea4d31b632baf70ebebb84c58a6d6097106a9c975644a1ffd8d6f"
+      },
+      "decode_step_27.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_27.logits.f32",
+        "sha256": "3dae4cba7ca90656e7160fc3143519f057e3bd27099d55aaeccf97913cb8859f"
+      },
+      "decode_step_28.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_28.logits.f32",
+        "sha256": "45dde6d836fe7ccb47e986cef7d73cf7631c212c6344e83c5ddb9859db989109"
+      },
+      "decode_step_29.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_29.logits.f32",
+        "sha256": "29be9d1a4c059ac8d255d2726d8b48bac9f4c6e155516ad2b80601efefa9ebad"
+      },
+      "decode_step_3.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_3.logits.f32",
+        "sha256": "23028b025d6b1a54fa28760adf470e5e9d6f0998e938fc77a3c2591d5877a982"
+      },
+      "decode_step_30.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_30.logits.f32",
+        "sha256": "a984834cf76062dc6348ddbc27ea548e3431c6c7259a53f05d4293bb590f541e"
+      },
+      "decode_step_31.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_31.logits.f32",
+        "sha256": "0126231e84de317429e0a66a6598919ac3adf1f3fd75ff4d39f8968a9be2d6cc"
+      },
+      "decode_step_4.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_4.logits.f32",
+        "sha256": "f3c344be6dbb3a7d4d1ab4d6b0f2f178d212e1591c368e07af3bab2c87e62fba"
+      },
+      "decode_step_5.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_5.logits.f32",
+        "sha256": "8d3de34155a9895453cc84d68af9643d1c0025ac3a4ab586719b11a10a1df0a9"
+      },
+      "decode_step_6.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_6.logits.f32",
+        "sha256": "c33af315bd46f624349e9c934956864abdeccebef4b764e4026f978f85fe88e5"
+      },
+      "decode_step_7.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_7.logits.f32",
+        "sha256": "aa4e134f26e0f16f085815b080d1578ca5ed514bc50007572b6657fc35709a5c"
+      },
+      "decode_step_8.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_8.logits.f32",
+        "sha256": "43c68b5d5488b57781dd0f379b6ac522dee89b3e6ae6246d4532114b53a3791e"
+      },
+      "decode_step_9.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/decode_step_9.logits.f32",
+        "sha256": "324ecfa75f603ec5edfb98edc793fd3fe54853298215290bfe032e1a654b3484"
+      },
+      "input_tokens.i32": {
+        "bytes": 640,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/input_tokens.i32",
+        "sha256": "7fdc3552473cb60242d21eb0f7499b1efdb5a23073c671499e7ed17eceef5500"
+      },
+      "prefill.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/placement/p128d32-r3/prefill.logits.f32",
+        "sha256": "f5b0cffb5111a57ddfddb5b04564c49818fc259ed47b1b984fdee15505d5881f"
+      }
+    },
+    "file_count": 34,
+    "profiled": {
+      "decode_step_0.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_0.logits.f32",
+        "sha256": "20f91d076c4b836de11468148d77cac0fb2d54143d3602da7843af756ccf7d74"
+      },
+      "decode_step_1.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_1.logits.f32",
+        "sha256": "b9d5d09d894cdb334557a4620ae49a0349d3e1cc5936e2d9a47263e0e557728e"
+      },
+      "decode_step_10.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_10.logits.f32",
+        "sha256": "bbed30df0deb630cb0e8349ee6200ddcf75841c6ba8e166cd6159252341b2aa1"
+      },
+      "decode_step_11.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_11.logits.f32",
+        "sha256": "05ca4a9061a8aa433a65e60cb28a4709ec1c0457e2a06b1adc00fea747ff18c5"
+      },
+      "decode_step_12.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_12.logits.f32",
+        "sha256": "8e224ec27ee75bd8ac39758ab0ee386af893549aec898ed781fec8312e092abc"
+      },
+      "decode_step_13.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_13.logits.f32",
+        "sha256": "8f850f35bb7ca503de93bd7ddf9d26c68a914b98e96a5130ed5146918b5cc2dd"
+      },
+      "decode_step_14.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_14.logits.f32",
+        "sha256": "c9f7e123764d33ef861b93bf88e1d4e7aab3a491c3d2999ccf146f8d6e6bdcd6"
+      },
+      "decode_step_15.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_15.logits.f32",
+        "sha256": "3c2f06635d4275ea9976d19522073d12d76497cf2fa9b902d52698ee1cfb6e27"
+      },
+      "decode_step_16.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_16.logits.f32",
+        "sha256": "82dac2c3f25c6152c9405147ff8faeed97229de03908e452188fde3f27bb0ce4"
+      },
+      "decode_step_17.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_17.logits.f32",
+        "sha256": "d20dd49eb9f08b1f856a98b892fb807ecaad91ff70c6a398622948071764a50b"
+      },
+      "decode_step_18.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_18.logits.f32",
+        "sha256": "0d0879828b9eb665bd20f2cc8625d20b84569fc6c10c577e50bd0aff6b190da3"
+      },
+      "decode_step_19.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_19.logits.f32",
+        "sha256": "4be1496b2cd220ce96b598b7773a1861cbc7c1fd09957922b0aa447054ca76ff"
+      },
+      "decode_step_2.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_2.logits.f32",
+        "sha256": "ec402ad47bb5ab4f94e427ffe4b795c1fb94665161e26a74f64bbb94fee767d1"
+      },
+      "decode_step_20.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_20.logits.f32",
+        "sha256": "aaec721ea142526c8f1f7a353abcd92a8c33d5ed6642cd76cb8b5baace2d545a"
+      },
+      "decode_step_21.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_21.logits.f32",
+        "sha256": "919f2ba693e059700e1db5817a7abd57083640d0ad5025d9ac5329c9ae1675ec"
+      },
+      "decode_step_22.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_22.logits.f32",
+        "sha256": "a128ba80f48bb02fc0b77651d6f0e662caaa7e8463780dd989b7f6fa1ad23543"
+      },
+      "decode_step_23.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_23.logits.f32",
+        "sha256": "b9aad189f2ffd9fdda020ec308588cf7cc9011a75898a485475b4164f3edcab4"
+      },
+      "decode_step_24.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_24.logits.f32",
+        "sha256": "c7c4e20ec8defafbd6d0353b76270cf4c05738adf5326cc19a070e254cc7dd49"
+      },
+      "decode_step_25.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_25.logits.f32",
+        "sha256": "fe5daff6a10caa94e43a5c3d9c705089cc5b875b74bce921a9e0dd2244628515"
+      },
+      "decode_step_26.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_26.logits.f32",
+        "sha256": "d85c7b4d8d3ea4d31b632baf70ebebb84c58a6d6097106a9c975644a1ffd8d6f"
+      },
+      "decode_step_27.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_27.logits.f32",
+        "sha256": "3dae4cba7ca90656e7160fc3143519f057e3bd27099d55aaeccf97913cb8859f"
+      },
+      "decode_step_28.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_28.logits.f32",
+        "sha256": "45dde6d836fe7ccb47e986cef7d73cf7631c212c6344e83c5ddb9859db989109"
+      },
+      "decode_step_29.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_29.logits.f32",
+        "sha256": "29be9d1a4c059ac8d255d2726d8b48bac9f4c6e155516ad2b80601efefa9ebad"
+      },
+      "decode_step_3.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_3.logits.f32",
+        "sha256": "23028b025d6b1a54fa28760adf470e5e9d6f0998e938fc77a3c2591d5877a982"
+      },
+      "decode_step_30.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_30.logits.f32",
+        "sha256": "a984834cf76062dc6348ddbc27ea548e3431c6c7259a53f05d4293bb590f541e"
+      },
+      "decode_step_31.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_31.logits.f32",
+        "sha256": "0126231e84de317429e0a66a6598919ac3adf1f3fd75ff4d39f8968a9be2d6cc"
+      },
+      "decode_step_4.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_4.logits.f32",
+        "sha256": "f3c344be6dbb3a7d4d1ab4d6b0f2f178d212e1591c368e07af3bab2c87e62fba"
+      },
+      "decode_step_5.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_5.logits.f32",
+        "sha256": "8d3de34155a9895453cc84d68af9643d1c0025ac3a4ab586719b11a10a1df0a9"
+      },
+      "decode_step_6.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_6.logits.f32",
+        "sha256": "c33af315bd46f624349e9c934956864abdeccebef4b764e4026f978f85fe88e5"
+      },
+      "decode_step_7.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_7.logits.f32",
+        "sha256": "aa4e134f26e0f16f085815b080d1578ca5ed514bc50007572b6657fc35709a5c"
+      },
+      "decode_step_8.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_8.logits.f32",
+        "sha256": "43c68b5d5488b57781dd0f379b6ac522dee89b3e6ae6246d4532114b53a3791e"
+      },
+      "decode_step_9.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/decode_step_9.logits.f32",
+        "sha256": "324ecfa75f603ec5edfb98edc793fd3fe54853298215290bfe032e1a654b3484"
+      },
+      "input_tokens.i32": {
+        "bytes": 640,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/input_tokens.i32",
+        "sha256": "7fdc3552473cb60242d21eb0f7499b1efdb5a23073c671499e7ed17eceef5500"
+      },
+      "prefill.logits.f32": {
+        "bytes": 607744,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/ncu-range-r1/p128d32/prefill.logits.f32",
+        "sha256": "f5b0cffb5111a57ddfddb5b04564c49818fc259ed47b1b984fdee15505d5881f"
+      }
+    }
+  },
+  "process": {
+    "returncode": 0,
+    "stop_reason": null
+  },
+  "schema": "hyfiss_prefill_matrix_ncu_range_v1",
+  "scope": "one cold-start application range covering prefill then all 32 decode forwards; no per-kernel cache reset",
+  "started_utc": "2026-09-13T12:31:04.410546+00:00",
+  "status": "PASS_SINGLE_RANGE_SINGLE_PASS_EXACT_LLM_OUTPUTS_HARDWARE_COUNTER_ORACLE",
+  "workload": {
+    "batch": 1,
+    "context_capacity": 8192,
+    "decode_steps": 32,
+    "prompt_tokens": 128
+  }
+}

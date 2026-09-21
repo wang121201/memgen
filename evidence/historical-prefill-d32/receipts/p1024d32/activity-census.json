@@ -1,0 +1,140 @@
+{
+  "definition": {
+    "boundary": "unselected CTAs remain unknown; repeated sampled patterns do not prove a full-grid activity map",
+    "missing_cta": "a CTA named in the plan with no persisted memory instruction; this is not a transport loss because capture conservation is validated separately",
+    "observed_cta": "a CTA named in the frozen sample plan that produced at least one persisted MEMCv3 instruction"
+  },
+  "inputs": {
+    "app_config": {
+      "bytes": 10142690,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p1024d32-r1/configs/app.config",
+      "sha256": "6834392fad949ec472cf2b52a45d748bbd598499bcd98b50b7e3fc575edadc8d"
+    },
+    "capture_receipt": {
+      "bytes": 8065,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p1024d32-r1/configs/capture_receipt.json",
+      "sha256": "d17c84a2bd267af29c412b81ed33cb831fe83ef2ea4eeb0bf6acc17bd24ea566"
+    },
+    "placement_validator": {
+      "bytes": 11044,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/validate_placement_capture.py",
+      "sha256": "cae4f663f440de677c88de7ec79373ff9d7d86eb0590d00dec2d82b78e6c9337"
+    },
+    "sample_plan": {
+      "bytes": 1290314,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/sample-plans-r3/p1024d32.tsv",
+      "sha256": "c513833d359c8da4269e71544aa9666e76443d2393021d4235106876bb6c4b95"
+    },
+    "sample_tool": {
+      "bytes": 67537,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/hyfiss_sampled_sass_trace_r1.py",
+      "sha256": "93e8b02991420acc95e31d06b8658b612e662552aa55daebcc20914d29af2fce"
+    },
+    "validation_tool": {
+      "bytes": 20309,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/validate_sparse_sample_r2.py",
+      "sha256": "8064ca4c9ad7aa0057d00ea38c8e511ebe1589ed412c3e64d66aa9dd1fca4a8a"
+    }
+  },
+  "kernel_count": 20119,
+  "kernels_with_missing": 112,
+  "kernels_with_no_sampled_records": 0,
+  "label": "p1024d32",
+  "missing_ctas_by_phase": {
+    "prefill": 1456
+  },
+  "missing_sample_ctas": 1456,
+  "observed_sample_ctas": 326144,
+  "planned_sample_ctas": 327600,
+  "schema": "hyfiss_sparse_cta_activity_census_v1",
+  "status": "COMPLETE_ACTIVITY_CENSUS_NOT_FULL_GRID_ACTIVITY",
+  "structures_with_missing": [
+    {
+      "activity_patterns": [
+        {
+          "kernel_count": 112,
+          "missing": [
+            0,
+            1,
+            12,
+            24,
+            48,
+            60,
+            72,
+            96,
+            108,
+            120,
+            144,
+            156,
+            168
+          ],
+          "observed": [
+            35,
+            47,
+            83,
+            95,
+            131,
+            143,
+            179,
+            191
+          ]
+        }
+      ],
+      "kernel_count": 112,
+      "kernel_ids": [
+        8,
+        12,
+        44,
+        48,
+        80,
+        84,
+        116,
+        120,
+        152,
+        156,
+        188,
+        192,
+        224,
+        228,
+        260,
+        264,
+        296,
+        300,
+        332,
+        336,
+        368,
+        372,
+        404,
+        408,
+        440,
+        444,
+        476,
+        480,
+        512,
+        516,
+        548,
+        552
+      ],
+      "kernels_with_missing": 112,
+      "kernels_with_no_sampled_records": 0,
+      "memory_records": 802816,
+      "missing_ctas": 1456,
+      "observed_ctas": 896,
+      "sampled_ctas": 2352,
+      "structure": {
+        "block_size": "128",
+        "grid_dim_x": "48",
+        "grid_dim_y": "4",
+        "grid_dim_z": "1",
+        "grid_size": "192",
+        "kernel_name": "void_mul_mat_q_stream_k_fixup<",
+        "num_registers": "80",
+        "shared_mem_bytes": "512",
+        "tb_dim_x": "32",
+        "tb_dim_y": "4",
+        "tb_dim_z": "1"
+      }
+    }
+  ],
+  "unique_structures": 40
+}

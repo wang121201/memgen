@@ -1,0 +1,8 @@
+kernel_id,boundary,partition,valid_sector_mask,dirty_sector_mask,line_count
+1,exit,16,15,15,1
+1,exit,17,15,15,1
+2,entry,16,15,15,1
+2,entry,17,15,15,1
+2,exit,12,1,0,2
+2,exit,16,15,15,1
+2,exit,17,15,15,1

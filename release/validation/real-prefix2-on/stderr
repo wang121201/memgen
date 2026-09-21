@@ -1,0 +1,2 @@
+hyfiss backend kernel 1 void_rms_norm_f32<1024,_true,_false>: 262144 memory instructions, 262656 DRAM requests
+hyfiss backend kernel 2 void_quantize_mmq_q8_1<: 49152 memory instructions, 0 DRAM requests

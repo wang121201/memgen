@@ -1,0 +1,132 @@
+{
+  "status": "PASS_FROZEN_PAPER_WORKFLOW",
+  "hardware_acceptance": false,
+  "version": "PAPER_ADA_L2_V1_WORKFLOW_1",
+  "steps": [
+    {
+      "name": "build-hbserve",
+      "exit_code": 0
+    },
+    {
+      "name": "build-geometry",
+      "exit_code": 0
+    },
+    {
+      "name": "geometry",
+      "exit_code": 0
+    },
+    {
+      "name": "generate-smoke",
+      "exit_code": 0
+    },
+    {
+      "name": "smoke-off",
+      "exit_code": 0
+    },
+    {
+      "name": "smoke-on",
+      "exit_code": 0
+    },
+    {
+      "name": "real-prefix2-off",
+      "exit_code": 0
+    },
+    {
+      "name": "real-prefix2-on",
+      "exit_code": 0
+    }
+  ],
+  "validation": {
+    "smoke": {
+      "observer_ab_equal": true,
+      "occupancy_rows": 80,
+      "totals": {
+        "dynamic_instructions": 6,
+        "active_lanes": 136,
+        "lane_addresses": 136,
+        "source_sectors": 18,
+        "source_read_sectors": 10,
+        "source_write_sectors": 8,
+        "source_atomic_sectors": 0,
+        "l1_requests": 10,
+        "l1_hit": 0,
+        "l1_hit_reserved": 0,
+        "l1_line_miss": 4,
+        "l1_sector_miss": 6,
+        "l1_bypass": 8,
+        "l2_requests": 18,
+        "l2_read_requests": 10,
+        "l2_write_requests": 8,
+        "l2_atomic_requests": 0,
+        "l2_hit": 8,
+        "l2_hit_reserved": 0,
+        "l2_line_miss": 4,
+        "l2_sector_miss": 6,
+        "dirty_created_sectors": 8,
+        "redirty_sectors": 0,
+        "victim_lines": 0,
+        "clean_victim_lines": 0,
+        "dirty_victim_lines": 0,
+        "dirty_evicted_sectors": 0,
+        "dram_read_fill_sectors": 6,
+        "dram_writeback_emitted_sectors": 0,
+        "l1_actual_lookups": 10,
+        "l1_read_bypass_requests": 0,
+        "incomplete_writeback_sectors": 0,
+        "writeback_known_bytes": 0,
+        "writeback_missing_bytes": 0,
+        "cleaned_retained_sectors": 0
+      },
+      "raw_trace_bytes": 0,
+      "kernel_summary_sha256": "9e3b2ee1b69fce3650b9ae2e5a26583ff786d86008f2bb698fc1463915f2d9f2"
+    },
+    "real-prefix2": {
+      "observer_ab_equal": true,
+      "occupancy_rows": 80,
+      "totals": {
+        "dynamic_instructions": 311296,
+        "active_lanes": 9502720,
+        "lane_addresses": 9502720,
+        "source_sectors": 1400832,
+        "source_read_sectors": 1048576,
+        "source_write_sectors": 352256,
+        "source_atomic_sectors": 0,
+        "l1_requests": 1048576,
+        "l1_hit": 301036,
+        "l1_hit_reserved": 0,
+        "l1_line_miss": 186885,
+        "l1_sector_miss": 560655,
+        "l1_bypass": 352256,
+        "l2_requests": 1099796,
+        "l2_read_requests": 747540,
+        "l2_write_requests": 352256,
+        "l2_atomic_requests": 0,
+        "l2_hit": 501268,
+        "l2_hit_reserved": 0,
+        "l2_line_miss": 149632,
+        "l2_sector_miss": 448896,
+        "dirty_created_sectors": 335872,
+        "redirty_sectors": 16384,
+        "victim_lines": 0,
+        "clean_victim_lines": 0,
+        "dirty_victim_lines": 0,
+        "dirty_evicted_sectors": 0,
+        "dram_read_fill_sectors": 262656,
+        "dram_writeback_emitted_sectors": 0,
+        "l1_actual_lookups": 1048576,
+        "l1_read_bypass_requests": 0,
+        "incomplete_writeback_sectors": 0,
+        "writeback_known_bytes": 0,
+        "writeback_missing_bytes": 0,
+        "cleaned_retained_sectors": 0
+      },
+      "raw_trace_bytes": 0,
+      "kernel_summary_sha256": "90a19d5fa90f93fd5cc7ae931aaa71049c4c159c1327f0dd9d70371154f45225"
+    }
+  },
+  "scope": "Packed-profile generation and direct functional cache consumption. LRU control; paper replacement pending. No timing or full-model accuracy acceptance.",
+  "include_local": false,
+  "release_manifest_sha256": "a97b93c93247acf42c542453f3b936cf726ef71db5212dd04f82f8cba678eeda",
+  "frozen_files": 108,
+  "seconds": 34.31918978691101
+}

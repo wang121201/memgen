@@ -1,0 +1,550 @@
+{
+  "version": "PAPER_ADA_L2_V1_WORKFLOW_1",
+  "files": [
+    {
+      "path": "source/ISA-Def/accelwattch_component_mapping.h",
+      "bytes": 7947,
+      "sha256": "635d65458185c95679b3361abc113f992488b7dc09a800c157059479b7b2ee7e"
+    },
+    {
+      "path": "source/ISA-Def/ampere_opcode.h",
+      "bytes": 10156,
+      "sha256": "44a0b9e6f2dc0df60edf3c0290eb913b048f5149974d446b49462aeb25b4b372"
+    },
+    {
+      "path": "source/ISA-Def/kepler_opcode.h",
+      "bytes": 5564,
+      "sha256": "392fbb97dc3adb8a767638a903b9f860633a198eefb405b25448659f3ef871bb"
+    },
+    {
+      "path": "source/ISA-Def/pascal_opcode.h",
+      "bytes": 7922,
+      "sha256": "f54b43d75e44e57af7610246928a6de0044170bde07a34bc19383d58de349126"
+    },
+    {
+      "path": "source/ISA-Def/trace_opcode.h",
+      "bytes": 4496,
+      "sha256": "0316080961a489a7f3d5d63c387381a29e82b8092f0744de420d16b0e3ca8e0c"
+    },
+    {
+      "path": "source/ISA-Def/turing_opcode.h",
+      "bytes": 11727,
+      "sha256": "a7f544136df9c2e90cf54373f67050b380af9f88194645d5beb6d27e2acb87fa"
+    },
+    {
+      "path": "source/ISA-Def/volta_opcode.h",
+      "bytes": 13753,
+      "sha256": "0d5b441b7d14ade370f68ad81fc8c064972df399f55d2396f70f4a7bbf7bcdf3"
+    },
+    {
+      "path": "source/common/common_def.h",
+      "bytes": 3814,
+      "sha256": "facf37bc1822cb2cdf63e5c3356e15818c080146125a38aa5e8bd36abc5e4092"
+    },
+    {
+      "path": "source/common/vector_types.h",
+      "bytes": 13548,
+      "sha256": "f6fb84c28b1216fb393e6d7bee389f4dc6941808dd3a3510ce9d7afb988b8222"
+    },
+    {
+      "path": "source/hw-parser/hw-parser.h",
+      "bytes": 24153,
+      "sha256": "34af63c8dc4de72d5414e18d1e554515466b99050c21d2253fafff0cb055dafc"
+    },
+    {
+      "path": "source/tools/cache_checkpoint.h",
+      "bytes": 9339,
+      "sha256": "1de1bd2e2c535bac23ed1efde5a857ea16bdb1f378cc44c74a925dd644bed5ec"
+    },
+    {
+      "path": "source/tools/cache_input_census.h",
+      "bytes": 4629,
+      "sha256": "175bc3db035f50155b8352bccb6bbd554c7414fff589864266a6078825740913"
+    },
+    {
+      "path": "source/tools/cache_observation.h",
+      "bytes": 18846,
+      "sha256": "1f29dab3e65e4a4f638807aad660f702a96dbe0859cb09c0a08a53b8eed0b83f"
+    },
+    {
+      "path": "source/tools/hbserve_profile_stream_cache_semantic_r17.cpp",
+      "bytes": 61353,
+      "sha256": "96bbdb33aed0033c0521f5a39ca553c34129094f79fe27eb7d5aeba19bb99c57"
+    },
+    {
+      "path": "source/tools/hyfiss_request_trace_backend_api_semantic.h",
+      "bytes": 3181,
+      "sha256": "4f85fee3daf9db71d2aa1e747d237be7b0a645e7a899a5eeb10801d47b6a9cf1"
+    },
+    {
+      "path": "source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
+      "bytes": 231539,
+      "sha256": "19c526f604c80d8a5d95aa34d4e74b87a2bce8018fb693650ad44b05f3637402"
+    },
+    {
+      "path": "source/tools/l2_write_policy_model.cpp",
+      "bytes": 8226,
+      "sha256": "c75ca8372d699905de1d9206408a42d70b03f6ab79065bfe3a28283d240b00fe"
+    },
+    {
+      "path": "source/tools/memc_reader.h",
+      "bytes": 6202,
+      "sha256": "f34c816384e2e4f937fd1d6325ab57ec4e5b6b79baeed43cccc84acd2546bc10"
+    },
+    {
+      "path": "source/tools/observation_synthetic.cpp",
+      "bytes": 2401,
+      "sha256": "e3ca292f4074782fc24b71c4af4a0fdad36047a00447102e4382d22abee8388f"
+    },
+    {
+      "path": "source/tools/test_l2_occupancy.cpp",
+      "bytes": 10087,
+      "sha256": "d9ab8e0ecd5acc1fed98005609c675259e4d0ee611c1428e41bc4481f2dcce7b"
+    },
+    {
+      "path": "source/tools/test_partial_validity.cpp",
+      "bytes": 6417,
+      "sha256": "8495c3da22629c445a229095eef0ee7280d60b24e1386e384b853ea78d065c90"
+    },
+    {
+      "path": "source/tools/test_retained_observation.cpp",
+      "bytes": 3604,
+      "sha256": "7adeae2d0235d7bdda6d0d7ced43b83956b6dfe9a11362539bb20b22a1229449"
+    },
+    {
+      "path": "source/tools/validate_paper_geometry.cpp",
+      "bytes": 3224,
+      "sha256": "8437fc566a1138bdbbf1da6024da37525a886b03f2d3420c17a727581bfde9fb"
+    },
+    {
+      "path": "source/trace-driven/inst-stt.h",
+      "bytes": 477,
+      "sha256": "e44acba28cc720fb504d9b7a0e20f35a8afc09883978b3a8a6623ed06c1ba959"
+    },
+    {
+      "path": "source/trace-driven/kernel-trace.h",
+      "bytes": 732,
+      "sha256": "99aa3860969db3ec1ed2c7ddbccc390a4574504887cf5f7d209ee21dd4f6764c"
+    },
+    {
+      "path": "source/trace-driven/mem-access.h",
+      "bytes": 1292,
+      "sha256": "91e53f85a70d717fa1553fe2bea01e2de4f067beb04d797423db9bef089c0592"
+    },
+    {
+      "path": "source/trace-driven/trace-warp-inst.h",
+      "bytes": 5597,
+      "sha256": "cf6a63d5e47facdcfcf565173637e3bd548104da5e72cb7746402b5305fc98ab"
+    },
+    {
+      "path": "source/trace-parser/inst-memadd-info.h",
+      "bytes": 620,
+      "sha256": "2e6192e1edba5fc0ad7d0a553fd128783d33adea88853e685ccf079cd7f7703e"
+    },
+    {
+      "path": "source/trace-parser/inst-trace.h",
+      "bytes": 3612,
+      "sha256": "e9a3203c678cf868b320e496471cbdeb61862fec49b063b5c1b6a4c50ac2a18d"
+    },
+    {
+      "path": "source/trace-parser/memory-space.h",
+      "bytes": 686,
+      "sha256": "8aaa135b4edb815adb5b99e695bdfa2847f63eeefe0899ba95f2102e1ea8444e"
+    },
+    {
+      "path": "source/trace-parser/sass-inst.h",
+      "bytes": 925,
+      "sha256": "c9506cf9bf49e3f0b59d37b520c3e2ce21ddf040dfe40be1606b94f7f435893e"
+    },
+    {
+      "path": "source/trace-parser/trace-parser.h",
+      "bytes": 22644,
+      "sha256": "1ec87ae5cd7ee9eb4bfe881275f6220e082ec0f3ea9ec8c4bb1c98777f75c7ca"
+    },
+    {
+      "path": "config/RTX4000Ada.paper-v1.config",
+      "bytes": 6408,
+      "sha256": "75aecac4fa003b71fec12a9d4c42e604969aa9aa932742093b1bcad875e96974"
+    },
+    {
+      "path": "config/architecture.json",
+      "bytes": 4872,
+      "sha256": "a9aea9f3d317964ee079deaca479bb4e33ada8d5b5babe2751954130583f1074"
+    },
+    {
+      "path": "bin/geometry",
+      "bytes": 137384,
+      "sha256": "e93ac213edb768245ccc2e1ac7d9ca4a40a1d43b709c65ac546200c86d741f98"
+    },
+    {
+      "path": "bin/hbserve",
+      "bytes": 794280,
+      "sha256": "9b149d1fdf3fd81501903a2016dbc5b59d4ecb1cdb805cd28ffdc88b76dbceb9"
+    },
+    {
+      "path": "workflow/audit_sparse_activity_r1.py",
+      "bytes": 6949,
+      "sha256": "8846348b32f8743c03024ab5858d481d6c15e1085ffc776237135c10e53f3997"
+    },
+    {
+      "path": "workflow/audit_sparse_activity_r2.py",
+      "bytes": 7179,
+      "sha256": "1bd0c4fe66aa4bf94e5dc1cdf3841b53a7a2d217d05385b75ced0a2248c46073"
+    },
+    {
+      "path": "workflow/audit_structural_oracle_coverage_r1.py",
+      "bytes": 6160,
+      "sha256": "af0f10256c25fa88017ea7984ce9c1b4b545724a1ca6d91b03d7902d36618ff6"
+    },
+    {
+      "path": "workflow/audit_structural_oracle_coverage_r2.py",
+      "bytes": 6470,
+      "sha256": "82bdfeb72154e92d956c6557edf47641ed78bba0b893fdd8aecf3cc41748fc99"
+    },
+    {
+      "path": "workflow/audit_template_coverage.py",
+      "bytes": 8319,
+      "sha256": "a7231c51be3f4ed491ee0f277420dc00874ac5d33a3531d0f841edf59ef415ae"
+    },
+    {
+      "path": "workflow/build_sparse_cta_plans.py",
+      "bytes": 5319,
+      "sha256": "b0350eba80c8b7a8e5025952cb1fe5f53a3adaf81b66386b751ef4b0a475cb6b"
+    },
+    {
+      "path": "workflow/build_sparse_cta_plans_complete_small_r4.py",
+      "bytes": 6386,
+      "sha256": "56c8af854edabd8bde14409fc7a3ee353f1d27b38bb814fc1072ae4539dcb60c"
+    },
+    {
+      "path": "workflow/build_sparse_cta_plans_r2.py",
+      "bytes": 5320,
+      "sha256": "d1db57e692cff81da544694fe970144161c9f4cb44ecff262b12af028a09170b"
+    },
+    {
+      "path": "workflow/build_sparse_cta_plans_r3.py",
+      "bytes": 5321,
+      "sha256": "dd45decd5e8d48cbee5d9cbac56b336265806f441cd94015d0ad2f527981bc0c"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_packed_r7.py",
+      "bytes": 81023,
+      "sha256": "a9c510a9d1064114c0b8a3df9cfd12a417f32427b9aa783ae6d5391d3c0235b3"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_packed_sequence_floor_exact_r10.py",
+      "bytes": 86445,
+      "sha256": "190ab856c81e15ba8eb6608540300218af491326e4296c330dbcb46443f23c8e"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_packed_sequence_floor_r9.py",
+      "bytes": 86140,
+      "sha256": "e8358b8ce916f615dcea99e7cb8148201b1fae87c3b28e081c2447e4fa4149c7"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_packed_sequence_r8.py",
+      "bytes": 82477,
+      "sha256": "e46bd262fcb644ac410bf71e54e8eb1718a5a2967ce4f5b2b463fa22f8dc8080"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_r2.py",
+      "bytes": 72160,
+      "sha256": "b7389848842669aba1e486fefe5aff4ba6854afe5556c9d2355f6835e79539ff"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_r3.py",
+      "bytes": 76659,
+      "sha256": "0597adb11d47983c9cb0612cf5b7f5e89c49474b395a43189166c7fe2dea4f01"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_r4.py",
+      "bytes": 78776,
+      "sha256": "68753ab7e5c2145d1cc1104dc0471318df261841522482a0297db9c972bbc4b5"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_r5.py",
+      "bytes": 80699,
+      "sha256": "3fe1748d4f323f5a86d9a7bdde5ab453b94a2715529f0dc7a56a55b3b6839277"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_global_lower_r6.py",
+      "bytes": 80754,
+      "sha256": "9158d9058df6c3875bd23b6f205b97b8fc24f24e67a0f6c9fec3c0401f3fd26e"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_profile_rules_r11.py",
+      "bytes": 91228,
+      "sha256": "dbad1c948f2740ffb964f1dcbcf0c3199c18a0933c8e072281431f50eba0aebb"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_profile_rules_r12.py",
+      "bytes": 96949,
+      "sha256": "25464d853c79df2da1cbfe9649c7ee3f39753666b7af88a527d115752e7fbfaa"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_profile_rules_r13.py",
+      "bytes": 96658,
+      "sha256": "fe03fe37bd9a5577bfd6bbf2aaa39bbb8d7ce9ec81f0ac46e583bd162db1e333"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_profile_rules_r14.py",
+      "bytes": 100208,
+      "sha256": "7f664a355e5e2a36ed22aea53bbb31ebecc0e6bd05b2ea7f170800b7ecdb9ee2"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_profile_rules_r15.py",
+      "bytes": 105929,
+      "sha256": "2c660c9f190ffd947896fc11e7e67a37333f90d7e12e0d9bf119e7fb5dc74544"
+    },
+    {
+      "path": "workflow/hyfiss_sampled_sass_trace_r1.py",
+      "bytes": 67537,
+      "sha256": "93e8b02991420acc95e31d06b8658b612e662552aa55daebcc20914d29af2fce"
+    },
+    {
+      "path": "workflow/inspect_sparse_profile_slot_r1.py",
+      "bytes": 2265,
+      "sha256": "79daf80b8caa75df790f42ae0f3f420db4bed3e78a69883a27ba4b964c1e37f6"
+    },
+    {
+      "path": "workflow/make_stream_cache_smoke_ordered_r4.py",
+      "bytes": 7151,
+      "sha256": "1624ff788febceca2db142f54abaa75d4bb246556128b90ed264d78abe2f10bc"
+    },
+    {
+      "path": "workflow/make_stream_cache_smoke_packed_r3.py",
+      "bytes": 6825,
+      "sha256": "725febe266e01a3c9399ae823b10c79faeb3d684acccaac5fd0d2bef13d6c891"
+    },
+    {
+      "path": "workflow/make_stream_cache_smoke_r1.py",
+      "bytes": 5254,
+      "sha256": "fb39e597d600051c74caeeacb5eea401744cc5fc9f92415ac4db9f1e558b3982"
+    },
+    {
+      "path": "workflow/make_stream_cache_smoke_r2.py",
+      "bytes": 6339,
+      "sha256": "7dd90d30c0bdc117b9bc46abc53276c32492969f0355c2ebc7f27d21069ae53d"
+    },
+    {
+      "path": "workflow/make_stream_cache_smoke_ring_r5.py",
+      "bytes": 8382,
+      "sha256": "06f45828e409a6ce2a8584a0c6aec044c55956e18dd0366738d291418cb67118"
+    },
+    {
+      "path": "workflow/run_generated_cache_cell_packed_r2.py",
+      "bytes": 19999,
+      "sha256": "936b1e919b514ad855f9c0828e4afd9feee0dca96f54f93f4409af6cd6468619"
+    },
+    {
+      "path": "workflow/run_generated_cache_cell_r1.py",
+      "bytes": 19309,
+      "sha256": "9d00e9325a607354020a77b356960afcd9542d096737dfd52ae4d81e92d8b19c"
+    },
+    {
+      "path": "workflow/run_hyfiss_full_phase_profile_census_r1.py",
+      "bytes": 16551,
+      "sha256": "ad2527f40c378322c6be2e0946e0467fb87277c931261f9663f7b37bc638b197"
+    },
+    {
+      "path": "workflow/run_ncu_range_single_r1.py",
+      "bytes": 12783,
+      "sha256": "9dd9c07187d2d10f362cf3e16e1b4f63cdf01628769acfb70dc73a3ab2ce5039"
+    },
+    {
+      "path": "workflow/run_p64_sparse_sample.py",
+      "bytes": 5580,
+      "sha256": "414bddce067fcd57cd6a34c71d5c11acc025460edf5589ccb87d22dc04ef4a4a"
+    },
+    {
+      "path": "workflow/run_p64_sparse_sample_r2.py",
+      "bytes": 5580,
+      "sha256": "6ef2685055c16e9625d6e276fdf622daa5e5480ac2bba74933c2863742410c60"
+    },
+    {
+      "path": "workflow/run_p64_sparse_sample_r3.py",
+      "bytes": 5580,
+      "sha256": "7badf582d8846cc158e01c391f4e51ff23418376f78d1a0707a0ea180bbfdb88"
+    },
+    {
+      "path": "workflow/run_parallel_placement_matrix.py",
+      "bytes": 5099,
+      "sha256": "53d4c84dd8d09fee24413272a95e3280173f9f42e1b0d0939b9f6f08444aff31"
+    },
+    {
+      "path": "workflow/run_parallel_placement_matrix_r2.py",
+      "bytes": 5203,
+      "sha256": "a47b8892a0e9d5aa29fcdd2b735201284fd9a0d24db423d6b7fcf5c5feb51676"
+    },
+    {
+      "path": "workflow/run_parallel_placement_matrix_r3.py",
+      "bytes": 5275,
+      "sha256": "5559226e005b502dfdac8e1d251f6e1f256f0d839e6d13dfe100490472fee44a"
+    },
+    {
+      "path": "workflow/run_parallel_placement_validation.py",
+      "bytes": 3486,
+      "sha256": "c485c1f503c6b956cd61f8e2d383ee6dcbdbb8632e2eea4ff9c6a8ef88d21fce"
+    },
+    {
+      "path": "workflow/run_parallel_placement_validation_r2.py",
+      "bytes": 3769,
+      "sha256": "6c2163074525a38746867c0b7cd7af19d98da42511d1437cf19c430a6d0d8c35"
+    },
+    {
+      "path": "workflow/run_parallel_sparse_samples.py",
+      "bytes": 6408,
+      "sha256": "a77f6c48d1581315995acf274dcfc0e05577d57cc878e09d327bdcdf5902adb0"
+    },
+    {
+      "path": "workflow/run_single_sparse_sample_r1.py",
+      "bytes": 6101,
+      "sha256": "dea513a6d44423da0c3ddf94a417f475bd19b179cd26f1b87e52f6b8e8f05470"
+    },
+    {
+      "path": "workflow/run_single_sparse_sample_r2.py",
+      "bytes": 6312,
+      "sha256": "1d254f6d2c4bdde9b22c8de73988266b125acccff706e03ada2143218fef548f"
+    },
+    {
+      "path": "workflow/run_workload_profiles_bounded_parallel_r6.py",
+      "bytes": 14394,
+      "sha256": "4401d4a5aa9803aebde1e70f2e45e538e5da80f82a7876eb020af6845b125776"
+    },
+    {
+      "path": "workflow/run_workload_profiles_packed_r2.py",
+      "bytes": 9437,
+      "sha256": "05a8085c708e1131d814581efc9a86aad33747ca6d2353246daf363861677097"
+    },
+    {
+      "path": "workflow/run_workload_profiles_packed_sequence_r3.py",
+      "bytes": 9487,
+      "sha256": "cda2cf68bba3bbc36d78b68ad52a737807d729193d8a880f3f9b79b6aa912269"
+    },
+    {
+      "path": "workflow/run_workload_profiles_parallel_r5.py",
+      "bytes": 12980,
+      "sha256": "2c8106ac27082103fdb922f480ea31f4108442323623f995d50862244fbe4eea"
+    },
+    {
+      "path": "workflow/run_workload_profiles_promote_r4.py",
+      "bytes": 10784,
+      "sha256": "3756ba606f2a1f6b80cacdb70241eefebfc02a58e899cdf617309d6478eab024"
+    },
+    {
+      "path": "workflow/run_workload_profiles_r1.py",
+      "bytes": 8723,
+      "sha256": "11ff87caaf7fcf4170eeda5aa7b1f6f7d20415f65d1741b39879b61433722f94"
+    },
+    {
+      "path": "workflow/validate_placement_capture.py",
+      "bytes": 11044,
+      "sha256": "cae4f663f440de677c88de7ec79373ff9d7d86eb0590d00dec2d82b78e6c9337"
+    },
+    {
+      "path": "workflow/validate_sparse_sample_r1.py",
+      "bytes": 18575,
+      "sha256": "d98d822062d2d0a684a5123758e59a6ab5aabcac2c3f9e25d5f47e5fb6552cde"
+    },
+    {
+      "path": "workflow/validate_sparse_sample_r2.py",
+      "bytes": 20309,
+      "sha256": "8064ca4c9ad7aa0057d00ea38c8e511ebe1589ed412c3e64d66aa9dd1fca4a8a"
+    },
+    {
+      "path": "fixtures/real-prefix2/app.config",
+      "bytes": 59271,
+      "sha256": "23d8c29c2b560a7bcdb912a7c4662693d8f7fa22e24785ad5f4767430e8eee5f"
+    },
+    {
+      "path": "fixtures/real-prefix2/finish.json",
+      "bytes": 2430,
+      "sha256": "1650c7ae5af477c3ffd7a3c031addd45b2b2d99c2ea2899488955ca8b05ea87a"
+    },
+    {
+      "path": "fixtures/real-prefix2/issue.config",
+      "bytes": 101009,
+      "sha256": "9530346adcff6fc094a521b090c5b1cad9a547dc458838923f0bcb3a587d2e46"
+    },
+    {
+      "path": "fixtures/real-prefix2/original-profiles.index.jsonl",
+      "bytes": 1491,
+      "sha256": "ba4f2db2f133166ba4f69cb607c8c00fffceeb556e59b2afd98cc1c3b44faf10"
+    },
+    {
+      "path": "fixtures/real-prefix2/profiles.index.jsonl",
+      "bytes": 1501,
+      "sha256": "7da97f1778f239c3f635211c22c9f7345ada251dc9460c436605c37c7eeb2d56"
+    },
+    {
+      "path": "fixtures/real-prefix2/profiles.pack.zstframes",
+      "bytes": 1337935,
+      "sha256": "4dc89eb67a9d0b589b4359c7425956aea8a94c90e24782e5aad3009b31fb5283"
+    },
+    {
+      "path": "fixtures/smoke/configs/app.config",
+      "bytes": 370,
+      "sha256": "2f5e24365adbdb771066c1a0e5e73a987e948701db40d34d628a87adaff378fe"
+    },
+    {
+      "path": "fixtures/smoke/configs/issue.config",
+      "bytes": 93,
+      "sha256": "9797dfefdcd692a1705cfcaa5fe2acab0b7d2026c82915dffd62b7f04328baae"
+    },
+    {
+      "path": "fixtures/smoke/expected.json",
+      "bytes": 969,
+      "sha256": "28ae8ec768ae5d998580d265911f6ed2468b962ae703324c50a7852960202167"
+    },
+    {
+      "path": "fixtures/smoke/manifest.json",
+      "bytes": 1394,
+      "sha256": "d0b91da32749d5c82d5dcc7851d30f764599f0ece1589429a38c891fddf1daed"
+    },
+    {
+      "path": "fixtures/smoke/objects.tsv",
+      "bytes": 15,
+      "sha256": "da667e6fed09dcc4a752353937fb995a1ea954e0b0661b35c051cae2a18b8809"
+    },
+    {
+      "path": "fixtures/smoke/profiles.index.jsonl",
+      "bytes": 586,
+      "sha256": "93b9da8b1f15062a4343632aca1ce9bf2d7d0a96ae91fe30c655135126161e1a"
+    },
+    {
+      "path": "fixtures/smoke/profiles.pack.jsonl",
+      "bytes": 1219,
+      "sha256": "1713c54d2f97c55b319149c35ff7a6b3e7df567cde371fa34cdd12d9483dd17c"
+    },
+    {
+      "path": "provenance/backend-parent-finish.json",
+      "bytes": 9282,
+      "sha256": "50242c959c3b6740b19dceddf67ad0a0d0413057f953f3f37ef224b02280ecec"
+    },
+    {
+      "path": "provenance/compiler.txt",
+      "bytes": 246,
+      "sha256": "9eaf9b7f4b11c2e84e2478c2ceb0e4f48f4ba88565bcfc832b3bce49847dda6d"
+    },
+    {
+      "path": "provenance/ldd.txt",
+      "bytes": 524,
+      "sha256": "af91d6142209bfc68f2ff034c446aaf99ae0cc77e1f6abf1e1b470f1728d771c"
+    },
+    {
+      "path": "provenance/mpi.txt",
+      "bytes": 80,
+      "sha256": "4534cc2d3e419b5fe66cb6e6fb0adecbbf92958d8cf5b04e1208d3f165dea9a1"
+    },
+    {
+      "path": "provenance/runtime-libraries.json",
+      "bytes": 975,
+      "sha256": "d50ba8f20fc30dcbbe6216f5ca8724d38d5fd6f45dd0658a61934c10ebc3a094"
+    }
+  ],
+  "workflow_entry": "bin/hbserve",
+  "configuration": "config/RTX4000Ada.paper-v1.config",
+  "input_contract": "Use an admitted workload-specific packed index and app/issue configs. Index pack paths are absolute; relocate by preserving frame bytes and hashes and writing a new index.",
+  "frozen_runtime": "include-local=false; observe-cache=true; summary-only; 32B sectors; writeback; no drain/streaming fill; cross-kernel L2; zero fill latency",
+  "hardware_acceptance": false
+}

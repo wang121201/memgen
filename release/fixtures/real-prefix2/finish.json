@@ -1,0 +1,49 @@
+{
+  "claim_boundary": "Dense kernel prefix for bounded cache A/B only; it is not a full inference result and does not duplicate the packed profile payload",
+  "created_utc": "2026-09-15T13:43:49.597334+00:00",
+  "inputs": {
+    "app_config": {
+      "bytes": 7792674,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/llama3-8b-p512d16-hbserve-memgen-20260914-01a06837-r1/sample-r1/configs/app.config",
+      "sha256": "fbf6f5088a53fb54936054ad5e29eed75256591c0f9ea287c297069576a3fa51"
+    },
+    "issue_config": {
+      "bytes": 656902993,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/llama3-8b-p512d16-hbserve-memgen-20260914-01a06837-r1/sample-r1/configs/issue.config",
+      "sha256": "c4dc605672ba57820a4965c8db5e60a99d0a7bc5a37b661dc8419d8b7738df27"
+    },
+    "profile_index": {
+      "bytes": 8644298,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/llama3-8b-p512d16-hbserve-memgen-20260914-01a06837-r1/profiles-r3/profiles.index.jsonl",
+      "sha256": "acf3921f885f41fbb726c78f96f62e74e657786994e7d2cde2200f162c280bfb"
+    },
+    "referenced_profile_payloads": [
+      {
+        "bytes": 4471845835,
+        "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/llama3-8b-p512d16-hbserve-memgen-20260914-01a06837-r1/profiles-r3/profiles.pack.zstframes",
+        "sha256": "355ec4fd23f571c0115c52e56933f0d68358095fbd8b41b66103a50b2397fd98"
+      }
+    ]
+  },
+  "kernel_count": 2,
+  "outputs": {
+    "app_config": {
+      "bytes": 59271,
+      "path": "/home/xmu/nvidiagds/codex-runs/l2-cache-solid-20260915-01a0a3f1-r1/mshr-ab-r1/real-prefix-k2-r2/app.config",
+      "sha256": "23d8c29c2b560a7bcdb912a7c4662693d8f7fa22e24785ad5f4767430e8eee5f"
+    },
+    "issue_config": {
+      "bytes": 101009,
+      "path": "/home/xmu/nvidiagds/codex-runs/l2-cache-solid-20260915-01a0a3f1-r1/mshr-ab-r1/real-prefix-k2-r2/issue.config",
+      "sha256": "9530346adcff6fc094a521b090c5b1cad9a547dc458838923f0bcb3a587d2e46"
+    },
+    "profile_index": {
+      "bytes": 1491,
+      "path": "/home/xmu/nvidiagds/codex-runs/l2-cache-solid-20260915-01a0a3f1-r1/mshr-ab-r1/real-prefix-k2-r2/profiles.index.jsonl",
+      "sha256": "ba4f2db2f133166ba4f69cb607c8c00fffceeb556e59b2afd98cc1c3b44faf10"
+    }
+  },
+  "placement_tuple_count": 4608,
+  "schema": "hbserve_packed_profile_dense_prefix_view_v1",
+  "status": "PASS_PREFIX_VIEW_CREATED_NO_PROFILE_PAYLOAD_COPIED"
+}

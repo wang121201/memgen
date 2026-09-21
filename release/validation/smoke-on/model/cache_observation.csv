@@ -1,0 +1,7 @@
+row_id,kernel_id,phase,sm,opcode_class,memory_space,semantic_id,dynamic_instructions,active_lanes,lane_addresses,source_sectors,source_read_sectors,source_write_sectors,source_atomic_sectors,l1_requests,l1_hit,l1_hit_reserved,l1_line_miss,l1_sector_miss,l1_bypass,l2_requests,l2_read_requests,l2_write_requests,l2_atomic_requests,l2_hit,l2_hit_reserved,l2_line_miss,l2_sector_miss,dirty_created_sectors,redirty_sectors,victim_lines,clean_victim_lines,dirty_victim_lines,dirty_evicted_sectors,dram_read_fill_sectors,dram_writeback_emitted_sectors,l1_actual_lookups,l1_read_bypass_requests,incomplete_writeback_sectors,writeback_known_bytes,writeback_missing_bytes,cleaned_retained_sectors
+0,1,prefill,1,LDG,global,0,1,32,32,4,4,0,0,4,0,0,1,3,0,4,4,0,0,0,0,1,3,0,0,0,0,0,0,4,0,4,0,0,0,0,0
+1,1,prefill,1,STG,global,0,1,32,32,4,0,4,0,0,0,0,0,0,4,4,0,4,0,4,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0
+2,1,prefill,0,STG,global,0,1,32,32,4,0,4,0,0,0,0,0,0,4,4,0,4,0,0,0,1,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0
+3,1,prefill,0,LDG,global,0,1,32,32,4,4,0,0,4,0,0,1,3,0,4,4,0,0,4,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0
+4,2,decode_step_0,1,LDG,global,0,1,4,4,1,1,0,0,1,0,0,1,0,0,1,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0
+5,2,decode_step_0,0,LDG,global,0,1,4,4,1,1,0,0,1,0,0,1,0,0,1,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0

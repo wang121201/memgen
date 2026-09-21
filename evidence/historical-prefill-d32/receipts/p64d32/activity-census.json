@@ -1,0 +1,289 @@
+{
+  "definition": {
+    "boundary": "unselected CTAs remain unknown; repeated sampled patterns do not prove a full-grid activity map",
+    "missing_cta": "a CTA named in the plan with no persisted memory instruction; this is not a transport loss because capture conservation is validated separately",
+    "observed_cta": "a CTA named in the frozen sample plan that produced at least one persisted MEMCv3 instruction"
+  },
+  "inputs": {
+    "app_config": {
+      "bytes": 9707458,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p64d32-r3/configs/app.config",
+      "sha256": "5f62066abfc3e14707e7cc94d6c06deb8a77d590a1961726893f3e492d8153d3"
+    },
+    "capture_receipt": {
+      "bytes": 4621,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p64d32-r3/configs/capture_receipt.json",
+      "sha256": "3d2b44836c0ab05c441bd2b2efc372633bf128893357a96ef92668f774762216"
+    },
+    "placement_validator": {
+      "bytes": 11044,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/validate_placement_capture.py",
+      "sha256": "cae4f663f440de677c88de7ec79373ff9d7d86eb0590d00dec2d82b78e6c9337"
+    },
+    "sample_plan": {
+      "bytes": 916633,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/sample-plans-r3/p64d32.tsv",
+      "sha256": "eb9b51884fe960ecca102c312c19daa4268de55553694a8afbeedce68d2fbd1d"
+    },
+    "sample_tool": {
+      "bytes": 67537,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/hyfiss_sampled_sass_trace_r1.py",
+      "sha256": "93e8b02991420acc95e31d06b8658b612e662552aa55daebcc20914d29af2fce"
+    },
+    "validation_tool": {
+      "bytes": 20309,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/source/validate_sparse_sample_r2.py",
+      "sha256": "8064ca4c9ad7aa0057d00ea38c8e511ebe1589ed412c3e64d66aa9dd1fca4a8a"
+    }
+  },
+  "kernel_count": 19258,
+  "kernels_with_missing": 249,
+  "kernels_with_no_sampled_records": 0,
+  "label": "p64d32",
+  "missing_ctas_by_phase": {
+    "prefill": 3127
+  },
+  "missing_sample_ctas": 3127,
+  "observed_sample_ctas": 234116,
+  "planned_sample_ctas": 237243,
+  "schema": "hyfiss_sparse_cta_activity_census_v1",
+  "status": "COMPLETE_ACTIVITY_CENSUS_NOT_FULL_GRID_ACTIVITY",
+  "structures_with_missing": [
+    {
+      "activity_patterns": [
+        {
+          "kernel_count": 83,
+          "missing": [
+            0,
+            1,
+            12,
+            24,
+            48,
+            60,
+            72,
+            96,
+            108,
+            120,
+            144,
+            156,
+            168
+          ],
+          "observed": [
+            35,
+            47,
+            83,
+            95,
+            131,
+            143,
+            179,
+            191
+          ]
+        },
+        {
+          "kernel_count": 56,
+          "missing": [
+            0,
+            1,
+            12,
+            24,
+            35,
+            48,
+            60,
+            72,
+            83,
+            96,
+            108,
+            120,
+            131,
+            144,
+            156,
+            168,
+            179
+          ],
+          "observed": [
+            47,
+            95,
+            143,
+            191
+          ]
+        },
+        {
+          "kernel_count": 54,
+          "missing": [
+            0,
+            24,
+            35,
+            48,
+            72,
+            83,
+            96,
+            120,
+            131,
+            144,
+            168,
+            179
+          ],
+          "observed": [
+            1,
+            12,
+            47,
+            60,
+            95,
+            108,
+            143,
+            156,
+            191
+          ]
+        }
+      ],
+      "kernel_count": 193,
+      "kernel_ids": [
+        4,
+        9,
+        13,
+        28,
+        33,
+        36,
+        40,
+        45,
+        50,
+        54,
+        69,
+        74,
+        77,
+        81,
+        86,
+        91,
+        95,
+        110,
+        115,
+        118,
+        122,
+        127,
+        132,
+        136,
+        151,
+        156,
+        159,
+        163,
+        168,
+        173,
+        177,
+        192
+      ],
+      "kernels_with_missing": 193,
+      "kernels_with_no_sampled_records": 0,
+      "memory_records": 406144,
+      "missing_ctas": 2679,
+      "observed_ctas": 1374,
+      "sampled_ctas": 4053,
+      "structure": {
+        "block_size": "128",
+        "grid_dim_x": "48",
+        "grid_dim_y": "4",
+        "grid_dim_z": "1",
+        "grid_size": "192",
+        "kernel_name": "void_mul_mat_q_stream_k_fixup<",
+        "num_registers": "48",
+        "shared_mem_bytes": "256",
+        "tb_dim_x": "32",
+        "tb_dim_y": "4",
+        "tb_dim_z": "1"
+      }
+    },
+    {
+      "activity_patterns": [
+        {
+          "kernel_count": 137,
+          "missing": [],
+          "observed": [
+            0,
+            1,
+            6,
+            12,
+            16,
+            24,
+            31,
+            35,
+            41,
+            46,
+            47
+          ]
+        },
+        {
+          "kernel_count": 56,
+          "missing": [
+            0,
+            1,
+            6,
+            12,
+            16,
+            24,
+            41,
+            46
+          ],
+          "observed": [
+            31,
+            35,
+            47
+          ]
+        }
+      ],
+      "kernel_count": 193,
+      "kernel_ids": [
+        3,
+        8,
+        12,
+        27,
+        32,
+        35,
+        39,
+        44,
+        49,
+        53,
+        68,
+        73,
+        76,
+        80,
+        85,
+        90,
+        94,
+        109,
+        114,
+        117,
+        121,
+        126,
+        131,
+        135,
+        150,
+        155,
+        158,
+        162,
+        167,
+        172,
+        176,
+        191
+      ],
+      "kernels_with_missing": 56,
+      "kernels_with_no_sampled_records": 0,
+      "memory_records": 6634704,
+      "missing_ctas": 448,
+      "observed_ctas": 1675,
+      "sampled_ctas": 2123,
+      "structure": {
+        "block_size": "256",
+        "grid_dim_x": "48",
+        "grid_dim_y": "1",
+        "grid_dim_z": "1",
+        "grid_size": "48",
+        "kernel_name": "void_mul_mat_q<",
+        "num_registers": "168",
+        "shared_mem_bytes": "48384",
+        "tb_dim_x": "32",
+        "tb_dim_y": "8",
+        "tb_dim_z": "1"
+      }
+    }
+  ],
+  "unique_structures": 35
+}

@@ -1,0 +1,1 @@
+producer_row_id,eviction_trigger_row_id,dirty_birth_epoch,emission_epoch,admission_epoch,completion_epoch,emitted_bytes,event_kind,classification_row_id

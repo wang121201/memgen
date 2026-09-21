@@ -1,0 +1,17 @@
+[
+  "mpic++",
+  "-std=c++17",
+  "-O2",
+  "-ffunction-sections",
+  "-fdata-sections",
+  "-Wl,--gc-sections",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp",
+  "-l:libzstd.so.1",
+  "-lz",
+  "-lboost_mpi",
+  "-lboost_serialization",
+  "-lcrypto",
+  "-pthread",
+  "-o",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/bin/hbserve"
+]

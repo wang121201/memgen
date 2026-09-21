@@ -1,0 +1,17 @@
+{
+"status":"PASS_FUNCTIONAL_OBSERVATION",
+"hardware_acceptance":"DIAGNOSTIC_NOT_HARDWARE_ACCEPTANCE",
+"scope":"accepted ordered memory instructions only; unsupported/excluded clients require input census",
+"semantic_instruction_rule":"unique sector semantic id; -1=mixed; 0=unknown; no duplicated instructions",
+"epoch_definition":"kernel id in ordered replay; emission is a functional event, not service completion",
+"retained_clean_definition":"explicit internal event; classification SM/opcode/space/semantic are dirty producer provenance; eviction trigger null; no source instruction or lookup; valid mask retained; automatic policy disabled",
+"line_hit_definition":"l2_requests minus l2_line_miss (includes sector miss); sector hit excludes reserved",
+"l1_legacy_definition":"l1_requests includes read bypass as synthetic sector miss; actual_l1_lookups excludes all bypass",
+"sector_bytes":32,
+"classification_residual_bytes":0,
+"resident_residual_bytes":0,
+"producer_trigger_emission_residual_bytes":0,
+"full_raw_trace_bytes":0,
+"queued_dirty":null,"inflight_dirty":null,"dram_writeback_admitted":null,"dram_writeback_completed":null,
+"physical_service_status":"NOT_IMPLEMENTED","total_dirty_debt_check":"NOT_EVALUABLE",
+"totals":{"dynamic_instructions":6,"active_lanes":136,"lane_addresses":136,"source_sectors":18,"source_read_sectors":10,"source_write_sectors":8,"source_atomic_sectors":0,"l1_requests":10,"l1_hit":0,"l1_hit_reserved":0,"l1_line_miss":4,"l1_sector_miss":6,"l1_bypass":8,"l2_requests":18,"l2_read_requests":10,"l2_write_requests":8,"l2_atomic_requests":0,"l2_hit":8,"l2_hit_reserved":0,"l2_line_miss":4,"l2_sector_miss":6,"dirty_created_sectors":8,"redirty_sectors":0,"victim_lines":0,"clean_victim_lines":0,"dirty_victim_lines":0,"dirty_evicted_sectors":0,"dram_read_fill_sectors":6,"dram_writeback_emitted_sectors":0,"l1_actual_lookups":10,"l1_read_bypass_requests":0,"incomplete_writeback_sectors":0,"writeback_known_bytes":0,"writeback_missing_bytes":0,"cleaned_retained_sectors":0}}

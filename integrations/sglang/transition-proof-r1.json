@@ -1,0 +1,783 @@
+{
+  "updated_utc": "2026-09-19T19:42:16Z",
+  "sources": [
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/qwen25_1p5b-p128-d32-sampled-chain-r1-launch.json",
+      "bytes": 1791,
+      "sha256": "24089e9f9f01d1e24fd8387959f5631da0929616e61e372f32716f2095bef8a7"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/qwen25_1p5b-p128-d32-sampled-chain-r1/progress.json",
+      "bytes": 252,
+      "sha256": "d524ab179b77769c697f8ec295f8cdf77c4e8290f5390245db44f348a858373b"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/prepare.json",
+      "bytes": 1439,
+      "sha256": "d7b53a49bd352d6b09ce285a2c5c0d9fab95a90bb9ab5bcd05a253261a214005"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/build.json",
+      "bytes": 9679,
+      "sha256": "3f97b4e77f5a935c27924846fb3b9110cdd5696eab526976feafd2afe2c60638"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/observers/qwen25_1p5b-p128-d32-census-r2/process-2732898-884539149/finish.json",
+      "bytes": 5041,
+      "sha256": "299f7803cb1d25bd7deda707915b83655c8f0840f058a072ac980169b35f4af0"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-launch-r1.json",
+      "bytes": 4494,
+      "sha256": "3cff7e1d50d429180b8ab53ba25c40a8b61f02a1f051447321cbfebbb02535e8"
+    }
+  ],
+  "sample_chain_launch": {
+    "status": "STARTED_DEPENDENCY_WAITER_NOT_SAMPLE_COMPLETE",
+    "pid": 2741915,
+    "argv": [
+      "/usr/bin/taskset",
+      "-c",
+      "8",
+      "/home/xmu/sgl/bin/python",
+      "-B",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/memgen-adapter-r1/wait_then_sample.py",
+      "--census-job-finish",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/runs/qwen25_1p5b-p128-d32-memgen-census-r3/job-finish.json",
+      "--observer-root",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/observers/qwen25_1p5b-p128-d32-census-r3",
+      "--host-root",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/runs/qwen25_1p5b-p128-d32-memgen-census-r3/host",
+      "--sources",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1",
+      "--observer-binary",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.so",
+      "--controller",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/run_job.py",
+      "--output",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/qwen25_1p5b-p128-d32-sampled-chain-r1",
+      "--cache-directory",
+      "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/memgen-cache-qwen25_1p5b",
+      "--wait-seconds",
+      "2400",
+      "--sample-seconds",
+      "7200",
+      "--memgen-seconds",
+      "21600"
+    ],
+    "started_utc": "2026-09-19T19:41:39Z"
+  },
+  "sample_chain_progress": {
+    "status": "WAITING_CENSUS",
+    "CPU_pool": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "CPU": 8,
+    "GPU": "GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13",
+    "stages": []
+  },
+  "compact_prepare": {
+    "status": "PASS_PRIVATE_SOURCE_PREPARED_NOT_BUILT",
+    "observer": {
+      "source": "/home/xmu/nvidiagds/codex-runs/hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r6/nvbit_observer_r3",
+      "destination": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer",
+      "source_manifest": {
+        "bytes": 1931,
+        "sha256": "073be128f6f4eb8d47084741daad29f8c772ecb820ccc88dfc261dd5d012c7dd"
+      },
+      "manifest": {
+        "bytes": 2587,
+        "sha256": "922a407fd479d6fc26342829a5cf5dc967b58cb63eb9668ce4c00f1219790e86"
+      }
+    },
+    "sampler": {
+      "source": "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-sparse-20260919-01a08d87-r5/nvbit_sampler_r4",
+      "destination": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/upstream/nvbit_sampler_r4",
+      "source_manifest": {
+        "bytes": 4867,
+        "sha256": "e839535da020d9fc372facc190d045d04296caf0ceed2d085fb5f22f4519b0c7"
+      },
+      "manifest": {
+        "bytes": 5492,
+        "sha256": "cc0444eab9589b9a56fca3957ce85cdf38c47545f048e892af6e8ce645953453"
+      }
+    },
+    "original_sources_modified": false,
+    "GPU_executed": false,
+    "dynamic_wire_cap_unchanged": 8589934592,
+    "postprocess_record_cap_unchanged": 12000000,
+    "warning": "Host metadata bounds are capacities only; runtime budgets remain explicit."
+  },
+  "compact_build": {
+    "schema": "SG_NVBIT_OBSERVER_BUILD_V1",
+    "status": "PASS_BUILD_ONLY_NO_GPU",
+    "GPU_run": false,
+    "original_files_modified": false,
+    "inputs": [
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer/observer.cu",
+        "bytes": 35691,
+        "sha256": "a2ca02f7c24aa0ce82b2987656287bdbc778bf5f9fb6a0c83bddcfbb1ee3a8c8"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer/build.py",
+        "bytes": 4590,
+        "sha256": "f4c290b9ab34741a30c69131cb42810861217583d6f7c4e3dcdfb98076048b54"
+      },
+      {
+        "path": "/usr/local/cuda-12.8/bin/nvcc",
+        "bytes": 24803880,
+        "sha256": "3aadf006f53dd288a372b2c4fabd46df1caa25aacd2e60964d7a26af25e91517"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/libnvbit.a",
+        "bytes": 2852378,
+        "sha256": "bd5fd2f02331c75372440fde85e2fddefb6795a2b2058fa0f2bf4f6cf2645913"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/cuda.h",
+        "bytes": 1145929,
+        "sha256": "b7dd24919990c4ebce0b311163eb330a55227335e7e23ef2af4f0800fd3ab620"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/generated_cuda_meta.h",
+        "bytes": 106473,
+        "sha256": "8ebecd97c4796c801fa58d55e2dcbd7abd5d676342f8687f47221881050abe90"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/instr_types.h",
+        "bytes": 4943,
+        "sha256": "97250d4ecef29ec6de03d7a2da9af154fadec9d9bcc6798de1c1fd754a482473"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit.h",
+        "bytes": 17410,
+        "sha256": "70348229ac8324e0b498fe546b980e5541a78481bbe3c62c4d67c429508b9773"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_reg_rw.h",
+        "bytes": 3534,
+        "sha256": "79854c7a13af635005694edabf99b8da28f90d54b550400e7115667f727e7fe5"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_tool.h",
+        "bytes": 3118,
+        "sha256": "c027a4442277d3a0721cae8af9356ac41ebc719905a55569bb83834fcdbb4bf5"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/tools_cuda_api_meta.h",
+        "bytes": 75170,
+        "sha256": "1be7ecc9daf8d2cd1ffee2fdb6771bc9585759e162ab317504d5d2fe8ecee4c6"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/channel.hpp",
+        "bytes": 8265,
+        "sha256": "0db6353681fbb45c891b30104d3848c177fae724239471cc24e4dba576952ac4"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/utils.h",
+        "bytes": 5244,
+        "sha256": "49922ad83b16e98e6bfe61ca1e3091eb627a2150c59183e723c45b46a180c9e7"
+      }
+    ],
+    "steps": [
+      {
+        "name": "host",
+        "argv": [
+          "/usr/local/cuda-12.8/bin/nvcc",
+          "-dc",
+          "-c",
+          "-std=c++11",
+          "-I/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit",
+          "-Xptxas",
+          "-cloning=no",
+          "-Xcompiler",
+          "-Wall",
+          "-gencode",
+          "arch=compute_89,code=sm_89",
+          "-O3",
+          "-Xcompiler",
+          "-fPIC",
+          "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer/observer.cu",
+          "-o",
+          "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.o"
+        ],
+        "returncode": 0,
+        "seconds": 4.883283386006951,
+        "stdout": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/host.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/host.stderr",
+          "bytes": 1617,
+          "sha256": "dad93e71e5a1ec38ddb0c468bd35174aa9609af6863f0356b21373fac22e12cc"
+        }
+      },
+      {
+        "name": "link",
+        "argv": [
+          "/usr/local/cuda-12.8/bin/nvcc",
+          "-gencode",
+          "arch=compute_89,code=sm_89",
+          "-O3",
+          "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.o",
+          "-L/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit",
+          "-lnvbit",
+          "-L/usr/local/cuda-12.8/lib64",
+          "-lcuda",
+          "-lcudart_static",
+          "-lcrypto",
+          "-lpthread",
+          "-ldl",
+          "-shared",
+          "-o",
+          "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.so"
+        ],
+        "returncode": 0,
+        "seconds": 0.16670729778707027,
+        "stdout": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/link.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/link.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "symbols",
+        "argv": [
+          "/usr/bin/nm",
+          "-D",
+          "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.so"
+        ],
+        "returncode": 0,
+        "seconds": 0.06793790124356747,
+        "stdout": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/symbols.stdout",
+          "bytes": 141540,
+          "sha256": "995dd8e99fedeba4987a748a72f8e73b0da78851389ef01188527ba10fec2440"
+        },
+        "stderr": {
+          "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/symbols.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    ],
+    "binary": {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-observer-build-r1/observer.so",
+      "bytes": 2741496,
+      "sha256": "9e446ae7fe056805bb028205f7d2da0cd20356d917baf9af0d085f675fbcd285"
+    },
+    "inputs_after": [
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer/observer.cu",
+        "bytes": 35691,
+        "sha256": "a2ca02f7c24aa0ce82b2987656287bdbc778bf5f9fb6a0c83bddcfbb1ee3a8c8"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/observer/build.py",
+        "bytes": 4590,
+        "sha256": "f4c290b9ab34741a30c69131cb42810861217583d6f7c4e3dcdfb98076048b54"
+      },
+      {
+        "path": "/usr/local/cuda-12.8/bin/nvcc",
+        "bytes": 24803880,
+        "sha256": "3aadf006f53dd288a372b2c4fabd46df1caa25aacd2e60964d7a26af25e91517"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/libnvbit.a",
+        "bytes": 2852378,
+        "sha256": "bd5fd2f02331c75372440fde85e2fddefb6795a2b2058fa0f2bf4f6cf2645913"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/cuda.h",
+        "bytes": 1145929,
+        "sha256": "b7dd24919990c4ebce0b311163eb330a55227335e7e23ef2af4f0800fd3ab620"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/generated_cuda_meta.h",
+        "bytes": 106473,
+        "sha256": "8ebecd97c4796c801fa58d55e2dcbd7abd5d676342f8687f47221881050abe90"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/instr_types.h",
+        "bytes": 4943,
+        "sha256": "97250d4ecef29ec6de03d7a2da9af154fadec9d9bcc6798de1c1fd754a482473"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit.h",
+        "bytes": 17410,
+        "sha256": "70348229ac8324e0b498fe546b980e5541a78481bbe3c62c4d67c429508b9773"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_reg_rw.h",
+        "bytes": 3534,
+        "sha256": "79854c7a13af635005694edabf99b8da28f90d54b550400e7115667f727e7fe5"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_tool.h",
+        "bytes": 3118,
+        "sha256": "c027a4442277d3a0721cae8af9356ac41ebc719905a55569bb83834fcdbb4bf5"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/tools_cuda_api_meta.h",
+        "bytes": 75170,
+        "sha256": "1be7ecc9daf8d2cd1ffee2fdb6771bc9585759e162ab317504d5d2fe8ecee4c6"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/channel.hpp",
+        "bytes": 8265,
+        "sha256": "0db6353681fbb45c891b30104d3848c177fae724239471cc24e4dba576952ac4"
+      },
+      {
+        "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/utils.h",
+        "bytes": 5244,
+        "sha256": "49922ad83b16e98e6bfe61ca1e3091eb627a2150c59183e723c45b46a180c9e7"
+      }
+    ]
+  },
+  "failed_r2_observer": {
+    "schema": "sg_nvbit_observer_finish_v1",
+    "status": "FAIL_OR_UNSUPPORTED_METADATA_OBSERVER",
+    "reason": "observer_error",
+    "pid": 2732898,
+    "start_ticks": 884539149,
+    "output": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/observers/qwen25_1p5b-p128-d32-census-r2/process-2732898-884539149",
+    "launch_before_count": 5270,
+    "launch_return_count": 5270,
+    "launch_error_count": 0,
+    "unsupported_dispatch_count": 0,
+    "graph_node_callback_count": 0,
+    "unknown_launch_attribute_count": 0,
+    "unbound_launch_count": 133,
+    "context_count": 1,
+    "open_context_count": 0,
+    "epoch_begin_count": 15,
+    "epoch_end_count": 14,
+    "active_epoch": 15,
+    "function_count": 611,
+    "observed_launch_thread_count": 1,
+    "observed_stream_count": 1,
+    "marked_epoch_thread_count": 1,
+    "marked_epoch_stream_count": 1,
+    "internal_inspection_callback_count": 0,
+    "internal_inspection_dispatch_count": 0,
+    "metadata_bytes_before_finish": 268304302,
+    "max_total_bytes": 268435456,
+    "api_counts": {
+      "cuCtxGetCurrent": {
+        "before": 1816,
+        "return": 1816,
+        "errors": 0
+      },
+      "cuCtxGetDevice": {
+        "before": 36072,
+        "return": 36072,
+        "errors": 0
+      },
+      "cuCtxGetStreamPriorityRange": {
+        "before": 1,
+        "return": 1,
+        "errors": 0
+      },
+      "cuCtxPopCurrent_v2": {
+        "before": 2591,
+        "return": 2591,
+        "errors": 0
+      },
+      "cuCtxPushCurrent_v2": {
+        "before": 2591,
+        "return": 2591,
+        "errors": 0
+      },
+      "cuCtxSynchronize": {
+        "before": 31,
+        "return": 31,
+        "errors": 0
+      },
+      "cuDeviceGet": {
+        "before": 10,
+        "return": 10,
+        "errors": 0
+      },
+      "cuDeviceGetAttribute": {
+        "before": 1586,
+        "return": 1586,
+        "errors": 0
+      },
+      "cuDeviceGetCount": {
+        "before": 2,
+        "return": 2,
+        "errors": 0
+      },
+      "cuDeviceGetName": {
+        "before": 3,
+        "return": 3,
+        "errors": 0
+      },
+      "cuDeviceGetUuid": {
+        "before": 2,
+        "return": 2,
+        "errors": 0
+      },
+      "cuDevicePrimaryCtxGetState": {
+        "before": 10673,
+        "return": 10673,
+        "errors": 0
+      },
+      "cuDevicePrimaryCtxRetain": {
+        "before": 2,
+        "return": 3,
+        "errors": 0
+      },
+      "cuDeviceTotalMem_v2": {
+        "before": 2,
+        "return": 2,
+        "errors": 0
+      },
+      "cuDriverGetVersion": {
+        "before": 2,
+        "return": 2,
+        "errors": 0
+      },
+      "cuEventCreate": {
+        "before": 18,
+        "return": 18,
+        "errors": 0
+      },
+      "cuFuncGetAttribute": {
+        "before": 54,
+        "return": 54,
+        "errors": 0
+      },
+      "cuFuncSetAttribute": {
+        "before": 2319,
+        "return": 2319,
+        "errors": 0
+      },
+      "cuGetExportTable": {
+        "before": 14,
+        "return": 14,
+        "errors": 0
+      },
+      "cuGetProcAddress_v2": {
+        "before": 812,
+        "return": 812,
+        "errors": 0
+      },
+      "cuInit": {
+        "before": 3,
+        "return": 3,
+        "errors": 0
+      },
+      "cuKernelGetFunction": {
+        "before": 29,
+        "return": 29,
+        "errors": 0
+      },
+      "cuLaunchKernel": {
+        "before": 4438,
+        "return": 4438,
+        "errors": 0
+      },
+      "cuLaunchKernelEx": {
+        "before": 832,
+        "return": 832,
+        "errors": 0
+      },
+      "cuLibraryGetKernel": {
+        "before": 26,
+        "return": 26,
+        "errors": 0
+      },
+      "cuLibraryGetModule": {
+        "before": 2591,
+        "return": 2591,
+        "errors": 1254
+      },
+      "cuLibraryLoadData": {
+        "before": 2169,
+        "return": 2169,
+        "errors": 0
+      },
+      "cuMemAlloc_v2": {
+        "before": 104,
+        "return": 104,
+        "errors": 0
+      },
+      "cuMemFree_v2": {
+        "before": 1,
+        "return": 1,
+        "errors": 0
+      },
+      "cuMemGetInfo_v2": {
+        "before": 8,
+        "return": 8,
+        "errors": 0
+      },
+      "cuMemHostAlloc": {
+        "before": 5,
+        "return": 5,
+        "errors": 0
+      },
+      "cuMemcpyDtoDAsync_v2": {
+        "before": 38,
+        "return": 38,
+        "errors": 0
+      },
+      "cuMemcpyDtoHAsync_v2": {
+        "before": 34,
+        "return": 34,
+        "errors": 0
+      },
+      "cuMemcpyHtoDAsync_v2": {
+        "before": 438,
+        "return": 438,
+        "errors": 0
+      },
+      "cuMemsetD8Async": {
+        "before": 14,
+        "return": 14,
+        "errors": 0
+      },
+      "cuModuleGetFunction": {
+        "before": 43948,
+        "return": 43948,
+        "errors": 0
+      },
+      "cuModuleGetGlobal_v2": {
+        "before": 2377,
+        "return": 2377,
+        "errors": 0
+      },
+      "cuModuleGetLoadingMode": {
+        "before": 2,
+        "return": 2,
+        "errors": 0
+      },
+      "cuModuleLoadData": {
+        "before": 5,
+        "return": 5,
+        "errors": 0
+      },
+      "cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags": {
+        "before": 928,
+        "return": 928,
+        "errors": 0
+      },
+      "cuPointerGetAttribute": {
+        "before": 113,
+        "return": 113,
+        "errors": 0
+      },
+      "cuStreamCreateWithPriority": {
+        "before": 128,
+        "return": 128,
+        "errors": 0
+      },
+      "cuStreamIsCapturing": {
+        "before": 110,
+        "return": 110,
+        "errors": 0
+      },
+      "cuStreamSynchronize": {
+        "before": 432,
+        "return": 432,
+        "errors": 0
+      }
+    },
+    "errors": [
+      "observer total metadata quota",
+      "observer total metadata quota",
+      "observer total metadata quota",
+      "observer total metadata quota",
+      "observer total metadata quota",
+      "observer total metadata quota",
+      "observer total metadata quota"
+    ],
+    "files": [
+      {
+        "name": "launch-journal.jsonl",
+        "bytes": 19931136,
+        "sha256": "ff651768ab4416655a598f84ef0e7b24e5bef0e55d2f92635a4e86892067c2eb"
+      },
+      {
+        "name": "scope-journal.jsonl",
+        "bytes": 3266326,
+        "sha256": "c854c16bcd1b9a216ee5de9a0479eb4378d3d175a679c95fb9fa744aa61b07f4"
+      },
+      {
+        "name": "functions.jsonl",
+        "bytes": 794306,
+        "sha256": "02991c20ad5c39e88849f1f370ce500acc441fa3beae8d065449bd3be24ca211"
+      },
+      {
+        "name": "static-instructions.jsonl",
+        "bytes": 244157008,
+        "sha256": "c23ac823f1e3116c19ec15e598965083a5bd572c7bf67f33da6a274e5a499b73"
+      },
+      {
+        "name": "lifecycle.jsonl",
+        "bytes": 645,
+        "sha256": "711fe3998702b6ce1dcae37f284f37d84038b0fed103cc926539fa16e44814be"
+      },
+      {
+        "name": "allocation-journal.jsonl",
+        "bytes": 154881,
+        "sha256": "69eb7771ecfddc5301e3248b7693517884098fd84703a507c3304da67f7a561a"
+      }
+    ],
+    "dynamic_instrumentation": false,
+    "memory_addresses_captured": false,
+    "actual_sm_placement_captured": false,
+    "kernel_argument_values_captured": false,
+    "module_binary_hash_available": false,
+    "static_code_hash_is_decoded_sass_not_cubin": true,
+    "device_synchronization_inserted": false,
+    "gpu_memory_allocated_by_observer": false,
+    "native_callback_completeness_independently_proven": false,
+    "template_or_gtsim_admission": false,
+    "allocation_API_calls": 105,
+    "unparsed_allocation_API_calls": 0,
+    "complete_allocator_coverage": false
+  },
+  "census_r3_static_rows": {
+    "path": "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/observers/qwen25_1p5b-p128-d32-census-r3/process-2740355-884637021/static-instructions.jsonl",
+    "bytes": 0
+  },
+  "cache_queue_launch": [
+    {
+      "cpu": 2,
+      "pid": 2740332,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu2.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu2-state-r1"
+      ]
+    },
+    {
+      "cpu": 3,
+      "pid": 2740333,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu3.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu3-state-r1"
+      ]
+    },
+    {
+      "cpu": 4,
+      "pid": 2740334,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu4.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu4-state-r1"
+      ]
+    },
+    {
+      "cpu": 5,
+      "pid": 2740335,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu5.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu5-state-r1"
+      ]
+    },
+    {
+      "cpu": 10,
+      "pid": 2740336,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu10.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu10-state-r1"
+      ]
+    },
+    {
+      "cpu": 11,
+      "pid": 2740337,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu11.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu11-state-r1"
+      ]
+    },
+    {
+      "cpu": 14,
+      "pid": 2740338,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu14.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu14-state-r1"
+      ]
+    },
+    {
+      "cpu": 15,
+      "pid": 2740339,
+      "argv": [
+        "/usr/bin/python3",
+        "-B",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache_queue.py",
+        "execute",
+        "--worker",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queues-r1/worker-cpu15.json",
+        "--state-dir",
+        "/home/xmu/nvidiagds/simulators/hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/cache-queue-cpu15-state-r1"
+      ]
+    }
+  ]
+}

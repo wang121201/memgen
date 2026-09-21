@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""Bind admitted sampled profiles across layers and prepare one MemGen stream.
+
+Only compact address rules are translated. A missing profile stays unsupported,
+never a zero-traffic kernel. Private addresses without tensor metadata retain
+their relative offsets in an explicit target-scoped synthetic allocation.
+"""
+import argparse
+from collections import Counter,defaultdict
+import copy
+import hashlib
+import itertools
+import json
+import math
+from pathlib import Path
+import re
+
+
+def need(ok,msg):
+    if not ok: raise ValueError(msg)
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def canonical(v):return json.dumps(v,sort_keys=True,separators=(',',':')).encode()
+def neutral(name):return re.sub(r'(?<=layers\.)\d+', '<L>',name)
+def key(r):return (int(r['epoch_id']),int(r['epoch_launch_ordinal']))
+
+
+def launch_rows(journal):
+    counters=Counter();result={}
+    for line in Path(journal).open():
+        r=json.loads(line)
+        if r.get('type')=='launch' and r.get('edge')=='before' and r.get('epoch_id'):
+            k=(r['epoch_id'],counters[r['epoch_id']]);counters[r['epoch_id']]+=1
+            result[k]=r
+    return result
+
+
+def entries_with_domains(profile):
+    if 'structural_classes' not in profile:
+        return [(r,None) for r in profile['template']]
+    classes={c['class_id']:c for c in profile['structural_classes']}
+    need(len(classes)==len(profile['structural_classes']),'Duplicate structural class')
+    grid=profile['kernel']['grid_dims'];size=profile['kernel']['grid_size']
+    selector=profile.get('structural_class_selector')
+    if selector is not None:
+        need(selector['kind']=='categorical_y','Unsupported structural class selector')
+        by_y=selector['class_by_y'];need(len(by_y)==grid[1],'Structural y coverage')
+        mapping=[by_y[(c//grid[0])%grid[1]] for c in range(size)]
+    else:
+        mapping=profile['cta_class_by_id'];need(len(mapping)==size,'Structural CTA coverage')
+    need(set(mapping)==set(classes),'Structural class membership coverage')
+    domains=defaultdict(list)
+    for c,cid in enumerate(mapping):domains[cid].append(c)
+    for cid,c in classes.items():
+        need(all(0<=k<size and mapping[k]==cid for k in c['ctas']),'Observed CTA class mismatch')
+    return [(r,domains[cid]) for cid,c in classes.items() for r in c['template']]
+
+
+def rule_value(rule,grid,c):
+    kind=rule.get('kind','coordinate_affine');x=c%grid[0];y=(c//grid[0])%grid[1];z=c//(grid[0]*grid[1])
+    if kind=='exact_cta_base_table':return rule['bases_by_cta'][str(c)]
+    if kind=='coordinate_x_axis_permutation':
+        need(grid[1:]==[1,1],'Axis permutation requires one-dimensional grid')
+        ext=rule['cta_x_input_extents'];order=rule['cta_x_output_axis_order']
+        need(len(ext)==3 and math.prod(ext)==grid[0] and sorted(order)==[0,1,2],'Axis permutation domain')
+        coords=[x//(ext[1]*ext[2]),(x//ext[2])%ext[1],x%ext[2]];mapped=0
+        for axis in order:mapped=mapped*ext[axis]+coords[axis]
+        return rule['intercept']+rule['element_stride']*mapped
+    if kind=='coordinate_x_floor_quotient':return rule['intercept']+(x//rule['cta_x_divisor'])*rule['cta_x_quotient_stride']
+    if kind=='coordinate_x_quotient_remainder_y_table_z_partition':
+        value=rule['intercept']+(x//rule['cta_x_divisor'])*rule['cta_x_quotient_stride']+(x%rule['cta_x_divisor'])*rule['cta_x_remainder_stride']
+    elif any(k in rule for k in ('cta_y_stride','cta_y_offsets','cta_z_stride')):
+        value=rule['intercept']+x*rule['cta_x_stride']
+    else:return rule['intercept']+c*rule['cta_x_stride']
+    value+=rule['cta_y_offsets'][y] if 'cta_y_offsets' in rule else y*rule.get('cta_y_stride',0)
+    value+=z*rule.get('cta_z_stride',0)
+    if rule.get('cta_z_partition') is not None and z>=rule['cta_z_partition']:value+=rule['cta_z_partition_stride']
+    return value
+
+
+def rule_bounds(rule,grid,ctas=None):
+    if ctas is not None:
+        need(bool(ctas),'Empty structural class domain');values=[rule_value(rule,grid,c) for c in ctas]
+        return min(values),max(values)
+    kind=rule.get('kind','coordinate_affine')
+    if kind=='exact_cta_base_table':
+        values=list(rule['bases_by_cta'].values());return min(values),max(values)
+    intercept=rule['intercept'];lo=hi=intercept
+    def add(values):
+        nonlocal lo,hi
+        lo+=min(values);hi+=max(values)
+    if kind=='coordinate_x_axis_permutation':
+        add([0,(grid[0]-1)*rule['element_stride']]);return lo,hi
+    if kind in ('coordinate_x_quotient_remainder_y_table_z_partition','coordinate_x_floor_quotient'):
+        d=rule['cta_x_divisor'];q=rule['cta_x_quotient_stride'];r=rule.get('cta_x_remainder_stride',0)
+        add([(x//d)*q+(x%d)*r for x in range(grid[0])])
+    else:
+        limit=grid[0] if any(k in rule for k in ('cta_y_stride','cta_y_offsets','cta_z_stride')) else math.prod(grid)
+        add([0,(limit-1)*rule['cta_x_stride']])
+    if 'cta_y_offsets' in rule:add(rule['cta_y_offsets'])
+    else:add([0,(grid[1]-1)*rule.get('cta_y_stride',0)])
+    zstride=rule.get('cta_z_stride',0)
+    if 'cta_z_partition' in rule:
+        d=rule['cta_z_partition'];stride=rule['cta_z_partition_stride']
+        add([z*zstride+(stride if z>=d else 0) for z in range(grid[2])])
+    else:add([0,(grid[2]-1)*zstride])
+    return lo,hi
+
+
+def normalize_backend_rules(profile):
+    count=0;grid=profile['kernel']['grid_dims']
+    for entry,_ in entries_with_domains(profile):
+        for rule in entry['address_rules']:
+            kind=rule.get('kind','coordinate_affine')
+            if kind in ('coordinate_x_floor_quotient','coordinate_x_axis_permutation'):
+                need(grid[1:]==[1,1],'Native backend special x rule requires one-dimensional grid')
+            if kind=='coordinate_affine' and not any(k in rule for k in ('cta_y_stride','cta_y_offsets','cta_z_stride')) and grid[1:]!=[1,1]:
+                # Frozen Python fitter uses flat CTA here. Lower exactly to
+                # the frozen C++ generator's explicit xyz representation.
+                rule['cta_y_stride']=rule['cta_x_stride']*grid[0]
+                rule['cta_z_stride']=rule['cta_x_stride']*grid[0]*grid[1];count+=1
+    return count
+
+
+def lane_bounds(entry,group):
+    offsets=[0]
+    for value in group['pairs']:
+        delta,count=map(int,value.split(':'))
+        for _ in range(count):offsets.append(offsets[-1]+delta)
+    need(len(offsets)==32,'Complete lane delta sequence required')
+    mask=int(entry['mask'],0) if isinstance(entry['mask'],str) else entry['mask']
+    active=[v for i,v in enumerate(offsets) if mask>>i&1]
+    if not active:return 0,0
+    bits=re.search(r'\.(?:U|S|B)?(128|64|32|16|8)(?:\.|$)',entry['opcode'])
+    width=int(bits.group(1))//8 if bits else 4
+    return min(active),max(active)+width
+
+
+def translate(rule,delta):
+    if rule.get('kind')=='exact_cta_base_table':
+        rule['bases_by_cta']={k:v+delta for k,v in rule['bases_by_cta'].items()}
+    else:rule['intercept']+=delta
+
+
+def view_span(v):
+    shape=v['shape']
+    stride=v['stride_bytes'] if 'stride_bytes' in v else [x*v['element_size'] for x in v['stride_elements']]
+    need(all(x>=0 for x in stride),'Negative strides unsupported')
+    size=sum((d-1)*s for d,s in zip(shape,stride))+v['element_size'] if all(shape) else 0
+    return int(v['data_address']),int(v['data_address'])+size
+
+
+def layout(v):return (tuple(v['shape']),tuple(v.get('stride_bytes',v.get('stride_elements',[]))),v['dtype'],v['element_size'])
+
+
+class Binder:
+    def __init__(self,calls,metadata):
+        self.calls={x['call_id']:x for x in calls};self.meta=metadata
+        self.parameters={x['label']:x for x in metadata['parameters']}
+        self.kv={x['label']:x for x in metadata['kv_buffers']}
+        observed_ends=[r['base_address']+r['storage_nbytes'] for r in metadata.get('storage_roots',[])]
+        observed_ends += [view_span(v)[1] for v in list(self.parameters.values())+list(self.kv.values())]
+        self.unknown_cursor=max(0x600000000000,((max(observed_ends,default=0)+(1<<40)+4095)//4096)*4096)
+        self.unknown_allocations=[]
+
+    def contexts(self,call_id):
+        rows=[];call=self.calls.get(call_id)
+        while call is not None:
+            for field in ('inputs','outputs'):
+                for v in call.get(field,[]):rows.append(((neutral(call['module']),field,v['label']),v))
+            call=self.calls.get(call.get('parent_call_id'))
+        return rows
+
+    def mapping(self,source,target):
+        pairs=[]
+        def add(s,t,kind,label):
+            if layout(s)==layout(t):
+                lo,hi=view_span(s);tl,th=view_span(t)
+                if hi>lo and th-tl==hi-lo:pairs.append(dict(begin=lo,end=hi,delta=tl-lo,kind=kind,label=label))
+        layer=source['layer_id'];target_layer=target['layer_id']
+        for name,s in self.parameters.items():
+            match=re.search(r'\.layers\.(\d+)(?=\.|$)',name)
+            if match and int(match.group(1))!=layer:continue
+            target_name=re.sub(r'(?<=layers\.)\d+',str(target_layer),name) if match else name
+            if target_name in self.parameters:add(s,self.parameters[target_name],'weights',target_name)
+        for name,s in self.kv.items():
+            if name.endswith('.'+str(layer)):
+                target_name=name.rsplit('.',1)[0]+'.'+str(target_layer)
+                if target_name in self.kv:add(s,self.kv[target_name],'KV',target_name)
+        dst=defaultdict(list)
+        for k,v in self.contexts(target['call_id']):dst[k].append(v)
+        for k,s in self.contexts(source['call_id']):
+            for t in dst[k]:add(s,t,'activation',repr(k))
+        return pairs
+
+    def rebind(self,profile,source,target):
+        value=copy.deepcopy(profile);counts=Counter();details=[]
+        normalized=normalize_backend_rules(value)
+        if source['epoch_id']==target['epoch_id'] and source['epoch_launch_ordinal']==target['epoch_launch_ordinal']:
+            return value,dict(status='SOURCE_OWN_PROFILE',rules={},normalized_legacy_flat_cta_rules=normalized)
+        pairs=self.mapping(source,target);pending=[]
+        for ei,(entry,domain) in enumerate(entries_with_domains(value)):
+            for gi,(rule,group) in enumerate(zip(entry['address_rules'],entry['groups'])):
+                lo,hi=rule_bounds(rule,value['kernel']['grid_dims'],domain);ll,lh=lane_bounds(entry,group);lo+=ll;hi+=lh
+                candidates=[m for m in pairs if m['begin']<=lo and hi<=m['end']]
+                deltas={m['delta'] for m in candidates}
+                if len(deltas)==1:
+                    delta=deltas.pop();translate(rule,delta)
+                    kind=next((m['kind'] for m in candidates if m['kind'] in ('weights','KV')), 'activation')
+                    counts[kind]+=1
+                elif candidates:
+                    raise ValueError('Ambiguous observed tensor binding: conflicting target deltas')
+                else:pending.append((lo,hi,rule,ei,gi,'unobserved_private_object'))
+        # Merge overlapping source address intervals before allocating. All
+        # rules for an inferred private interval receive the same relocation.
+        clusters=[]
+        for item in sorted(pending,key=lambda x:x[0]):
+            if clusters and item[0]<=clusters[-1]['end']:
+                clusters[-1]['end']=max(clusters[-1]['end'],item[1]);clusters[-1]['items'].append(item)
+            else:clusters.append(dict(begin=item[0],end=item[1],items=[item]))
+        for c in clusters:
+            source_base=c['begin']//4096*4096;size=((c['end']-source_base+4095)//4096)*4096
+            base=self.unknown_cursor;self.unknown_cursor+=size+4096;delta=base-source_base
+            need(self.unknown_cursor<(1<<63),'Modeled private address domain exhausted')
+            for lo,hi,rule,ei,gi,why in c['items']:translate(rule,delta);counts['UNKNOWN_private_modeled']+=1
+            row=dict(source_begin=c['begin'],source_end=c['end'],target_base=base,target_bytes=size,
+                source_page_base=source_base,delta=delta,source_key=key(source),target_key=key(target),
+                rules=len(c['items']),reason=sorted({x[-1] for x in c['items']}),
+                assumption='target-kernel private allocation; preserves source offsets/alignment, no unobserved reuse asserted')
+            details.append(row);self.unknown_allocations.append(row)
+        # Observed counts remain evidence about the source template only.
+        for field in ('native_reference_digest','independent_source_census'):
+            if field in value:value['source_template_'+field]=value.pop(field)
+        value['model'].update(layer_rebinding='same-process tensor view base translation',
+            unknown_private_policy='disjoint target-kernel allocation preserving page offset',
+            target_addresses_hardware_observed=False,hardware_accuracy_accepted=False)
+        return value,dict(status='PASS_MODELED_LAYER_PROFILE_BINDING',rules=dict(counts),private_allocations=details,normalized_legacy_flat_cta_rules=normalized)
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--sample-output',type=Path,required=True)
+    p.add_argument('--layer-bindings',type=Path,required=True)
+    p.add_argument('--output',type=Path,required=True)
+    a=p.parse_args();sample=a.sample_output
+    finish=json.loads((sample/'finish.json').read_text());need(finish['status']=='PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING','Sample pipeline incomplete')
+    host=list((sample/'host').glob('process-*/finish.json'));need(len(host)==1,'Exactly one sampled host')
+    hostdir=host[0].parent;h=json.loads(host[0].read_text())
+    binding=json.loads(a.layer_bindings.read_text());need(h['input_contract']==binding['input_contract'],'Census/sample input contract differs')
+    journal=list((sample/'observer').glob('process-*/launch-journal.jsonl'));need(len(journal)==1,'Same-process launch census required')
+    launches=launch_rows(journal[0]);binder=Binder(json.loads((hostdir/'module_calls.json').read_text()),json.loads((hostdir/'tensor_metadata.json').read_text()))
+    profiles={}
+    for line in (sample/'profiles/profiles.index.jsonl').open():
+        row=json.loads(line)
+        with Path(row['path']).open('rb') as f:f.seek(row['offset']);raw=f.read(row['bytes'])
+        need(hashlib.sha256(raw).hexdigest()==row['sha256'],'Sample profile content identity')
+        profile=json.loads(raw);source=profile['source']['launch'];profiles[key(source)]=profile
+    a.output.mkdir(parents=True,exist_ok=False);a.output=a.output.resolve()
+    pack=a.output/'profiles.pack';index=a.output/'profiles.index.jsonl';app=a.output/'app.config';issue=a.output/'issue.config'
+    accepted=[];unsupported=[];offset=0;app_rows=[];sm_rows=defaultdict(list)
+    with pack.open('xb') as out,index.open('x') as ix:
+        for row in binding['bindings']:
+            tk,sk=tuple(row['target_key']),tuple(row['template_key'])
+            try:
+                need(tk in launches and sk in profiles,'Source profile missing/unsupported')
+                source=profiles[sk]['source']['launch'];target=dict(launches[tk],epoch_launch_ordinal=tk[1])
+                for field in ('function_name','code_sha256','grid','block'):
+                    need(source[field]==target[field],'Target kernel regime changed '+field)
+                v,receipt=binder.rebind(profiles[sk],source,target)
+                kid=len(accepted)+1;phase=('warmup/' if row['role']=='warmup' else '')+row['phase']
+                v['kernel'].update(id=kid,phase=phase);v['status']='PASS_MODELED_LAYER_PROFILE_BINDING'
+                v['model'].update(cache_entry='ONE_CONTINUOUS_WARMUP_THEN_MEASUREMENT_STREAM',complete_model=False)
+                v['model']['target_launch_key']='epoch-%d-launch-%d'%tk
+                raw=canonical(v);out.write(raw)
+                ix.write(json.dumps(dict(kernel_id=kid,path=str(pack),offset=offset,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=v['status']))+'\n');offset+=len(raw)
+                k=v['kernel'];g=k['grid_dims']
+                fields=dict(kernel_name=k['name'],llama_phase=phase,grid_dim_x=g[0],grid_dim_y=g[1],grid_dim_z=g[2],grid_size=k['grid_size'],block_size=k['block_size'])
+                app_rows.extend('-kernel_%d_%s %s\n'%(kid,n,vv) for n,vv in fields.items())
+                for cta in range(k['grid_size']):sm_rows[cta%48].append('(%d,%d,%x)'%(kid,cta,(cta//48)*1000000))
+                accepted.append(dict(kernel_id=kid,target_key=tk,template_key=sk,phase=phase,role=row['role'],binding=receipt))
+            except (ValueError,KeyError) as e:unsupported.append(dict(target_key=tk,template_key=sk,phase=row['phase'],role=row['role'],reason=str(e)))
+    app.write_text(''.join(app_rows));issue.write_text(''.join('-trace_issued_sm_id_%d %s\n'%(sm,' '.join(values)) for sm,values in sorted(sm_rows.items())))
+    # Only persistent classes have a sound global address-range interpretation.
+    # Reused module I/O addresses are recorded in binding receipts, not promoted
+    # to static whole-run activation ownership without a lifetime observer.
+    ranges=[]
+    for kind,vs in [('weights',binder.meta['parameters']),('KV',binder.meta['kv_buffers'])]:
+        for view in vs:
+            lo,hi=view_span(view)
+            if lo<hi:ranges.append((lo,hi,kind))
+    (a.output/'semantic.ranges').write_text(''.join('RANGE 0x%x 0x%x kind=%s\n'%r for r in sorted(set(ranges))))
+    complete=not unsupported
+    manifest=dict(schema='SGLANG_SAMPLED_LAYER_PACKED_EXPANSION_V1',status='PASS_COMPLETE_MODELED_PROFILE_EXPANSION' if complete else 'PARTIAL_PROFILE_EXPANSION_UNSUPPORTED_RETAINED',
+        input_contract=h['input_contract'],sample_finish_sha256=sha(sample/'finish.json'),bindings_sha256=sha(a.layer_bindings),
+        target_launches=len(binding['bindings']),packed_launches=len(accepted),unsupported_launches=len(unsupported),
+        complete_declared_profile_stream=complete,complete_full_model=complete,full_native_address_coverage=False,
+        hardware_accuracy_accepted=False,postcache_counts_multiplied=False,
+        scheduling='CTA round robin across 48 SMs; fixed per-SM CTA time spacing, modeled not measured',
+        cache_state='cold before warmup, L1 resets per kernel, L2 persists all layers/phases, no final dirty drain',
+        semantic_scope='persistent weights/KV exact address membership; remaining static classification unknown; tensor/private binding ledger retained',
+        unknown_private_allocations=len(binder.unknown_allocations),unknown_private_bytes=sum(x['target_bytes'] for x in binder.unknown_allocations),
+        rejected_profiles_are_zero=False,allow_full_NCU_accuracy_comparison=False,
+        allow_declared_estimate_NCU_comparison=complete,
+        qualification='Profile-expanded estimate with modeled CTA placement and unknown private objects; not full native address accuracy',
+        accepted=accepted,unsupported=unsupported)
+    (a.output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+    print(json.dumps({k:manifest[k] for k in ('status','target_launches','packed_launches','unsupported_launches','unknown_private_allocations')}))
+
+
+if __name__=='__main__':main()

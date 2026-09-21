@@ -1,0 +1,7 @@
+kernel_id,phase,sm,raw_opcode,opcode_class,memory_space,admission,semantic_id,source_sector_status,records,dynamic_instructions,active_lanes,lane_reference_addresses,zero_predicate_records
+1,prefill,0,LDG.E.32,LDG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,32,32,0
+1,prefill,0,STG.E.32,STG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,32,32,0
+1,prefill,1,LDG.E.32,LDG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,32,32,0
+1,prefill,1,STG.E.32,STG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,32,32,0
+2,decode_step_0,0,LDG.E.64,LDG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,4,4,0
+2,decode_step_0,1,LDG.E.64,LDG,global,ACCEPTED,unassigned,SEE_ACCEPTED_SECTOR_LEDGER,1,1,4,4,0

@@ -1,0 +1,105 @@
+{
+  "baseline_id": "PAPER_ADA_L2_V1",
+  "status": "ACCEPTED_STRUCTURAL_MODEL_BASELINE",
+  "hardware_acceptance": false,
+  "decision": "User accepts Invalidate+Compare Ada architecture as the starting baseline. No independent rediscovery of 16 ways is required before implementation.",
+  "references": {
+    "paper": "https://www.usenix.org/system/files/usenixsecurity24-zhang-zhenkai.pdf",
+    "sections": [
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6",
+      "Appendix B"
+    ],
+    "artifact": "https://github.com/0x5ec1ab/invalidate-compare/tree/main/cache-policy"
+  },
+  "geometry": {
+    "capacity_bytes": 41943040,
+    "line_bytes": 128,
+    "sector_bytes": 32,
+    "sectors_per_line": 4,
+    "ways": 16,
+    "total_sets": 20480,
+    "total_lines": 327680,
+    "logical_slices": 20,
+    "sets_per_logical_slice": 1024
+  },
+  "geometry_provenance": {
+    "capacity": "Local RTX4000Ada device query and prior reuse evidence",
+    "ways": "Paper section3.6, adopted by explicit user instruction",
+    "line_bytes": "Paper plus existing local functional contract",
+    "sector_bytes": "Existing local functional contract; not newly attributed to this paper",
+    "logical_slices": "Fixed software organization informed by 20 observed LTS counter classes; not a paper physical parameter",
+    "set_index": "Existing backend X / BitwiseXor surrogate, frozen for baseline comparisons; paper does not publish hardware hash"
+  },
+  "semantics": {
+    "inclusion": "noninclusive",
+    "write_policy": "write_back",
+    "write_miss": "write_allocate",
+    "line_state": [
+      "tag",
+      "valid_mask",
+      "dirty_mask",
+      "known_byte_masks",
+      "last_read",
+      "last_write",
+      "last_access",
+      "insertion_state"
+    ],
+    "dirty_eviction": "emit dirty sectors only",
+    "clean_retained_is_not_tag_eviction": true,
+    "kernel_boundary_flush": false,
+    "inference_end_flush": false,
+    "finite_queue_affects_functional_requests": false
+  },
+  "paper_policy_constraints": {
+    "pure_load_residency_lines": 16,
+    "pure_store_residency_lines": 7,
+    "mixed_store_residency_lines_up_to": 8,
+    "nominal_dirty_budget_lines": 8,
+    "nominal_dirty_budget_status": "Accepted initial hypothesis from paper 50 percent conjecture; seven and eight are history-dependent constraints, not static 7-way cache",
+    "mixed_priming": "7 stores + 9 loads occupy16 entries; shared entries, not rigid physical banks",
+    "load_insertion": "Early replacement while not full must be representable; always prefer every invalid way is insufficient",
+    "full_load_and_pure_store_order": "LRU behavior in paper specified histories",
+    "mixed_victim": "Represent primary dirty victim plus possible additional least-recently-read victim from Fig6; do not generalize into always evict two"
+  },
+  "implementation": {
+    "geometry_config": "C:\\Users\\82412\\Documents\\Codex\\2026-09-11\\hbserve-memgen-integration\\work\\l2-observability\\paper-baseline\\RTX4000Ada.paper-v1.config",
+    "geometry_config_sha256": "75aecac4fa003b71fec12a9d4c42e604969aa9aa932742093b1bcad875e96974",
+    "existing_backend": "SectorLruCache with corrected non-power-of-two partition quotient/remainder and X set index",
+    "current_replacement": "ordinary LRU reference control",
+    "paper_policy_module": "pending implementation; geometry config alone does not implement the history-dependent rules",
+    "next_policy_work": [
+      "explicit insertion state",
+      "read/write recency",
+      "dirty admission/retention",
+      "coupled victim events",
+      "clean-retained vs eviction writeback ledger"
+    ],
+    "required_cli_arguments": [
+      "--sector-size",
+      "32",
+      "--partition-index-bit",
+      "8",
+      "--dram-store-policy",
+      "writeback",
+      "--disable-l2-dirty-drain",
+      "--disable-l2-streaming-fill"
+    ],
+    "required_backend_fields": {
+      "l2_dirty_drain": false,
+      "l2_streaming_fill": false
+    },
+    "multi_victim_interface": "Current CacheAccess has one evicted member. Implement primary and additional victims as separate events before claiming Fig6 conformance."
+  },
+  "validation_order": [
+    "CPU structural parser and all-set/all-capacity reachability",
+    "software constraints derived from paper Fig6 and AppendixB",
+    "reuse existing measured full-sector write cohorts without geometry fitting",
+    "targeted hardware discriminator only for residual policy choices",
+    "same-parameter full-model acceptance when policy ready"
+  ],
+  "claim_boundary": "A fixed useful initial architecture adopted from literature, local evidence and explicit surrogate choices. Structural baseline acceptance is distinct from completed write-policy implementation or <5% hardware traffic acceptance."
+}

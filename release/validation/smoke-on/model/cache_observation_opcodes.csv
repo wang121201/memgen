@@ -1,0 +1,7 @@
+kernel_id,sm,raw_opcode,dynamic_instructions
+1,0,LDG.E.32,1
+1,0,STG.E.32,1
+1,1,LDG.E.32,1
+1,1,STG.E.32,1
+2,0,LDG.E.64,1
+2,1,LDG.E.64,1

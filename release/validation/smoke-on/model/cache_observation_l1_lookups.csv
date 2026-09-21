@@ -1,0 +1,3 @@
+kernel_id,legacy_l1_requests,actual_l1_lookups,read_bypass_requests,actual_l1_fill_sectors,residual_bytes
+1,8,8,0,8,0
+2,2,2,0,2,0

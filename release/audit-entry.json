@@ -1,0 +1,86 @@
+{
+  "head": "e1447e8826c35a23169a63b6fc748a6fb6d5da9c",
+  "tracked_status_hex": "204d202e67697469676e6f726500204d204d616b6566696c6500204d2068772d7061727365722f68772d7061727365722e636300204d206d61696e2e636300204d20736173732d73706c69742f70726f636573735f736173735f6469722e63707000204d2074726163652d7061727365722f74726163652d7061727365722e636300204d2074726163652d7061727365722f74726163652d7061727365722e6800204d2074726163696e672d746f6f6c2f4d616b6566696c6500204d2074726163696e672d746f6f6c2f524541444d452e6d6400204d2074726163696e672d746f6f6c2f6e766269742f637564612e6800204d2074726163696e672d746f6f6c2f6e766269742f67656e6572617465645f637564615f6d6574612e6800204d2074726163696e672d746f6f6c2f6e766269742f696e7374725f74797065732e6800204d2074726163696e672d746f6f6c2f6e766269742f6c69626e766269742e6100204d2074726163696e672d746f6f6c2f6e766269742f6e766269742e6800204d2074726163696e672d746f6f6c2f6e766269742f6e766269745f7265675f72772e6800204d2074726163696e672d746f6f6c2f6e766269742f6e766269745f746f6f6c2e6800204d2074726163696e672d746f6f6c2f6e766269742f746f6f6c735f637564615f6170695f6d6574612e6800204d2074726163696e672d746f6f6c2f6e766269742f7574696c732f6368616e6e656c2e68707000204d2074726163696e672d746f6f6c2f6e766269742f7574696c732f7574696c732e6800204d2074726163696e672d746f6f6c2f7472616365722e637500",
+  "modified_files": [
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/.gitignore",
+      "sha256": "4accc4631fe055d6eac304d4931e5ff934e0446d42748d0caac976d2db1c9dc5"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/Makefile",
+      "sha256": "1e211c9691b8579e53fac4a68a7ec45fac0788b0c216f76e9b05a8e2b9775280"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/hw-parser/hw-parser.cc",
+      "sha256": "08544c8a77b050c44e5f2e0a205a5c1a87c5291204b0d711741c5a4a202d5adf"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/main.cc",
+      "sha256": "66747d30f71a3f1b42d11f7a6828f0f47437b4dc7cbe66c77c7a01469114893f"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/sass-split/process_sass_dir.cpp",
+      "sha256": "5b8e2af16a59a0aefa7ee2cb4468078c0ddb4b15a0e7c88a356bc59866b1f4c9"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/trace-parser/trace-parser.cc",
+      "sha256": "cce37277fda6da269675da92291971b22953468156278444ad5da3ded66fe728"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/trace-parser/trace-parser.h",
+      "sha256": "1ec87ae5cd7ee9eb4bfe881275f6220e082ec0f3ea9ec8c4bb1c98777f75c7ca"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/Makefile",
+      "sha256": "32b1ebc2ad39bbe3510ff640e66c987aeb4e4ed1c1bcb9af41a3761038c1266e"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/README.md",
+      "sha256": "211a32284146af3e91609af60886261dea4acb155773ce060737d6a89859e1f2"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/cuda.h",
+      "sha256": "b7dd24919990c4ebce0b311163eb330a55227335e7e23ef2af4f0800fd3ab620"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/generated_cuda_meta.h",
+      "sha256": "8ebecd97c4796c801fa58d55e2dcbd7abd5d676342f8687f47221881050abe90"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/instr_types.h",
+      "sha256": "97250d4ecef29ec6de03d7a2da9af154fadec9d9bcc6798de1c1fd754a482473"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/libnvbit.a",
+      "sha256": "bd5fd2f02331c75372440fde85e2fddefb6795a2b2058fa0f2bf4f6cf2645913"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit.h",
+      "sha256": "70348229ac8324e0b498fe546b980e5541a78481bbe3c62c4d67c429508b9773"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_reg_rw.h",
+      "sha256": "79854c7a13af635005694edabf99b8da28f90d54b550400e7115667f727e7fe5"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/nvbit_tool.h",
+      "sha256": "c027a4442277d3a0721cae8af9356ac41ebc719905a55569bb83834fcdbb4bf5"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/tools_cuda_api_meta.h",
+      "sha256": "1be7ecc9daf8d2cd1ffee2fdb6771bc9585759e162ab317504d5d2fe8ecee4c6"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/channel.hpp",
+      "sha256": "0db6353681fbb45c891b30104d3848c177fae724239471cc24e4dba576952ac4"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit/utils/utils.h",
+      "sha256": "49922ad83b16e98e6bfe61ca1e3091eb627a2150c59183e723c45b46a180c9e7"
+    },
+    {
+      "path": "/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/tracer.cu",
+      "sha256": "74f666c87901df6a06ee27e01c70d02111317f028e51e64ab42154526dee2ef8"
+    }
+  ]
+}

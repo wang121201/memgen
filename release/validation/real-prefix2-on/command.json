@@ -1,0 +1,21 @@
+[
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/bin/hbserve",
+  "--mode",
+  "memgen",
+  "--profile-index",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/real-prefix2/profiles.index.jsonl",
+  "--app-config",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/real-prefix2/app.config",
+  "--issue-config",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/real-prefix2/issue.config",
+  "--hw-config",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/config/RTX4000Ada.paper-v1.config",
+  "--stats",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/validation/real-prefix2-on/source-stats.json",
+  "--output-dir",
+  "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/validation/real-prefix2-on/model",
+  "--include-local",
+  "false",
+  "--observe-cache",
+  "true"
+]

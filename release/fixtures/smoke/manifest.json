@@ -1,0 +1,32 @@
+{
+  "claim_boundary": "deterministic stream-cache bridge smoke fixture only",
+  "completed_kernels": 2,
+  "inputs": {
+    "app_config": {
+      "bytes": 370,
+      "path": "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/smoke/configs/app.config",
+      "sha256": "2f5e24365adbdb771066c1a0e5e73a987e948701db40d34d628a87adaff378fe"
+    },
+    "issue_config": {
+      "bytes": 93,
+      "path": "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/smoke/configs/issue.config",
+      "sha256": "9797dfefdcd692a1705cfcaa5fe2acab0b7d2026c82915dffd62b7f04328baae"
+    }
+  },
+  "kernel_count": 2,
+  "profile_index": {
+    "bytes": 586,
+    "path": "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/smoke/profiles.index.jsonl",
+    "sha256": "93b9da8b1f15062a4343632aca1ce9bf2d7d0a96ae91fe30c655135126161e1a"
+  },
+  "profile_pack": {
+    "bytes": 1219,
+    "format": "one compact JSON profile plus newline per indexed byte range",
+    "path": "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/fixtures/smoke/profiles.pack.jsonl",
+    "records": 2,
+    "sha256": "1713c54d2f97c55b319149c35ff7a6b3e7df567cde371fa34cdd12d9483dd17c"
+  },
+  "schema": "hbserve_full_inference_profile_census_v1",
+  "status": "PASS_ALL_KERNEL_PROFILES_ADMITTED_NOT_CACHE_REPLAYED",
+  "workload_id": "smoke"
+}

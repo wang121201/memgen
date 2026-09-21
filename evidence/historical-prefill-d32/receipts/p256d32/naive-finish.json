@@ -1,0 +1,168 @@
+{
+  "arm": "naive",
+  "cache_contract": {
+    "architecture": "one shared named cache; no independent L1/L2",
+    "associativity": 16,
+    "capacity_bytes": 41943040,
+    "line_bytes": 128,
+    "sector_bytes": 32,
+    "set_index": "linear",
+    "terminal_dirty_drain": false,
+    "write_allocate": true,
+    "write_miss_fetch": true,
+    "write_policy": "write-back"
+  },
+  "claim_boundary": "Full-inference address stream dynamically generated from HBServe sampled profiles, then replayed through the named cache model; not a captured full SASS trace or hardware result",
+  "commands": {
+    "cache": [
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/stream-cache-build-r1/reference_cache_r2",
+      "--objects",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/objects.tsv",
+      "--stats",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/cache-stats.json",
+      "--capacity-bytes",
+      "41943040",
+      "--line-bytes",
+      "128",
+      "--sector-bytes",
+      "32",
+      "--associativity",
+      "16",
+      "--write-policy",
+      "write-back",
+      "--write-allocate",
+      "true",
+      "--write-miss-fetch",
+      "true",
+      "--final-drain",
+      "false"
+    ],
+    "stream": [
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/stream-cache-build-r1/hbserve_profile_stream_cache_profile_rules_r11",
+      "--mode",
+      "compact",
+      "--profile-index",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/profiles-packed-calibration-r10/p256d32/profiles.index.jsonl",
+      "--app-config",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p256d32-complete-small-r1/configs/app.config",
+      "--issue-config",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p256d32-complete-small-r1/configs/issue.config",
+      "--hw-config",
+      "/mnt/nvme1/wgs/hbserve_memgen_eval_20260911_r1/tools/RTX4000Ada-40MiB-35fa1024.config",
+      "--stats",
+      "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/source-stats.json"
+    ]
+  },
+  "elapsed_seconds": 4420.213017389178,
+  "finished_utc": "2026-09-13T19:17:19.640296+00:00",
+  "inputs": {
+    "app_config": {
+      "bytes": 9680901,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p256d32-complete-small-r1/configs/app.config",
+      "sha256": "a1f6550a7afee9ad9499561e8a0dc0b0bc9c803b9c764a31dae02bd0002106df"
+    },
+    "hw_config": {
+      "bytes": 5638,
+      "path": "/mnt/nvme1/wgs/hbserve_memgen_eval_20260911_r1/tools/RTX4000Ada-40MiB-35fa1024.config",
+      "sha256": "35fa1024ee98d7dac4307c9eccd1ab2bb18fcb2154c6ab6eaeb7555e9e989793"
+    },
+    "issue_config": {
+      "bytes": 657582398,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/samples/p256d32-complete-small-r1/configs/issue.config",
+      "sha256": "d4efeb556c47c659dc05c20b7f41d8a0eed81c59aef8cca35e7ca0139a0d742b"
+    },
+    "naive_engine": {
+      "bytes": 119904,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/stream-cache-build-r1/reference_cache_r2",
+      "sha256": "cfad586acf0666bd8537fbf50d3f0af58adb2c9c12d09f0040fbc9f4e6592c51"
+    },
+    "profile_index": {
+      "bytes": 12035850,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/profiles-packed-calibration-r10/p256d32/profiles.index.jsonl",
+      "sha256": "e3bfcfcb1775fbdccca90d3d379d96e58bb118b8284301ecf488d1baa8051c0a"
+    },
+    "profile_manifest": {
+      "bytes": 3568,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/profiles-packed-calibration-r10/p256d32/manifest.json",
+      "sha256": "fa134578c9ac721f8b9c9dba89f340bfc605e528a51243fce59847913e2d5b7f"
+    },
+    "stream_engine": {
+      "bytes": 688472,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/stream-cache-build-r1/hbserve_profile_stream_cache_profile_rules_r11",
+      "sha256": "e7ac935c6e27afeff6669102c4bb50ae4d4dc4b1d4fcd61b5f1af9cbabaa08b7"
+    }
+  },
+  "kernel_count": 19204,
+  "materialized_raw_sass_bytes": 0,
+  "metrics": {
+    "cache_statistics": {
+      "dirty_sector_writebacks": 33361752,
+      "final_dirty_sector_writebacks": 0,
+      "line_evictions": 438419493,
+      "read_hits": 11342972370,
+      "read_misses": 1713894126,
+      "sass_evict_first_read_accesses": 0,
+      "write_hits": 62046582,
+      "write_miss_allocations_without_fetch": 0,
+      "write_misses": 31059786
+    },
+    "counts": {
+      "input_bytes": 420799131648,
+      "input_r_bytes": 417819727872,
+      "input_requests": 13149972864,
+      "input_w_bytes": 2979403776,
+      "output_bytes": 56906101248,
+      "output_r_bytes": 55838525184,
+      "output_r_requests": 1744953912,
+      "output_requests": 1778315664,
+      "output_w_bytes": 1067576064,
+      "output_w_requests": 33361752,
+      "reason_dirty-eviction_requests": 33361752,
+      "reason_final-dirty-drain_requests": 0,
+      "reason_read-miss_requests": 1713894126,
+      "reason_write-allocate-fill_requests": 31059786,
+      "reason_write-around_requests": 0,
+      "reason_write-through_requests": 0
+    },
+    "dram_read_bytes": 55838525184,
+    "dram_write_bytes": 1067576064,
+    "final_state": {
+      "resident_dirty_sector_bytes": 348096,
+      "resident_lines": 327680,
+      "resident_sector_bytes": 40353504
+    },
+    "l1_hit_rate": null,
+    "l1_reason": "single-cache architecture has no independent L1",
+    "l2_hit_rate": null,
+    "l2_reason": "single-cache denominator is unfiltered source sectors, unlike NCU L2",
+    "single_cache_hit_denominator": 13149972864,
+    "single_cache_hit_rate": 0.8673036111901744
+  },
+  "outputs": {
+    "cache_stats": {
+      "bytes": 2463,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/cache-stats.json",
+      "sha256": "7145157245d3f29e214b3ceb881180d84df429d0e817b75c41ab6b8ac250cb1e"
+    },
+    "objects": {
+      "bytes": 2125696,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/objects.tsv",
+      "sha256": "da73db6d37e985527edbcfe63ab94837abec5e497752d95e924fd278be23c80e"
+    },
+    "source_stats": {
+      "bytes": 1392,
+      "path": "/home/xmu/nvidiagds/codex-runs/llm-footprint-v1/memgen/hyfiss-prefill-matrix-20260913-01a06837-r1/cache-cells-calibration-r2/p256d32/naive/source-stats.json",
+      "sha256": "8a8112d85362465e6090a1c8a3dac476ddae14ff42a64572e904c43dfb12a299"
+    }
+  },
+  "schema": "hbserve_generated_full_inference_cache_cell_v1",
+  "source_generated_lane_addresses": 49649736928,
+  "source_generated_memory_instructions": 1581050136,
+  "source_semantic_digest": [
+    "df79fc5a494c9d61",
+    "f460fc3fa4967168"
+  ],
+  "started_utc": "2026-09-13T18:03:44.390349+00:00",
+  "status": "PASS_HBSERVE_GENERATED_FULL_INFERENCE_NAIVE_REPLAY",
+  "workload_id": "qwen25-15b-q8_0-p256d32-rtx4000ada-calibration"
+}

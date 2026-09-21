@@ -1,0 +1,1 @@
+{"status":"PASS_ACCEPTED_STRUCTURAL_GEOMETRY","hardware_acceptance":false,"logical_slices":20,"sets_per_slice":1024,"ways":16,"allocated_lines":327680,"one_sector_reuse_hits":327680,"full_valid_sectors":1310720,"reachable_capacity_bytes":41943040,"replacement_scope":"existing LRU reference; paper policy pending"}

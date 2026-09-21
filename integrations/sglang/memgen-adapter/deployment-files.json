@@ -1,0 +1,70 @@
+{
+  "schema": "MEMGEN_SINGLE_LAYER_ADAPTER_FILES_R1",
+  "files": [
+    {
+      "name": "host.py",
+      "bytes": 7268,
+      "sha256": "1f1773602d56f712130019ca5d399a94a72ba923b7726a5f3c9723ac1ed46aa7"
+    },
+    {
+      "name": "scope_observer.py",
+      "bytes": 8561,
+      "sha256": "6689eb69a02990a726c8de1a9e685864d1c470b784c27a088b9c4ce35e702b9a"
+    },
+    {
+      "name": "matrix_common.py",
+      "bytes": 1149,
+      "sha256": "0bc07645405854b3b978daa96ef56e2a9dab67b98956acfc75fb0afc624997de"
+    },
+    {
+      "name": "matrix_workload.py",
+      "bytes": 3730,
+      "sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6"
+    },
+    {
+      "name": "contract.json",
+      "bytes": 4250,
+      "sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a"
+    },
+    {
+      "name": "make_sample_plan.py",
+      "bytes": 6708,
+      "sha256": "61a52e7e50b132e860c8a67fed84d5e2aaa8f68bcb6567303d63428d7ddb9234"
+    },
+    {
+      "name": "sample_pipeline.py",
+      "bytes": 8336,
+      "sha256": "729a69dfda82f22d5dd373287eb4ed15cae3bb33b138e1e7fce352fc58c92c8d"
+    },
+    {
+      "name": "expand_profiles.py",
+      "bytes": 19155,
+      "sha256": "2f19e3804f28a001e21cd33544ac7fd949b9a1ce3f9bbc063a66d38cad5089e3"
+    },
+    {
+      "name": "run_memgen.py",
+      "bytes": 5204,
+      "sha256": "7eb4e6509566b0fe40b3de6308898fb4d35ccaec4dd32e52b40e25cf395894f4"
+    },
+    {
+      "name": "followthrough.py",
+      "bytes": 4336,
+      "sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91"
+    },
+    {
+      "name": "profile_cache.py",
+      "bytes": 2478,
+      "sha256": "0db83c0c98f83b904d76ad23a6e13c7f76646ad74f78dc384a55f0b9eb136a8c"
+    },
+    {
+      "name": "wait_then_sample.py",
+      "bytes": 6808,
+      "sha256": "0dae5af22a49e1d345e1bc0b6d0ffd4e43a4d0e40d2e3070ac2d250681d3c27e"
+    },
+    {
+      "name": "prepare_compact_sources.py",
+      "bytes": 4942,
+      "sha256": "1af630c551a0029ef513743b6a5f92c48dcb7c11c676afc0a5dfe7a94ddd128e"
+    }
+  ]
+}

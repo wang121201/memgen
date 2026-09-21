@@ -1,0 +1,146 @@
+{
+  "schema": "SG_NATIVE_SAMPLER_MANIFEST_V1",
+  "status": "BOUNDED_FULL_SOURCE_CANDIDATE_NOT_HARDWARE_ACCEPTANCE",
+  "build_inputs": {
+    "build.py": {
+      "bytes": 4691,
+      "sha256": "95d37ad48eff5a1df1bdba9bae413da183d401203e9b5736e75ff2d3ef825d6e"
+    },
+    "compile_plan.py": {
+      "bytes": 6772,
+      "sha256": "70c7b497c6ba84101928d11cf7ae36a4f9c6d6f7e4691f5844004fc8b4f9e6c2"
+    },
+    "cta_entry_contract.py": {
+      "bytes": 2092,
+      "sha256": "5471b9de1b2527842d690876859c15d2fc134518ded40c2823102f94dedd7789"
+    },
+    "flush_ledger.h": {
+      "bytes": 1308,
+      "sha256": "b25fad916caa6cc37e147bb87f5a09629386dc6b5de577614c91de82ca014fc3"
+    },
+    "memory_common.h": {
+      "bytes": 880,
+      "sha256": "2348e49acacb3e4fcd8eeba4aa9ed301d4d948f61279443172c0cbe0e43115ef"
+    },
+    "memory_inject_funcs.cu": {
+      "bytes": 6290,
+      "sha256": "fabe61ef81cdef0f3ad4722af28bda41dd1ec383b1df854cbdc105fb780313e2"
+    },
+    "packet_pipe.h": {
+      "bytes": 4908,
+      "sha256": "e61b0704fb2964630558ff1258d69f5f75c705d421d2843d1c6e957b912468ae"
+    },
+    "packet_stream.py": {
+      "bytes": 13268,
+      "sha256": "43fa43fed93478d127a4f98837f85d2b662031398822b14d58b6a3200ad128d0"
+    },
+    "ram_capture.py": {
+      "bytes": 2626,
+      "sha256": "23f7ef275a78266ded2328484dda91a8d221ed9842112862879db7697ed5144b"
+    },
+    "sampler.cu": {
+      "bytes": 36343,
+      "sha256": "059c26047caea0c0884bea2ee73ad83d0b3ccb158eba1b78930767634e28b42e"
+    },
+    "sampler_runtime.h": {
+      "bytes": 21660,
+      "sha256": "9e35b7f3b62dda8f0ebf8dd269fb2651f0272f72e77992d1242f6ff616969323"
+    },
+    "stable_instrumentation.inc": {
+      "bytes": 13619,
+      "sha256": "175ee26cae096e74966c8e21d223bcf8c7101a811a99eb0d5dcb365de34e5721"
+    },
+    "stream_consumer.py": {
+      "bytes": 9982,
+      "sha256": "7c0599e20c33aee433be48e9685e4b25041c079774f05109a6f150503fe02992"
+    }
+  },
+  "nvbit_headers": {
+    "cuda.h": {
+      "bytes": 1145929,
+      "sha256": "b7dd24919990c4ebce0b311163eb330a55227335e7e23ef2af4f0800fd3ab620"
+    },
+    "generated_cuda_meta.h": {
+      "bytes": 106473,
+      "sha256": "8ebecd97c4796c801fa58d55e2dcbd7abd5d676342f8687f47221881050abe90"
+    },
+    "instr_types.h": {
+      "bytes": 4943,
+      "sha256": "97250d4ecef29ec6de03d7a2da9af154fadec9d9bcc6798de1c1fd754a482473"
+    },
+    "nvbit.h": {
+      "bytes": 17410,
+      "sha256": "70348229ac8324e0b498fe546b980e5541a78481bbe3c62c4d67c429508b9773"
+    },
+    "nvbit_reg_rw.h": {
+      "bytes": 3534,
+      "sha256": "79854c7a13af635005694edabf99b8da28f90d54b550400e7115667f727e7fe5"
+    },
+    "nvbit_tool.h": {
+      "bytes": 3118,
+      "sha256": "c027a4442277d3a0721cae8af9356ac41ebc719905a55569bb83834fcdbb4bf5"
+    },
+    "tools_cuda_api_meta.h": {
+      "bytes": 75170,
+      "sha256": "1be7ecc9daf8d2cd1ffee2fdb6771bc9585759e162ab317504d5d2fe8ecee4c6"
+    },
+    "utils/channel.hpp": {
+      "bytes": 8265,
+      "sha256": "0db6353681fbb45c891b30104d3848c177fae724239471cc24e4dba576952ac4"
+    },
+    "utils/utils.h": {
+      "bytes": 5244,
+      "sha256": "49922ad83b16e98e6bfe61ca1e3091eb627a2150c59183e723c45b46a180c9e7"
+    }
+  },
+  "observer_base": {
+    "bytes": 35676,
+    "sha256": "2525d20779b1dd4b6d704afc786b7ef380e02a72c206f28408315cea4176d406"
+  },
+  "stable_tracer_base": {
+    "bytes": 66438,
+    "sha256": "d599c1c3b4f93cbd491de8368e6a298d445c5fc70f8b8f8c1bc4bee6a61663c6"
+  },
+  "full_trace_persisted": false,
+  "device_packet_abi_unchanged": true,
+  "device_body_after_cta_gate_byte_identical": true,
+  "actual_plan_required": true,
+  "actual_NVCC_build_pending": true,
+  "actual_GPU_validation_pending": true,
+  "revision": 7,
+  "source_revision_manifest": {
+    "bytes": 4642,
+    "sha256": "8bfee52b4453ddebec31e06fbd3de8273b5459623ae60ff71db437c3bf4869c4"
+  },
+  "static_metadata_cap_bytes": 268435456,
+  "dynamic_sample_wire_cap_bytes": 1073741824,
+  "changes": [
+    "Add independent per-selected-CTA warp entry proof bound to actual launch function",
+    "Preserve memory packet ABI and legacy memory instrumentation body",
+    "Allow certified packetless complete-grid CTA classes only with covered client domain",
+    "Bind V2 flush ledger to executed and packet CTA censuses",
+    "Raise private total capture ceiling to 512MiB for bounded four-kernel window; per-frame ABI and per-kernel decoder limits unchanged",
+    "Align C++ Writer.open ceiling with Python 512MiB envelope; add host pipe admission and no-partial-write overflow fixture before CUDA capture",
+    "M32 fresh-copy Python parser AND C++ PipeWriter wire ceiling1GiB, ABI616B and all predicate/transport checks unchanged; plan budget mandatory"
+  ],
+  "actual_form_source": {
+    "bytes": 16380,
+    "sha256": "9b28d4e90079057a0e672b01d170fcf5aba87ea9ebaa966e7751e94ae1f25e2b"
+  },
+  "max_wire_bytes": 8589934592,
+  "max_kernels": 4096,
+  "task_derivative": "SGLANG_SINGLE_LAYER_MATRIX_COMPACT_R1",
+  "source_manifest": {
+    "path": "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-sparse-20260919-01a08d87-r5/nvbit_sampler_r4/manifest.json",
+    "bytes": 4867,
+    "sha256": "e839535da020d9fc372facc190d045d04296caf0ceed2d085fb5f22f4519b0c7"
+  },
+  "static_instruction_rows_emitted": false,
+  "decoded_sass_hash_unchanged": true,
+  "selected_cta_instrumentation_unchanged": true,
+  "task_plan_max_bytes": 268435456,
+  "task_selected_kernel_capacity": 32768,
+  "task_max_launches": 262144,
+  "task_max_functions": 16384,
+  "task_metadata_max_bytes": 1073741824
+}
