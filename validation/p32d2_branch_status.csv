@@ -1,0 +1,9 @@
+branch,model,workload,traffic_input,ncu_reference,latency_input,current_status,hardware_accuracy_accepted,reason
+main,Qwen2.5-1.5B-Instruct BF16,P32D2,missing,missing,not_applicable,BLOCKED_MISSING_INDEPENDENT_PROFILE_AND_NCU,false,P128D2 cannot be renamed P32D2
+main,Meta-Llama-3-8B-Instruct BF16,P32D2,partial_profiles_available,three_range_repeats_available,not_applicable,BLOCKED_MISSING_JOINED_FULL_MEMGEN_REPLAY,false,NCU exists but exact full generated replay is not closed
+research/l2-writeback-dirty-management,Qwen2.5-1.5B-Instruct BF16,P32D2,missing,missing,not_applicable,BLOCKED_MISSING_INDEPENDENT_PROFILE_AND_NCU,false,L2 policy cannot be accepted without stable input and hardware oracle
+research/l2-writeback-dirty-management,Meta-Llama-3-8B-Instruct BF16,P32D2,diagnostic_subset_available,three_range_repeats_available,not_applicable,BLOCKED_MISSING_JOINED_FULL_POLICY_REPLAY,false,existing kernel diagnostics are not full-inference admission
+research/simple-latency,Qwen2.5-1.5B-Instruct BF16,P32D2,missing,missing,missing,BLOCKED_UPSTREAM_AND_CONSTANTS,false,requires accepted Memgen traffic and calibrated constant latency
+research/simple-latency,Meta-Llama-3-8B-Instruct BF16,P32D2,missing_joined_full_replay,three_range_repeats_available,missing,BLOCKED_UPSTREAM_AND_CONSTANTS,false,constant integration cannot run a missing full replay
+research/hbfsim-cosimulation,Qwen2.5-1.5B-Instruct BF16,P32D2,missing,missing,missing,BLOCKED_UPSTREAM_AND_COMPUTE_SIDEBAND,false,requires post-cache transactions and causal compute issue events
+research/hbfsim-cosimulation,Meta-Llama-3-8B-Instruct BF16,P32D2,missing_joined_full_replay,three_range_repeats_available,missing,BLOCKED_UPSTREAM_AND_COMPUTE_SIDEBAND,false,NCU traffic alone cannot drive closed-loop replay

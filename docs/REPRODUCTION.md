@@ -70,9 +70,12 @@ profiling. Compare only identical ranges and denominators. Preserve:
 - explicit missing or incompatible L1/L2 denominators.
 
 Traffic signed relative error is
-`100 * (model_bytes - NCU_bytes) / NCU_bytes`. The current gate is strict
-absolute error below 10% for both read and write in every accepted range.
-Internal conservation is mandatory but does not prove hardware accuracy.
+`100 * (model_bytes - NCU_bytes) / NCU_bytes`. The repository-wide admission
+gate requires DRAM write absolute relative error at most 20% for the complete
+request and every individual decode step. DRAM read and cache hit-rate error
+remain mandatory report columns. Internal conservation is mandatory but does
+not prove hardware accuracy. See
+[the unified branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md).
 
 ## 5. Promotion rule
 
@@ -82,4 +85,3 @@ dirty-management candidate may be promoted from
 fixtures, preserves source/phase conservation, improves independent SGLang
 workloads including decode-only write, and does not regress read traffic. A
 single workload fit or aggregate whole-request cancellation is insufficient.
-

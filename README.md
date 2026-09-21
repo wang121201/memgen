@@ -32,6 +32,16 @@ sidecars are deliberately excluded from Git.
   It adds L2 indexing/replacement variants, write-back policies, dirty-sector
   ownership and release experiments. A research result must not become the
   `main` default merely because one workload improves.
+- `research/simple-latency` integrates configurable constant latency over
+  cache and DRAM events. It is a serial memory-work diagnostic without
+  scheduling, backpressure or compute overlap.
+- `research/hbfsim-cosimulation` is the dependency-aware path where HBFSim
+  completion can delay future memory issue. It requires compute/issue sideband
+  and calibrated memory timing before hardware timing claims are allowed.
+
+The common SGLang workload matrix, RTX 4000 Ada cache geometry, metric
+denominators and the per-decode DRAM-write gate are defined in
+[the branch and acceptance contract](docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md).
 
 ## Evidence boundary
 
@@ -82,4 +92,3 @@ No repository-wide license is assigned by this archival change. Source-level
 origin and licensing observations are recorded in
 [provenance](docs/PROVENANCE.md); downstream users must verify third-party
 rights before redistribution.
-
