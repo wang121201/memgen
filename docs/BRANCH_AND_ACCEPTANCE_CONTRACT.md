@@ -120,3 +120,22 @@ All of the following are also mandatory:
   reference. Existing Qwen P128D2 evidence cannot be renamed P32D2.
 - Therefore none of the four branches is currently admitted for both requested
   P32D2 models. Smoke tests validate implementation mechanics only.
+
+## 8. Branch implementation-smoke status
+
+The following bounded CPU checks were rerun on 2026-09-21. They prove that
+each branch's archived mechanism executes deterministically; they do not use a
+Qwen or Llama workload and do not satisfy the P32D2 hardware-accuracy gate.
+The machine-readable source of this table is
+`validation/branch_smoke_status.csv`.
+
+| Branch | Checkout-local command | Result | Evidence identity | Claim boundary |
+| --- | --- | --- | --- | --- |
+| `main` | `scripts/run_cpu_smoke.sh FRESH_OUTPUT_DIRECTORY` | `PASS_FROZEN_CPU_SMOKE` | `kernel_summary.csv` SHA-256 `9e3b2ee1b69fce3650b9ae2e5a26583ff786d86008f2bb698fc1463915f2d9f2` | Frozen address-generation/cache-filter mechanics only |
+| `research/l2-writeback-dirty-management` | `scripts/run_l2_r4_fixture.sh FRESH_OUTPUT_DIRECTORY` | `PASS_L2_R4_CAUSAL_FIXTURE` | policy registry SHA-256 `07e97eb46bdec863513113c261dd01253df2f66a8e282e2bb5c27344a05302cf` | Synthetic L2 causality, partial-write and dirty-policy fixture only |
+| `research/simple-latency` | `scripts/run_simple_latency_smoke.sh FRESH_OUTPUT_DIRECTORY` | `PASS_SIMPLE_LATENCY_SMOKE` | observed result SHA-256 `0bb052963fd8580ebca4fead4ab56fa657e70083bbcf126a0b97f516218c612d` | Synthetic serial memory-work integration only; expected total is 806.00 ns |
+| `research/hbfsim-cosimulation` | `scripts/run_hbfsim_cosim_smoke.sh HBFSim_BINARY FRESH_OUTPUT_DIRECTORY` | `PASS_HBFSIM_CAUSAL_COSIM_SMOKE` | observed result SHA-256 `38c7141d0bcf61112a1ad5a42aff5d9ea89c728377377181e4e1accb154af76a`; HBFSim binary SHA-256 `349be108468f584f5e4ae0acf74b2c72789d4d26cb0f9f3747879cb203f69d2d` | Synthetic dependency/stall propagation only; GDDR timing remains uncalibrated |
+
+The P32D2 model rows remain `BLOCKED` in
+`validation/p32d2_branch_status.csv`. A smoke `PASS` must never be reported as
+Qwen2.5-1.5B or Meta-Llama-3-8B traffic, latency or bandwidth acceptance.
