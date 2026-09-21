@@ -73,6 +73,14 @@ fresh caller-selected directory:
 scripts/run_cpu_smoke.sh /tmp/memgen-cpu-smoke-r1
 ```
 
+The corresponding bounded commands for the three research branches and their
+latest deterministic evidence identities are recorded in
+[`validation/branch_smoke_status.csv`](validation/branch_smoke_status.csv).
+These checks establish implementation health only. The separate
+[`validation/p32d2_branch_status.csv`](validation/p32d2_branch_status.csv)
+remains the authority for Qwen2.5-1.5B and Meta-Llama-3-8B hardware-accuracy
+admission.
+
 Full SGLang/NCU reproduction requires the external runtime, model and GPU
 listed in [reproduction](docs/REPRODUCTION.md). It does not require committing
 or retaining a full raw memory trace.
