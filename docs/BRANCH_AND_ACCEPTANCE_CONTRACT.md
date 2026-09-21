@@ -48,8 +48,10 @@ Models in scope are:
 1. Qwen2.5-1.5B-Instruct BF16;
 2. Meta-Llama-3-8B-Instruct BF16;
 3. Meta-Llama-3-70B-Instruct BF16;
-4. Qwen2-35B BF16. The shorthand `qwen235B` is ambiguous; a run must bind an
-   exact model ID and must not reinterpret it as a 235B-parameter model.
+4. `qwen235B`, an unresolved shorthand for a Qwen-family large model. It may
+   denote Qwen2 35B or a 235B-parameter Qwen model; no run is admissible until
+   the exact provider/model ID, immutable revision, precision and parallelism
+   are recorded.
 
 The basic admission workload is P32D2. The scale series is the Cartesian
 product of prefill lengths `128, 256, 512, 1024` and decode lengths
