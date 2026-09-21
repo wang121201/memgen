@@ -1,0 +1,19 @@
+{
+  "claim_boundary": "Deterministic causal scheduling and traffic conservation only. The RTX 4000 Ada GDDR6 timing, address mapping, queue behavior and compute sideband remain uncalibrated; no hardware latency or bandwidth accuracy claim is admitted.",
+  "external_simulator": {
+    "engine_source_sha256": "fff9ac60abc24046f2a1e8d22893c16f869ed1cb2c865cae05c47521522b94e1",
+    "engine_tree_hash": "59462c7bde5dafca043cdf7d491d0cccfbc5de99",
+    "sha256": "349be108468f584f5e4ae0acf74b2c72789d4d26cb0f9f3747879cb203f69d2d",
+    "source_revision": "d7a2ca64614a6d9ce8d7a69beb77ce78b66df1a8",
+    "source_tree_sha256": "3b18903cf33ac2e433cc5f26b970a7b106f8611b4c55468ccea4e9723e955007"
+  },
+  "required_configs": [
+    "eight-stack-baseline.cfg",
+    "rtx4000-ada-uncalibrated.cfg"
+  ],
+  "schema": "memgen.hbfsim_backend_pin.v1",
+  "system_config_sha256_by_basename": {
+    "eight-stack-baseline.cfg": "a1e9e46f7054260351d04101fd54c1bf4df144cd606fc88fe5519d26390c2823",
+    "rtx4000-ada-uncalibrated.cfg": "b0b1098dd31828b92c11a8ec9d8eca8b61ccae5a2389e1f8612aba967a41a1ca"
+  }
+}
