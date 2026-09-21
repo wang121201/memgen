@@ -41,6 +41,7 @@ def main() -> None:
         ROOT / "evidence/historical-prefill-d32/finish.json",
         ROOT / "evidence/historical-prefill-d32/tables.md",
         ROOT / "evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md",
+        ROOT / "validation/branch_smoke_status.csv",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.is_file()]
     require(not missing, f"missing required archive files: {missing}")
@@ -73,6 +74,31 @@ def main() -> None:
     require(all(row["framework"] == "SGLang-0.4.10" and row["dtype"] == "BF16" for row in current), "SGLang contract changed")
     require({row["range"] for row in current} == {"whole", "prefill", "decode"}, "SGLang ranges incomplete")
 
+    smoke = rows(ROOT / "validation/branch_smoke_status.csv")
+    expected_smoke = {
+        "main": (
+            "PASS_FROZEN_CPU_SMOKE",
+            "9e3b2ee1b69fce3650b9ae2e5a26583ff786d86008f2bb698fc1463915f2d9f2",
+        ),
+        "research/l2-writeback-dirty-management": (
+            "PASS_L2_R4_CAUSAL_FIXTURE",
+            "07e97eb46bdec863513113c261dd01253df2f66a8e282e2bb5c27344a05302cf",
+        ),
+        "research/simple-latency": (
+            "PASS_SIMPLE_LATENCY_SMOKE",
+            "0bb052963fd8580ebca4fead4ab56fa657e70083bbcf126a0b97f516218c612d",
+        ),
+        "research/hbfsim-cosimulation": (
+            "PASS_HBFSIM_CAUSAL_COSIM_SMOKE",
+            "38c7141d0bcf61112a1ad5a42aff5d9ea89c728377377181e4e1accb154af76a",
+        ),
+    }
+    require([row["branch"] for row in smoke] == list(expected_smoke), "branch smoke order changed")
+    for row in smoke:
+        actual = (row["status"], row["primary_evidence_sha256"])
+        require(actual == expected_smoke[row["branch"]], f"branch smoke identity changed: {row['branch']}")
+        require(row["hardware_accuracy_accepted"] == "false", f"smoke mislabeled as hardware accuracy: {row['branch']}")
+
     forbidden = []
     oversized = []
     for path in ROOT.rglob("*"):
@@ -93,4 +119,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
