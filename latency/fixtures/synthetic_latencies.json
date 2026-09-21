@@ -1,0 +1,6 @@
+{
+  "l1_hit": 1.0,
+  "l2_hit": 10.0,
+  "dram_read_sector": 100.0,
+  "dram_write_sector": 120.0
+}

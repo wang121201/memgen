@@ -1,0 +1,3 @@
+kernel_id,l1_requests,l1_hits,l1_pending_hits,l1_misses,l2_requests,l2_hits,l2_pending_hits,l2_misses,dram_requests,dram_load_requests,dram_store_requests,dram_load_sectors,dram_store_sectors
+1,10,4,1,5,5,2,1,2,3,2,1,2,1
+2,4,1,0,3,3,0,1,2,4,2,2,2,2
