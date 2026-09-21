@@ -1,0 +1,40 @@
+{
+  "cpu": 0,
+  "elapsed_seconds": 0.0712132453918457,
+  "kernels": 7,
+  "outputs": {
+    "dirty-policies.csv": {
+      "bytes": 2713,
+      "sha256": "e345c127729aa12b91f697c715efac3effb89c6609826c08eef042bdaec46440"
+    },
+    "model/kernel_summary.csv": {
+      "bytes": 1954,
+      "sha256": "8adebf105de1812059d7105e637c60d0deb9868a0f721a430badbab88dafc410"
+    },
+    "ownership.csv": {
+      "bytes": 72,
+      "sha256": "64e5bf385c5b1617bddbd90b7b087bf55c902bd14e0573aa95a173b6b1cdf76b"
+    },
+    "policy-manifest.csv": {
+      "bytes": 314,
+      "sha256": "797fb1557e08f7fa6cd49d943b8fc2c1617f72a429b504b0a539396bf46a96df"
+    },
+    "stats.json": {
+      "bytes": 1321,
+      "sha256": "57064c185aa402a919658e51bc64598e2d43893a5a056e8342f9a3544a938be4"
+    },
+    "versions.csv": {
+      "bytes": 249,
+      "sha256": "257c343d3c77d240d5ea0d951f7e79298622e32aa2126d73b98ba9ddddd70fef"
+    }
+  },
+  "policies": [
+    "phase11",
+    "clean_q16"
+  ],
+  "policy_count": 3,
+  "returncode": 0,
+  "rows": 21,
+  "status": "COMPLETE_CAUSAL_FULL_INFERENCE_POLICY_SHARD_NOT_HARDWARE_ACCEPTANCE",
+  "workload": "regression-boundaries-rmw"
+}

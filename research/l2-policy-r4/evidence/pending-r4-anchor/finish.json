@@ -1,0 +1,46 @@
+{
+  "binary_sha256": "abf48f900070c78dd58c0539aa1dc5c03f810f6404b023fd92b3601fd2c25d40",
+  "disabled_anchor_exact": true,
+  "hardware_accuracy_accepted": false,
+  "kernels": 8,
+  "outputs": {
+    "dirty-policies.csv": {
+      "bytes": 6466,
+      "sha256": "14399385fa12fcfeddbe48da058d100b79bf45851f3b6be91549d198016c7da5"
+    },
+    "ownership.csv": {
+      "bytes": 3228,
+      "sha256": "8e9a0699d74e209aa4bc73b12311d58b52bde33a118de4fb61956e8760642e77"
+    },
+    "policy-manifest.csv": {
+      "bytes": 521,
+      "sha256": "4b1dac3f620d67935d23e2924a7a10ab34647fc880ed37e2457efd0bd0e377d4"
+    },
+    "stats.json": {
+      "bytes": 1265,
+      "sha256": "bf7741a081356c53b79be76a3ed8fee20c0acef3d9c6ce444c583147510b2a4d"
+    },
+    "stderr": {
+      "bytes": 1990,
+      "sha256": "fe9ea819f39eaf6fdf8ae52bae55b4fb5a9f5cf41b39a786a6aa45774749b4a6"
+    },
+    "stdout": {
+      "bytes": 57,
+      "sha256": "4404060e6e9a4676c0e4fd23ceac8e56f4ec81619b4e11e8fcd28d71e57e1fd6"
+    },
+    "versions.csv": {
+      "bytes": 1788,
+      "sha256": "c6240637ba0be3243e6c14c9463fa9008cfac0acefec249112f1f43864f292fc"
+    }
+  },
+  "policies": [
+    "disabled",
+    "overflow_armed_pending8_next_distinct_line_v1",
+    "select_at8_emit_next_distinct_line_v1",
+    "selected8_cancel_on_victim_store_v1"
+  ],
+  "policy_count": 4,
+  "policy_registry_sha256": "07e97eb46bdec863513113c261dd01253df2f66a8e282e2bb5c27344a05302cf",
+  "source_request_population_equal": true,
+  "status": "COMPLETE_PENDING_POLICY_FULL_SOURCE_ANCHOR_NOT_HARDWARE_ACCEPTANCE"
+}

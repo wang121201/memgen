@@ -1,0 +1,10 @@
+{
+  "cpu": 0,
+  "pid": 3030380,
+  "policies": [
+    "phase11",
+    "clean_q16"
+  ],
+  "started_unix": 1789978718.6569018,
+  "workload": "regression-boundaries-rmw"
+}

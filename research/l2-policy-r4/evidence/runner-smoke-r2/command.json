@@ -1,0 +1,58 @@
+{
+  "argv": [
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-matrix-20260921-01a08d87-r1/full-policy",
+    "--mode",
+    "memgen",
+    "--profile-index",
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/profiles.index.jsonl",
+    "--app-config",
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/app.config",
+    "--issue-config",
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/issue.config",
+    "--hw-config",
+    "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/config/RTX4000Ada.paper-v1.config",
+    "--stats",
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-matrix-20260921-01a08d87-r1/runner-smoke-r2/stats.json",
+    "--output-dir",
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-matrix-20260921-01a08d87-r1/runner-smoke-r2/model",
+    "--include-local",
+    "false",
+    "--observe-cache",
+    "false"
+  ],
+  "cpu": 0,
+  "environment": {
+    "FULL_POLICY_MATRIX": "phase11,clean_q16"
+  },
+  "inputs": {
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/app.config": {
+      "bytes": 1253,
+      "sha256": "b535ffd6a05774fc25eb12daf3b4af80d169097901478354413e7ea1d6018614"
+    },
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/issue.config": {
+      "bytes": 137,
+      "sha256": "800225b5147ba4e43c9e048611f4c649c96c91d84d9afce423b2088f9666aa28"
+    },
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/population.json": {
+      "bytes": 2159,
+      "sha256": "fea7fbf36f5ec015558edf8e0ae65ad5ea94c9e960f89e9d103b7b9ec1c444f5"
+    },
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-integration-20260919-01a08d87-r1/boundaries-rmw/prepared/profiles.index.jsonl": {
+      "bytes": 2176,
+      "sha256": "93962e9759a75059b072c7a943ecbdf79e601595f7233a1d175833cb242101e7"
+    },
+    "/home/xmu/nvidiagds/codex-runs/l2-sglang-full-policy-matrix-20260921-01a08d87-r1/full-policy": {
+      "bytes": 1030104,
+      "sha256": "0c437d9da034fcc53525eccafa7bda35f54ac0b1edc30ee457ddca627d89d398"
+    },
+    "/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/config/RTX4000Ada.paper-v1.config": {
+      "bytes": 6408,
+      "sha256": "75aecac4fa003b71fec12a9d4c42e604969aa9aa932742093b1bcad875e96974"
+    }
+  },
+  "policies": [
+    "phase11",
+    "clean_q16"
+  ],
+  "workload": "regression-boundaries-rmw"
+}

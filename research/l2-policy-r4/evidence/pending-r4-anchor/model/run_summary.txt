@@ -1,0 +1,42 @@
+HyFiSS internal request trace backend
+hw_config="/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1/config/RTX4000Ada.paper-v1.config"
+output_format=summary
+footprint_format=csv
+semantic_output=none
+semantic_file=""
+emit_level=DRAM
+output_phase=all
+order=timestamp
+include_local=0
+num_sms=48
+sector_size=32
+l1_size_bytes=32768 l1_line_size=128 l1_assoc=64 l1_set_index=L
+l2_size_bytes=41943040 l2_size_per_partition=2097152 l2_line_size=128 l2_assoc=16 l2_set_index=X
+cache_data_validity=known_bytes_union_v1;pending_read_independent_v1
+l2_lookup_statistics=directional_residency_v1;write_not_ncu_hit_v1
+l1_read_policy=ldg_strong_gpu_bypass_v1_sm89_validated
+l2_writeback_transfer=dirty_sector_runs_v1
+l2_dirty_drain_budget=global_remaining_v2
+l2_index_coordinate=fallback_quotient_v2
+num_partitions=20 num_memory_channels=5 num_sub_partitions_per_channel=4 num_banks=16 partition_index_bit=8
+address_mapping=low-mask memory_partition_indexing=0 mem_address_mask=0 mem_addr_mapping=
+preserve_l2=1 flush_l2_on_reset=0 preserve_l1=0
+l1_store_policy=bypass
+write_sector_policy=line-miss-only
+dram_store_policy=writeback
+l1_fill_latency=0
+l2_fill_latency=0
+l2_dirty_drain=0
+l2_streaming_fill=0
+l2_dirty_drain_latency=0
+l2_dirty_drain_max_sectors_per_kernel=0
+l2_dirty_drain_high_watermark_sectors=983040
+l2_dirty_drain_target_sectors=655360
+output_rotate_bytes=1099511627776
+records_written=0
+accelsim_records_written=0
+footprint_records_written=0
+footprint_expanded_requests=0
+request_output_files=
+accelsim_output_files=
+footprint_output_files=

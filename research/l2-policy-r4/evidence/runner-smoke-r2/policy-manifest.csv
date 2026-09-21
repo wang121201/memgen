@@ -1,0 +1,4 @@
+policy,family,causal_online,write_budget,read_budget,release_mode,release_age,phase_variant,behavior_arm,clean_first,sector_age,disable_aged,native_age,one_sector
+disabled,ordinary_lru,1,16,16,0,0,0,0,0,0,0,0,0
+phase11,phase_release,1,4,16,1,16,11,0,1,0,0,0,0
+clean_q16,clean_first_quota,1,16,16,0,0,0,0,1,0,0,0,0

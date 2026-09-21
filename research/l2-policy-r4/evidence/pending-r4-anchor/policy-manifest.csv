@@ -1,0 +1,5 @@
+policy,family,causal_online,write_budget,read_budget,release_mode,release_age,phase_variant,behavior_arm,clean_first,sector_age,disable_aged,native_age,one_sector,pending_mode,dirty_update_includes_atomic_rmw
+disabled,ordinary_lru,1,16,16,0,0,0,0,0,0,0,0,0,0,1
+select_at8_emit_next_distinct_line_v1,pending_selection,1,16,16,0,0,0,0,0,0,0,0,0,1,1
+overflow_armed_pending8_next_distinct_line_v1,pending_overflow,1,16,16,0,0,0,0,0,0,0,0,0,2,1
+selected8_cancel_on_victim_store_v1,pending_cancel,1,16,16,0,0,0,0,0,0,0,0,0,3,1
