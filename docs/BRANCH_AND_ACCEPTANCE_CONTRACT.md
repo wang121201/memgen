@@ -138,8 +138,9 @@ The machine-readable source of this table is
 | `research/simple-latency` | `scripts/run_simple_latency_smoke.sh FRESH_OUTPUT_DIRECTORY` | `PASS_SIMPLE_LATENCY_SMOKE` | observed result SHA-256 `0bb052963fd8580ebca4fead4ab56fa657e70083bbcf126a0b97f516218c612d` | Synthetic serial memory-work integration only; expected total is 806.00 ns |
 | `research/hbfsim-cosimulation` | `scripts/run_hbfsim_cosim_smoke.sh HBFSim_BINARY FRESH_OUTPUT_DIRECTORY` | `PASS_HBFSIM_CAUSAL_COSIM_SMOKE` | observed result SHA-256 `38c7141d0bcf61112a1ad5a42aff5d9ea89c728377377181e4e1accb154af76a`; HBFSim binary SHA-256 `349be108468f584f5e4ae0acf74b2c72789d4d26cb0f9f3747879cb203f69d2d` | Synthetic dependency/stall propagation only; GDDR timing remains uncalibrated |
 
-The P32D2 model rows remain `BLOCKED` in
-`validation/p32d2_branch_status.csv`. A smoke `PASS` must never be reported as
+Current P32D2 branch-specific status is recorded in
+`validation/p32d2_branch_status.csv` and `validation/r4_downstream_status.json`;
+closed traffic or fixed-cost diagnostics do not establish hardware timing accuracy. A smoke `PASS` must never be reported as
 Qwen2.5-1.5B or Meta-Llama-3-8B traffic, latency or bandwidth acceptance.
 
 ## Explicit r4 software on main

@@ -1,0 +1,19 @@
+{
+  "schema": "MEMGEN_R4_DOWNSTREAM_STATUS_V1",
+  "main_commit": "b14d046f6816914c130486d24ddd6c5abbecb699",
+  "status": "PASS_PAIRED_TRAFFIC_WEIGHTED_DIAGNOSTIC",
+  "hardware_accuracy_accepted": false,
+  "weights_are_synthetic": true,
+  "measurement_kernels": 1030,
+  "warmup_kernels_excluded": 1032,
+  "relative_serial_work_change_percent": {
+    "whole": -1.3138470384322487,
+    "Decode1": -2.0041711235811266,
+    "Decode2": -2.004150729699286,
+    "Prefill": 0.0010561427882305444
+  },
+  "same_input_prior_and_merged_tool_equivalent": true,
+  "claim_boundary": "fixed synthetic service-cost sensitivity; not GPU time",
+  "evidence_root": "/home/xmu/nvidiagds/codex-runs/memgen-downstream-r4-20260922-r1",
+  "comparison_sha256": "24bb7ab6162d40b0512eea302583fc62604a092f9388f5fabd188b2e639f24f2"
+}

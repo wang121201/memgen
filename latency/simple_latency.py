@@ -12,6 +12,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -61,8 +62,8 @@ def load_latencies(path: Path) -> dict[str, float]:
     result: dict[str, float] = {}
     for event in EVENTS:
         latency = float(value[event])
-        if latency < 0:
-            raise ValueError(f"latency for {event} is negative")
+        if not math.isfinite(latency) or latency < 0:
+            raise ValueError(f"latency for {event} must be finite and nonnegative")
         result[event] = latency
     return result
 
@@ -115,6 +116,8 @@ def add_counts(target: dict[str, int], source: dict[str, int]) -> None:
 
 def summarize(counts: dict[str, int], latencies: dict[str, float]) -> dict[str, Any]:
     work = {event: counts[event] * latencies[event] for event in EVENTS}
+    if not all(math.isfinite(v) for v in work.values()) or not math.isfinite(sum(work.values())):
+        raise ValueError("serial work exceeds finite numeric range")
     return {
         "event_counts": dict(counts),
         "serial_work_ns_by_event": work,
@@ -146,6 +149,8 @@ def main() -> int:
             kernel_id = row["kernel_id"].strip()
             if not kernel_id or kernel_id in seen_kernels:
                 raise ValueError(f"row {row_number}: empty or repeated kernel_id {kernel_id!r}")
+            if args.phase_map is not None and kernel_id not in phase_map:
+                raise ValueError(f"phase map omits kernel_id {kernel_id}")
             seen_kernels.add(kernel_id)
             counts = counts_for(row, row_number)
             add_counts(totals, counts)
