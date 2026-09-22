@@ -228,22 +228,12 @@ def fit(collector,begin,end=None,transport=None,timings=None):
  mark('fit_rules_seconds')
  checked=validate_samples(profile,sampled)
  mark('validate_all_sample_addresses_seconds')
- expected={'mem_insts':0,'lane_accesses':0,'read_sector_requests':0,'write_sector_requests':0,'native_read_lane_bytes':0,'native_write_lane_bytes':0}
- caches={}
- for c,template in enumerate(template_by_cta(profile)):
-  for entry in template:
-   key=id(entry)
-   if key not in caches:
-    assert len(entry['groups'])==1
-    direction,width=direction_width(entry['opcode'])
-    offsets=[offset for lane,offset in lane_offsets(entry['mask'],tuple(entry['groups'][0]['pairs']))]
-    counts={mod:len({sector for off in offsets for sector in range((mod+off)//32,(mod+off+width-1)//32+1)}) for mod in range(32)}
-    caches[key]=(direction,width,len(offsets),counts)
-   direction,width,lanes,counts=caches[key]
-   base=rules.predict_bases(entry,c,grid)[0]
-   expected['mem_insts']+=1;expected['lane_accesses']+=lanes
-   expected['read_sector_requests' if direction=='R' else 'write_sector_requests']+=counts[base%32]
-   expected['native_read_lane_bytes' if direction=='R' else 'native_write_lane_bytes']+=lanes*width
+ from profile_census import count_profile
+ # Exact modulo aggregation changes only counting cost. The ordered native
+ # sample-address validation above and generated profile remain unchanged.
+ census=count_profile(profile,sys.modules[__name__])
+ expected={key:census[key] for key in ('mem_insts','lane_accesses','read_sector_requests',
+  'write_sector_requests','native_read_lane_bytes','native_write_lane_bytes')}
  profile.update(status='PASS_NATIVE_CTA_PACKED_EXACT_SAMPLES',independent_source_census=expected,
   source={'kind':'bounded_native_dynamic_CTA_pipe','launch':begin,'raw_trace_saved':False},sampling={'training_ctas':train,'holdout_ctas':hold,'complete_grid_no_extrapolation':complete,'checked_instructions':checked,'structural_class_count':len(groups),'certified_packetless_ctas':sorted(packetless),'packetless_scope':'instrumented memory classes only; not all hardware L2 clients'},model={'ordering':'CTA round robin across 48 SMs; canonical per-warp order; physical cross-warp arrival NOT captured','cache_entry':'COLD_ISOLATED_KERNEL_DIAGNOSTIC','prefix_replayed':False,'complete_model':False})
  profile['shared_only_projection_census']=dict(getattr(collector,'shared_only_census',{}))

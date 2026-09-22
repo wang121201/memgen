@@ -50,6 +50,7 @@ def main():
     paths+=list((a.upstream/'nvbit_sampler_r4').glob('*.py'))
     paths+=list((a.upstream/'template_adapter_r4').glob('*.py'))
     paths+=[a.upstream/'sglang_sample_to_packed.py',a.upstream/'full_source_postprocess.py']
+    if (a.upstream/'profile_census.py').is_file():paths.append(a.upstream/'profile_census.py')
     before={str(x.resolve()):sha(x) for x in paths}
     env=dict(os.environ)
     for k in list(env):
