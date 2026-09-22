@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 from pathlib import Path
 
 
@@ -119,3 +121,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# The imported release manifest is historical; check the active derived core.
+current = json.loads((ROOT / 'release/current-core-manifest.json').read_text())
+assert current['schema'] == 'MEMGEN_CURRENT_CACHE_CORE_V1'
+assert current['hardware_accuracy_accepted'] is False
+for row in current['files']:
+    payload = (ROOT / row['path']).read_bytes()
+    assert len(payload) == row['bytes'], row['path']
+    assert hashlib.sha256(payload).hexdigest() == row['sha256'], row['path']
+print('PASS_CURRENT_CACHE_CORE_IDENTITY')

@@ -1,0 +1,41 @@
+{
+  "schema": "MEMGEN_CURRENT_CACHE_CORE_V1",
+  "derived_from_main": "03a986ef711b29b1e7557162af9af7ac93aaa75f",
+  "extracted_from_research": "281af31f52555e9d7a2a1c1982f5d94947102ded",
+  "hardware_accuracy_accepted": false,
+  "frozen_import_manifest": "release/release-manifest.json",
+  "files": [
+    {
+      "path": "release/config/RTX4000Ada.r4.config",
+      "bytes": 2367,
+      "sha256": "4ad47b9b6e3bc75add1846f5051d52f543dc68178b81f27c6d7b2670f1bc740d"
+    },
+    {
+      "path": "release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp",
+      "bytes": 71046,
+      "sha256": "52897eac9e79a103694e63ce17cbe1ad322b1f8735ddb07753ed38386f6f26e2"
+    },
+    {
+      "path": "release/source/tools/hyfiss_request_trace_backend_api_semantic.h",
+      "bytes": 3741,
+      "sha256": "1c24d750724a0327ecca8c8112a5db9645a9529d3fa1792fb3e49c1b13bbcfdb"
+    },
+    {
+      "path": "release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
+      "bytes": 236967,
+      "sha256": "f0c546124a825d8aeb9107a77c908f8d533ebde8167b30f0eeafcfa17592fadf"
+    },
+    {
+      "path": "release/source/tools/memgen_hardware_config.h",
+      "bytes": 8254,
+      "sha256": "fc5c283f1b78b366df40d93e929b55985b8a4b929409e827e970273a2c0ef62e"
+    },
+    {
+      "path": "release/source/tools/r4_l1_read_filter.h",
+      "bytes": 6180,
+      "sha256": "11466fc64af92d01c2a95dab81f2f16310d6bb2aad3c181490b91e727ef4317a"
+    }
+  ],
+  "scope": "identity of the six extracted or modified cache source/config files; not a full build-dependency manifest",
+  "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested."
+}
