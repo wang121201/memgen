@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../trace-parser/trace-parser.h"
+#include "r4_l1_read_filter.h"
 
 namespace hyfiss_request_trace {
 
@@ -30,9 +31,16 @@ struct L2AccessObservation {
   bool victim=false;uint64_t victim_addr=0;uint32_t victim_valid=0,victim_dirty=0;
 };
 struct BackendOptions {
+  // Experimental serial-read candidate; legacy remains the default.
+  bool r4_l1_read_filter = false;
+  std::string r4_model_id = "CLOCK_u128_s16_h2_c1062";
   std::function<void(const L2AccessObservation&)> observe_l2_access;
   // Same state payload; partition is SM id. Bypassed L1 operations are excluded.
   std::function<void(const L2AccessObservation&)> observe_l1_access;
+  // A validated immutable profile may be shared by frontend and backend.
+  // In schema 1 the file owns all hardware policies; legacy API policy members
+  // below apply only to legacy files. Workload/output callbacks stay caller-owned.
+  std::shared_ptr<const HardwareProfile> hardware_profile;
   std::string hw_config;
   std::string output_dir;
   // Optional llama.cpp CUDA tensor RANGE sidecar.  When set, the summary-only
@@ -68,6 +76,8 @@ struct BackendOptions {
 };
 
 struct KernelTraceRef {
+  unsigned r4_shared_kib = 0;
+  std::vector<R4Allocation> r4_allocations;
   int kernel_id = 0;
   std::string kernel_name;
   std::string llm_phase = "unknown";

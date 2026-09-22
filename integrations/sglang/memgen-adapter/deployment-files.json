@@ -33,8 +33,8 @@
     },
     {
       "name": "sample_pipeline.py",
-      "bytes": 8336,
-      "sha256": "729a69dfda82f22d5dd373287eb4ed15cae3bb33b138e1e7fce352fc58c92c8d"
+      "bytes": 8431,
+      "sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d"
     },
     {
       "name": "expand_profiles.py",
@@ -43,8 +43,8 @@
     },
     {
       "name": "run_memgen.py",
-      "bytes": 5204,
-      "sha256": "7eb4e6509566b0fe40b3de6308898fb4d35ccaec4dd32e52b40e25cf395894f4"
+      "bytes": 10630,
+      "sha256": "e7b893b99de321f063cb42f95498c0a9fa71daa3e880f1cef3d576506ef3cf4c"
     },
     {
       "name": "followthrough.py",
@@ -63,8 +63,8 @@
     },
     {
       "name": "prepare_compact_sources.py",
-      "bytes": 4942,
-      "sha256": "1af630c551a0029ef513743b6a5f92c48dcb7c11c676afc0a5dfe7a94ddd128e"
+      "bytes": 5057,
+      "sha256": "869b9c5fc62449693a2d9d71509450ad2371378032dc69e274d2c9cf6eec3197"
     }
   ]
 }

@@ -58,6 +58,7 @@ def main():
  observer=a.output/'observer';observer.mkdir();up=a.output/'upstream';up.mkdir();sampler=up/'nvbit_sampler_r4';sampler.mkdir()
  # Source only, no captures, binaries or prior results copied.
  for n in ('full_source_postprocess.py','sglang_sample_to_packed.py'):shutil.copy2(a.upstream/n,up/n)
+ if (a.upstream/'profile_census.py').is_file():shutil.copy2(a.upstream/'profile_census.py',up/'profile_census.py')
  adapter=up/'template_adapter_r4';adapter.mkdir()
  for f in (a.upstream/'template_adapter_r4').iterdir():
   if f.is_file() and f.suffix in ('.py','.json'):shutil.copy2(f,adapter/f.name)

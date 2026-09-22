@@ -19,9 +19,20 @@ mpic++ -std=c++17 -O2 -ffunction-sections -fdata-sections -Wl,--gc-sections \
   -l:libzstd.so.1 -lz -lboost_mpi -lboost_serialization -lcrypto -pthread \
   -o "$out/build/hbserve"
 
+# Relocate index references without changing packed profile bytes.
+python3 - "$root" "$out" <<'PY'
+import json, pathlib, sys
+root, out = map(pathlib.Path, sys.argv[1:])
+source = root / 'release/fixtures/smoke'
+rows = [json.loads(line) for line in (source/'profiles.index.jsonl').read_text().splitlines()]
+for row in rows:
+    row['path'] = str(source/'profiles.pack.jsonl')
+(out/'profiles.index.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
+PY
+
 common=(
   --mode memgen
-  --profile-index "$root/release/fixtures/smoke/profiles.index.jsonl"
+  --profile-index "$out/profiles.index.jsonl"
   --app-config "$root/release/fixtures/smoke/configs/app.config"
   --issue-config "$root/release/fixtures/smoke/configs/issue.config"
   --hw-config "$root/release/config/RTX4000Ada.paper-v1.config"
