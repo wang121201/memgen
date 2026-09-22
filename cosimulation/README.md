@@ -61,3 +61,26 @@ batch. Before a large full-inference run, perform an input census and confirm
 that the graph fits host memory. A future chunked path must use HBFSim's
 `retain` contract for cross-batch dependencies; splitting into timing-barrier
 batches would change overlap and is not an acceptable optimization.
+
+
+## r4 同步与接入边界
+
+本分支已合并主分支 b14d046 的 r4（第四轮缓存候选）核心与硬件配置。
+旧缓存回归、新r4显式回放、原有因果 smoke 均通过；合并前后相同三事件输入的
+完成时间、依赖及流量完全一致：读取64字节、写入32字节。一级/二级缓存
+（Level-1/Level-2 Cache，L1/L2）配置不会自动改写HBFSim存储系统的配置。
+
+当前联合仿真入口仍消费外部事件文件，没有调用 memgen 生成这些事件。
+Qwen2.5-1.5B 的P32D2（32输入词元、提示处理后两次解码前向）已存在闭合的
+缓存汇总，但缺少实际显存事务出口和计算/依赖旁路数据，不能从汇总表重建地址、
+线程束、依赖或时间。HBServe的timestamp仅是排序坐标，不能解释成纳秒。
+
+后续接入应在真实DRAM（动态随机存取存储器）读填充与脏扇区写回出口发送事务，
+保留被驱逐地址与32字节粒度；还须处理全部缓存命中、零显存事务的依赖事件。
+线程束身份、计算时长及依赖必须由明确来源提供，不能为凑齐接口而假造。
+将r4固定输出接到有向无环图（Directed Acyclic Graph，DAG）服务诊断，也不等于
+完成时间反过来改变缓存请求顺序的闭环模拟。有限缺失状态保持寄存器
+（Miss Status Holding Register，MSHR）仍未建模。
+
+本次未修改HBFSim的存储体/队列/服务时序参数；其GDDR6替代模型仍未校准。
+所以这里验证的是合并兼容性，完整LLM（大语言模型）的r4→HBFSim影响仍待接入。

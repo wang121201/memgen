@@ -1,0 +1,15 @@
+{
+  "schema": "MEMGEN_R4_DOWNSTREAM_STATUS_V1",
+  "main_commit": "b14d046f6816914c130486d24ddd6c5abbecb699",
+  "status": "PASS_MERGE_COMPATIBILITY_MISSING_NATIVE_EVENT_BRIDGE",
+  "hardware_accuracy_accepted": false,
+  "fixed_event_semantics_unchanged": true,
+  "memgen_r4_event_bridge_connected": false,
+  "missing": [
+    "actual DRAM transaction sink",
+    "compute and dependency sideband",
+    "zero-memory event handling"
+  ],
+  "evidence_root": "/home/xmu/nvidiagds/codex-runs/memgen-downstream-r4-20260922-r1",
+  "validation_sha256": "9047d79e0c0d355423fe511115e90fd01466ab8dd6cf2e72230632edf722888d"
+}
