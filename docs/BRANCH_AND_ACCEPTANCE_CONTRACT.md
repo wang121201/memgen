@@ -141,3 +141,14 @@ The machine-readable source of this table is
 The P32D2 model rows remain `BLOCKED` in
 `validation/p32d2_branch_status.csv`. A smoke `PASS` must never be reported as
 Qwen2.5-1.5B or Meta-Llama-3-8B traffic, latency or bandwidth acceptance.
+
+## Explicit r4 software on main
+
+The 32 KiB (32 * 1024 bytes) L1 geometry above describes the legacy configuration.
+The optional r4 (fourth cache candidate) configuration uses a shared-memory
+capacity table, defined in `release/config/README.md`. It can be selected on main
+without accepting its hardware calibration. Main's default legacy policy is
+unchanged; experimental L2 writes, finite miss-status holding registers (MSHRs),
+private sampling certificates and matrix controllers are not promoted by this
+core extraction. Current source identity is recorded separately from the frozen
+import in `release/current-core-manifest.json`.

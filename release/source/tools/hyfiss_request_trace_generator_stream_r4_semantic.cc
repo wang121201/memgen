@@ -184,6 +184,7 @@ struct KernelMeta {
 };
 
 struct HwParams {
+  std::shared_ptr<const hyfiss_request_trace::HardwareProfile> profile;
   unsigned num_sms = 1;
   unsigned num_partitions = 1;
   unsigned num_memory_channels = 1;
@@ -507,8 +508,21 @@ unsigned get_uint(const std::unordered_map<std::string, std::string> &m,
   return static_cast<unsigned>(parse_u64(tok, 0));
 }
 
-HwParams read_hw_params(const fs::path &path) {
+HwParams read_hw_params(const fs::path &path,
+    std::shared_ptr<const hyfiss_request_trace::HardwareProfile> profile={}) {
   HwParams hw;
+  hw.profile=profile?profile:hyfiss_request_trace::HardwareProfile::load(path.string());
+  if(hw.profile) {
+    const auto &p=*hw.profile;
+    hw.num_sms=p.sms;hw.num_memory_channels=p.channels;
+    hw.num_sub_partitions_per_channel=p.subpartitions;
+    hw.num_partitions=p.channels*p.subpartitions;hw.num_banks=p.banks;
+    // Only the r4 cache is constructed; these legacy L1 fields are not used.
+    hw.l1_size_bytes=0;hw.l1_assoc=0;hw.l1_line_size=128;
+    hw.l2_size_bytes=p.l2_bytes;hw.l2_assoc=p.l2_ways;hw.l2_line_size=128;
+    hw.l2_set_index=parse_set_index_function(p.l2_index);hw.kernel_gap=p.kernel_gap;
+    return hw;
+  }
   auto cfg = read_dash_config(path);
   const unsigned clusters = get_uint(cfg, "-gpgpu_num_clusters", 0);
   const unsigned sms_per_cluster =
@@ -4230,6 +4244,20 @@ Options parse_args(int argc, char **argv) {
 }
 
 void apply_hw_options(Options &opt, const HwParams &hw) {
+  if(hw.profile) {
+    const auto &p=*hw.profile;
+    opt.sector_size=32;opt.num_banks=p.banks;opt.partition_index_bit=p.partition_bit;
+    opt.l1_store_policy="bypass";opt.write_sector_policy=p.write_sector_policy;
+    opt.dram_store_policy=p.dram_store_policy;opt.preserve_l1=false;
+    opt.preserve_l2=p.preserve_l2;opt.flush_l2_on_reset=false;
+    opt.l2_dirty_drain=false;opt.l2_streaming_fill=false;
+    opt.l1_fill_latency_set=opt.l2_fill_latency_set=true;
+    opt.l1_fill_latency=opt.l2_fill_latency=0;
+    opt.l2_dirty_drain_latency_set=true;opt.l2_dirty_drain_latency=0;
+    opt.l2_dirty_drain_max_sectors_per_kernel=0;
+    opt.l2_dirty_drain_high_watermark_sectors=0;opt.l2_dirty_drain_target_sectors=0;
+    opt.monotonic_sm=true;opt.issue_interval=p.issue_interval;
+  }
   opt.num_sms = hw.num_sms;
   opt.num_partitions = hw.num_partitions;
   opt.num_memory_channels = hw.num_memory_channels;
@@ -4423,8 +4451,9 @@ bool valid_backend_order(const std::string &order) {
 } // namespace
 
 int run_from_sm_trace_source(
-    const BackendOptions &backend_opt,
+    const BackendOptions &supplied_options,
     const std::function<bool(KernelTraceRef &)> &next_kernel) {
+  BackendOptions backend_opt=supplied_options;
   try {
     if (backend_opt.hw_config.empty())
       throw std::runtime_error("request backend requires hw_config");
@@ -4435,8 +4464,27 @@ int run_from_sm_trace_source(
 
     Options opt;
     apply_backend_options(opt, backend_opt);
-    const HwParams hw = read_hw_params(opt.hw_config);
+    const HwParams hw = read_hw_params(opt.hw_config,backend_opt.hardware_profile);
     apply_hw_options(opt, hw);
+    if(hw.profile) {
+      if(backend_opt.r4_l1_read_filter && backend_opt.r4_model_id!=hw.profile->values.at("context_model_id"))
+        throw std::runtime_error("hardware config and kernel context model identities differ");
+      backend_opt.r4_l1_read_filter=true;
+      backend_opt.r4_model_id=hw.profile->values.at("context_model_id");
+      backend_opt.order="timestamp";
+    }
+
+    if (backend_opt.r4_l1_read_filter && (opt.preserve_l1 ||
+        opt.l1_store_policy!="bypass" || opt.l1_fill_latency!=0 || opt.sector_size!=32))
+      throw std::runtime_error("r4 requires per-kernel L1 reset, store bypass and zero L1 fill latency");
+    if(backend_opt.r4_l1_read_filter &&
+       backend_opt.r4_model_id!="CLOCK_u128_s16_h2_c1062" &&
+       backend_opt.r4_model_id!="r4-small-shared-20260922")
+      throw std::runtime_error("unknown r4 model identity");
+    std::unique_ptr<R4L1ReadFilter> r4;
+    if (backend_opt.r4_l1_read_filter)
+      r4=std::make_unique<R4L1ReadFilter>(std::max(1u,opt.num_sms),hw.profile);
+    std::ofstream r4_ledger;
 
     if (backend_opt.observe_cache && (opt.output_format!="summary" || opt.l2_line_size!=128 ||
         opt.sector_size!=32 || !opt.preserve_l2 || opt.l2_dirty_drain ||
@@ -4445,6 +4493,21 @@ int run_from_sm_trace_source(
     CacheObservation observation;
     CacheInputCensus input_census;
     fs::create_directories(opt.output_dir);
+    if(hw.profile) {
+      const auto snapshot=opt.output_dir/"hardware.config";
+      const auto resolved=opt.output_dir/"hardware.resolved.json";
+      if(fs::exists(snapshot)||fs::exists(resolved))throw std::runtime_error("hardware receipt exists; use fresh output directory");
+      std::ofstream copy(snapshot,std::ios::binary);copy<<hw.profile->source_text;
+      if(!copy)throw std::runtime_error("hardware snapshot write failed");
+      boost::property_tree::write_json(resolved.string(),hw.profile->resolved());
+    }
+    if (r4) {
+      if(fs::exists(opt.output_dir/"r4_l1_profiles.csv"))
+        throw std::runtime_error("r4 ledger exists; use fresh output directory");
+      r4_ledger.open(opt.output_dir/"r4_l1_profiles.csv");
+      if(!r4_ledger)throw std::runtime_error("cannot open r4 ledger");
+      r4_ledger<<"kernel_id,shared_kib,effective_bytes,sets,ways,allocations,model\n";
+    }
     RotatingOutput req_out;
     if (wants_csv(opt)) {
       req_out.open(opt.output_dir / "requests.csv", request_csv_header(opt),
@@ -4476,7 +4539,7 @@ int run_from_sm_trace_source(
     g_semantic_traffic_ledger = opt.semantic_summary ? &semantic_traffic : nullptr;
 
     std::vector<SectorLruCache> l1_caches;
-    for (unsigned sm = 0; sm < std::max(1u, opt.num_sms); ++sm)
+    for (unsigned sm = 0; !r4 && sm < std::max(1u, opt.num_sms); ++sm)
       l1_caches.emplace_back(opt.l1_size_bytes, opt.l1_line_size,
                              opt.l1_assoc, opt.l1_set_index);
     const unsigned l2_partitions = std::max(1u, opt.num_partitions);
@@ -4545,6 +4608,8 @@ int run_from_sm_trace_source(
     auto process_inst = [&](const KernelMeta &meta, MemoryInst &inst,
                             std::vector<uint64_t> &last_ts,
                             uint64_t &kernel_max_ts) {
+      if (r4 && inst.sm_id >= last_ts.size())
+        throw std::runtime_error("r4 SM id outside hardware configuration");
       if (inst.sm_id >= last_ts.size())
         inst.sm_id %= last_ts.size();
       uint64_t ts = kernel_base + inst.timestamp;
@@ -4586,6 +4651,7 @@ int run_from_sm_trace_source(
       if (inst.op == 'W' && inst.mem_width >= 16)
         ks.wide_store_insts++;
       for (const auto &req : reqs) {
+        if(r4)r4->require_sector(req.addr,req.byte_mask);
         const SemanticInfo &req_sem = semantic_db.lookup(req.addr);
         if (g_semantic_traffic_ledger)
           g_semantic_traffic_ledger->add_source(
@@ -4601,6 +4667,16 @@ int run_from_sm_trace_source(
         if (!bypass_l1) {
           ks.l1_requests++;
           if (bypass_l1_read(inst)) l1_access.result=CacheResult::SectorMiss;
+          else if (r4) {
+            if(inst.op!='R' || req.size!=32)
+              throw std::runtime_error("r4 accepts read sectors only");
+            auto a=r4->access(inst.sm_id,req.addr,req.byte_mask);
+            l1_access.result=a.outcome==0?CacheResult::Hit:
+                             a.outcome==2?CacheResult::LineMiss:CacheResult::SectorMiss;
+            l1_access.valid_before=a.before;l1_access.valid_after=a.after;
+            l1_access.evicted.present=a.victim;l1_access.evicted.addr=a.victim_addr;
+            l1_access.evicted.valid_sectors=a.victim_valid;
+          }
           else l1_access=l1_caches[inst.sm_id].access(req.addr, req.size, opt.sector_size, ts,
                           opt.l1_fill_latency, cache_operation(inst.op),
                           false, 0, false, false, req.byte_mask);
@@ -4763,6 +4839,16 @@ int run_from_sm_trace_source(
       meta.id = kernel_ref.kernel_id;
       meta.name = kernel_ref.kernel_name.empty() ? "unknown" : kernel_ref.kernel_name;
       meta.llm_phase = kernel_ref.llm_phase.empty() ? "unknown" : kernel_ref.llm_phase;
+      if(r4) {
+        if((kernel_ref.r4_shared_kib==8 || kernel_ref.r4_shared_kib==16) &&
+           backend_opt.r4_model_id!="r4-small-shared-20260922")
+          throw std::runtime_error("small shared candidate requires explicit model identity");
+        r4->begin_kernel(kernel_ref.r4_shared_kib,kernel_ref.r4_allocations);
+        r4_ledger<<meta.id<<','<<kernel_ref.r4_shared_kib<<','<<r4->sets()*128*r4->ways()
+                 <<','<<r4->sets()<<','<<r4->ways()<<','<<kernel_ref.r4_allocations.size()
+                 <<','<<backend_opt.r4_model_id<<"\n";
+        if(!r4_ledger)throw std::runtime_error("r4 ledger write failed");
+      }
       if (!opt.preserve_l1) {
         for (auto &c : l1_caches)
           c.clear();
@@ -4925,6 +5011,8 @@ int run_from_sm_trace_source(
         << "emit_level=" << opt.emit_level << "\n"
         << "output_phase=" << opt.output_phase << "\n"
         << "order=" << backend_opt.order << "\n"
+        << "l1_filter_model=" << (r4?backend_opt.r4_model_id:"legacy") << "\n"
+        << "l1_geometry_source=" << (r4?(hw.profile?"hardware.resolved.json;r4_l1_profiles.csv":"r4_l1_profiles.csv;config_geometry_below_unused"):"hw_config") << "\n"
         << "include_local=" << (opt.include_local ? 1 : 0) << "\n"
         << "num_sms=" << opt.num_sms << "\n"
         << "sector_size=" << opt.sector_size << "\n"
@@ -5020,6 +5108,7 @@ int run_cli(int argc, char **argv) {
   try {
     Options opt = parse_args(argc, argv);
     const HwParams hw = read_hw_params(opt.hw_config);
+    if(hw.profile)throw std::runtime_error("unified r4 hardware requires the ordered backend with per-kernel context; use hbserve-profile-stream-cache");
     apply_hw_options(opt, hw);
 
     const bool filter_app_metadata =

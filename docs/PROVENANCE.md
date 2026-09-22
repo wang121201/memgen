@@ -71,3 +71,31 @@ therefore does not assert a repository-wide license or grant rights beyond
 those already held by the source owners. Attribution and license review are
 required before third-party redistribution.
 
+
+## Current derived cache core
+
+The optional r4 (fourth cache candidate) core was extracted from
+`research/llm-traffic-calibration` at
+`281af31f52555e9d7a2a1c1982f5d94947102ded`, based on main
+`03a986ef711b29b1e7557162af9af7ac93aaa75f`.
+`release/current-core-manifest.json` identifies the six extracted or modified cache source/configuration files, not every transitive build dependency.
+`release/release-manifest.json` remains the unmodified historical import receipt;
+its source hashes describe that import, not the derived engine.
+
+The new software supports an explicit allocation-relative L1 (level-one cache)
+CLOCK replacement model, a strict shared hardware configuration, 32-byte sectors,
+128-byte replacement lines and context identity checks. It retains the previous
+L2 (level-two cache) write behavior. Finite miss-status holding registers (MSHRs)
+and hardware timing are not implemented. The r4 configuration is experimental,
+not a hardware-accuracy acceptance. Research experiment drivers and private
+sampling certificates were not promoted.
+
+Run `python3 scripts/test_cache_core.py --output FRESH_DIRECTORY` for current
+CPU (central processing unit) software checks. Historical validation tables
+remain dated evidence for their original sources; they do not certify this core.
+
+During extraction the C++ reader gained a rejection check for explicitly modeled
+cross-layer profile bindings used with original allocation context. This is the
+only behavioral addition to the extracted cache core; it does not change cache
+traffic for admitted native inputs. Current tiny integration tests check cache
+counters, configuration/context identity, interval selector validity and cleanup.

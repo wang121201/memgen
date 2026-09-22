@@ -100,3 +100,20 @@ No repository-wide license is assigned by this archival change. Source-level
 origin and licensing observations are recorded in
 [provenance](docs/PROVENANCE.md); downstream users must verify third-party
 rights before redistribution.
+
+## Optional r4 cache core
+
+The r4 (fourth cache candidate) software is available on main with explicit
+configuration and context. The legacy configuration remains unchanged.
+See [configuration and limitations](release/config/README.md).
+Build and run the current CPU (central processing unit) regression with:
+
+```bash
+python3 scripts/test_cache_core.py --output /absolute/fresh/test-directory
+```
+
+This includes the historical cache smoke test, an independent CLOCK reference,
+configuration rejection and source/context failure checks. It stores summaries
+and compact synthetic fixtures, not expanded address traces. Passing it does
+not establish NVIDIA hardware-traffic accuracy. The L2 (level-two cache) write
+policy and finite MSHR (miss-status holding register) modeling remain research.

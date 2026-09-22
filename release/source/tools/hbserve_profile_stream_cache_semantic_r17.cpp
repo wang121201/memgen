@@ -56,6 +56,7 @@ struct Arguments {
   fs::path stats;
   fs::path output_dir;
   fs::path semantic_file;
+  fs::path r4_context;
   bool observe_cache=false;
   bool include_local=false;
 };
@@ -84,6 +85,7 @@ Arguments parse_arguments(int argc, char **argv) {
     else if (key == "--stats") result.stats = value;
     else if (key == "--output-dir") result.output_dir = value;
     else if (key == "--semantic-file") result.semantic_file = value;
+    else if (key == "--r4-context") result.r4_context = value;
     else if (key == "--include-local") {
       if(value!="true" && value!="false") usage_error("include-local must be true or false");
       result.include_local=(value=="true");
@@ -102,6 +104,8 @@ Arguments parse_arguments(int argc, char **argv) {
     usage_error("profile index, app/issue configs, hardware config, and stats are required");
   if (result.mode == "memgen" && result.output_dir.empty())
     usage_error("memgen mode requires --output-dir");
+  if (!result.r4_context.empty() && result.mode!="memgen")
+    usage_error("r4 context requires memgen mode");
   return result;
 }
 
@@ -654,7 +658,7 @@ std::string decode_profile_record(const ProfileIndexRow &index,
 class KernelGenerator {
 public:
   KernelGenerator(const ProfileIndexRow &index, const Launch &launch,
-                  const PlacementIndex &placement, bool materialize_opcode)
+                  const PlacementIndex &placement, bool materialize_opcode, bool reject_modeled_rebinding = false)
       : kernel_(index.kernel_id), launch_(launch), placement_(placement),
         materialize_opcode_(materialize_opcode) {
     ptree root;
@@ -683,7 +687,7 @@ public:
              "hbserve.hyfiss_sampled_sass_profile",
          "unexpected profile schema name");
     const int version = root.get<int>("schema.version");
-    need(version >= 4 && version <= 11, "unsupported profile schema version");
+    need(version >= 4 && version <= 12, "unsupported profile schema version");
     need(root.get<int>("kernel.id") == kernel_, "profile kernel id differs");
     need(root.get<std::string>("kernel.name") == launch_.name,
          "profile/app kernel name differs");
@@ -691,8 +695,17 @@ public:
          "profile/app grid size differs");
     const std::string status = root.get<std::string>("status");
     need(status.rfind("PASS_", 0) == 0, "profile status is not PASS");
+    if (reject_modeled_rebinding) {
+      // Check the already decoded, SHA-verified payload; no extra profile pass.
+      const auto observed = root.get_optional<bool>("model.target_addresses_hardware_observed");
+      need(status != "PASS_MODELED_LAYER_PROFILE_BINDING" &&
+           index.status != "PASS_MODELED_LAYER_PROFILE_BINDING" &&
+           !root.get_child_optional("model.layer_rebinding") &&
+           (!observed || *observed),
+           "r4 original allocation context cannot consume modeled layer rebinding");
+    }
 
-    if (version == 6 || version == 9 || version == 10 || version == 11) {
+    if (version == 6 || version == 9 || version == 10 || version == 11 || version == 12) {
       std::unordered_map<std::string, std::uint32_t> class_index;
       for (const auto &item : root.get_child("structural_classes")) {
         const std::string id = item.second.get<std::string>("class_id");
@@ -710,6 +723,71 @@ public:
         }
         need(class_by_block_.size() == launch_.grid_size,
              "CTA structural class map size differs from grid");
+      } else if (version == 12) {
+        const auto member_set = [&](const std::string &path) {
+          std::unordered_map<std::uint32_t, bool> values;
+          for (const auto &item : root.get_child(path)) {
+            const auto value = item.second.get_value<std::uint32_t>();
+            need(value < launch_.grid_size && values.emplace(value, true).second,
+                 "invalid declared structural sample set");
+          }
+          return values;
+        };
+        const auto training = member_set("sampling.training_ctas");
+        const auto holdout = member_set("sampling.holdout_ctas");
+        need(training == member_set("source.launch.fit_ctas") &&
+             holdout == member_set("source.launch.holdout_ctas"),
+             "structural samples differ from source launch");
+        for (const auto &entry : training)
+          need(!holdout.count(entry.first), "declared training and holdout overlap");
+        std::size_t total_training = 0, total_holdout = 0;
+        need(root.get<std::string>("structural_class_selector.kind") ==
+                 "linear_cta_intervals", "unsupported schema-12 selector");
+        class_by_block_.reserve(launch_.grid_size);
+        std::vector<bool> used(classes_.size(), false);
+        for (const auto &item : root.get_child("structural_class_selector.intervals")) {
+          const auto lo = item.second.get<std::uint32_t>("start");
+          const auto hi = item.second.get<std::uint32_t>("stop");
+          const auto found = class_index.find(item.second.get<std::string>("class_id"));
+          need(lo == class_by_block_.size() && lo < hi && hi <= launch_.grid_size,
+               "linear CTA intervals overlap, leave a hole, or escape the grid");
+          need(found != class_index.end(), "linear CTA interval uses unknown class");
+          class_by_block_.insert(class_by_block_.end(), hi-lo, found->second);
+          used[found->second] = true;
+        }
+        need(class_by_block_.size() == launch_.grid_size &&
+             std::all_of(used.begin(), used.end(), [](bool x) { return x; }),
+             "linear CTA intervals do not cover the grid and every class");
+        for (const auto &item : root.get_child("structural_classes")) {
+          const auto expected = class_index.at(item.second.get<std::string>("class_id"));
+          const auto count = std::count(class_by_block_.begin(), class_by_block_.end(), expected);
+          need(item.second.get<std::uint32_t>("domain_cta_count") == count,
+               "structural class domain count differs");
+          std::unordered_map<std::uint32_t, bool> members;
+          for (const auto &cta : item.second.get_child("ctas")) {
+            const auto block = cta.second.get_value<std::uint32_t>();
+            need(block < launch_.grid_size && class_by_block_[block] == expected &&
+                 training.count(block) && members.emplace(block, true).second,
+                 "invalid structural training member");
+          }
+          need(!members.empty(), "structural class has no training members");
+          std::unordered_map<std::uint32_t, bool> held;
+          for (const auto &cta : item.second.get_child("independent_holdout_ctas")) {
+            const auto block = cta.second.get_value<std::uint32_t>();
+            need(block < launch_.grid_size && class_by_block_[block] == expected &&
+                 holdout.count(block) && !members.count(block) && held.emplace(block, true).second,
+                 "invalid structural holdout member");
+          }
+          if (item.second.get<bool>("observed_domain_complete"))
+            need(members.size() == static_cast<std::size_t>(count) && held.empty(),
+                 "complete class domain is not fully observed");
+          else
+            need(members.size() >= 2 && held.size() >= 2,
+                 "extrapolated class has insufficient independent evidence");
+          total_training += members.size(); total_holdout += held.size();
+        }
+        need(total_training == training.size() && total_holdout == holdout.size(),
+             "structural class samples do not cover declared samples");
       } else {
         need(root.get<std::string>("structural_class_selector.kind") ==
                  "categorical_y",
@@ -1006,7 +1084,7 @@ public:
     const ProfileIndexRow &row = profiles_[next_++];
     current_ = std::make_unique<KernelGenerator>(
         row, launches_.at(static_cast<std::size_t>(row.kernel_id)), placement_,
-        materialize_opcode_);
+        materialize_opcode_, reject_modeled_rebinding_);
     kernel = row.kernel_id;
     name = launches_.at(static_cast<std::size_t>(row.kernel_id)).name;
     phase = launches_.at(static_cast<std::size_t>(row.kernel_id)).phase;
@@ -1045,12 +1123,20 @@ public:
   SourceStats &stats() { return stats_; }
   const SourceStats &stats() const { return stats_; }
   std::uint64_t placement_tuples() const { return placement_.tuple_count(); }
+  void reject_modeled_rebinding() { reject_modeled_rebinding_ = true; }
+  void validate_hardware(const hyfiss_request_trace::HardwareProfile &hardware) const {
+    for(size_t kernel=1;kernel<launches_.size();++kernel)
+      for(uint32_t block=0;block<launches_[kernel].grid_size;++block)
+        need(placement_.at(kernel,block).sm==block%hardware.sms,
+             "issue.config disagrees with hardware round-robin CTA placement");
+  }
 
 private:
   std::vector<Launch> launches_;
   std::vector<ProfileIndexRow> profiles_;
   PlacementIndex placement_;
   bool materialize_opcode_ = true;
+  bool reject_modeled_rebinding_ = false;
   std::size_t next_ = 0;
   std::unique_ptr<KernelGenerator> current_;
   SourceStats stats_;
@@ -1416,7 +1502,42 @@ int run_compact(const Arguments &args, WorkloadSource &source) {
 int run_memgen(const Arguments &args, WorkloadSource &source,
     const std::function<void(const hyfiss_request_trace::L2AccessObservation&)> &observe_l2={},
     const std::function<void(const hyfiss_request_trace::L2AccessObservation&)> &observe_l1={}) {
+  struct Context { unsigned shared; std::vector<hyfiss_request_trace::R4Allocation> allocations; };
+  const auto hardware=hyfiss_request_trace::HardwareProfile::load(args.hw_config.string());
+  if(hardware) {
+    need(!args.r4_context.empty(),"unified r4 hardware requires --r4-context");
+    source.validate_hardware(*hardware);
+  }
+  std::map<int,Context> contexts;
+  std::string r4_model_id="CLOCK_u128_s16_h2_c1062";
+  if(!args.r4_context.empty()) {
+    source.reject_modeled_rebinding();
+    ptree root;boost::property_tree::read_json(args.r4_context.string(),root);
+    need(root.get<std::string>("schema")=="MEMGEN_R4_CONTEXT_V1","r4 context schema mismatch");
+    r4_model_id=root.get<std::string>("model_id","CLOCK_u128_s16_h2_c1062");
+    need(r4_model_id=="CLOCK_u128_s16_h2_c1062" || r4_model_id=="r4-small-shared-20260922","unknown r4 model identity");
+    if(hardware)need(r4_model_id==hardware->values.at("context_model_id"),"hardware config and kernel context model identities differ");
+    need(root.get<std::string>("profile_index_sha256")==sha256_file(args.profile_index),"r4 profile identity mismatch");
+    need(root.get<std::string>("app_config_sha256")==sha256_file(args.app_config),"r4 launch identity mismatch");
+    for(const auto &item:root.get_child("kernels")) {
+      const auto &row=item.second;Context c;
+      c.shared=row.get<unsigned>("shared_kib");
+      if(c.shared==8 || c.shared==16)need(r4_model_id=="r4-small-shared-20260922","small shared candidate requires explicit model identity");
+      if(hardware)hardware->ways_for(c.shared);else hyfiss_request_trace::R4L1ReadFilter::ways_for(c.shared);
+      need(!row.get<std::string>("shared_evidence").empty(),"r4 shared profile provenance missing");
+      for(const auto &entry:row.get_child("allocations")) {
+        const auto &a=entry.second;
+        c.allocations.push_back({a.get<uint64_t>("id"),a.get<uint64_t>("base"),a.get<uint64_t>("bytes")});
+      }
+      need(contexts.emplace(row.get<int>("kernel_id"),std::move(c)).second,"duplicate r4 kernel context");
+    }
+    need(!contexts.empty(),"empty r4 kernel context");
+  }
+  std::set<int> used_contexts;
   hyfiss_request_trace::BackendOptions options;
+  options.r4_l1_read_filter=!args.r4_context.empty();
+  options.r4_model_id=r4_model_id;
+  options.hardware_profile=hardware;
   options.hw_config = args.hw_config.string();
   options.output_dir = args.output_dir.string();
   options.semantic_file = args.semantic_file.string();
@@ -1453,12 +1574,35 @@ int run_memgen(const Arguments &args, WorkloadSource &source,
           ref.kernel_id = kernel;
           ref.kernel_name = std::move(name);
           ref.llm_phase = std::move(phase);
+          if(options.r4_l1_read_filter) {
+            auto it=contexts.find(kernel);
+            need(it!=contexts.end(),"missing r4 kernel context");
+            need(used_contexts.insert(kernel).second,"repeated r4 kernel context");
+            ref.r4_shared_kib=it->second.shared;
+            ref.r4_allocations=it->second.allocations;
+          }
           ref.next_ordered_inst = [&](OrderedMemoryInst &item) {
             return buffered.next_inst(item);
           };
           return true;
         });
+    if(code!=0) { buffered.cancel_and_join(); return code; }
     buffered.finish();
+    if(hardware) {
+      auto identity=hardware->resolved();
+      identity.put("source_sha256",sha256_bytes(hardware->source_text.data(),hardware->source_text.size()));
+      identity.put("context_sha256",sha256_file(args.r4_context));
+      identity.put("cta_placement_validation","verified_by_hbserve_against_hardware_config");
+      boost::property_tree::write_json((args.output_dir/"hardware.identity.json").string(),identity);
+    }
+    if(options.r4_l1_read_filter) {
+      need(used_contexts.size()==contexts.size(),"unused r4 kernel context");
+      std::ofstream receipt(args.output_dir/"r4_context_identity.json");
+      need(bool(receipt),"cannot write r4 context identity");
+      receipt<<"{\"schema\":\"MEMGEN_R4_CONTEXT_IDENTITY_V1\",\"sha256\":\""
+             <<sha256_file(args.r4_context)<<"\",\"model_id\":\""<<r4_model_id<<"\",\"hardware_accuracy_accepted\":false}\n";
+      need(bool(receipt),"r4 context identity write failed");
+    }
     return code;
   } catch (...) {
     buffered.cancel_and_join();
@@ -1467,6 +1611,18 @@ int run_memgen(const Arguments &args, WorkloadSource &source,
 }
 
 int run(int argc, char **argv) {
+  if(argc==3 && std::string(argv[1])=="--describe-hardware-config") {
+    const auto hw=read_hw_params(argv[2]);boost::property_tree::ptree root;
+    if(hw.profile) {
+      root=hw.profile->resolved();
+      root.put("source_sha256",sha256_bytes(hw.profile->source_text.data(),hw.profile->source_text.size()));
+    } else {
+      root.put("schema","LEGACY_MEMGEN_HARDWARE");root.put("num_sms",hw.num_sms);
+      root.put("source_sha256",sha256_file(argv[2]));
+      root.put("note","legacy file; backend policy options and r4 context may override cache behavior");
+    }
+    boost::property_tree::write_json(std::cout,root);return 0;
+  }
   const auto began = std::chrono::steady_clock::now();
   const Arguments args = parse_arguments(argc, argv);
   for (const auto &path : {args.profile_index, args.app_config,
