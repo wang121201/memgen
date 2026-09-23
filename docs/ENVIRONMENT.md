@@ -161,6 +161,50 @@ python3 integrations/sglang/compact-sources/upstream/nvbit_sampler_r4/build.py \
 Both `build.py` scripts default `--nvbit` and `--cuda` to the values in
 section 2. Override them explicitly on any other host.
 
+### 4.4 The NVBit tool build is not byte-reproducible
+
+This matters because `transition-proof-r1.json` records `observer.so` SHA-256
+`9e446ae7…c285` as an evidence identity. That hash identifies one artifact; it
+is not a property of the recipe and cannot be re-derived. Measured on the
+reference host with the frozen source:
+
+| Observation | Value |
+| --- | --- |
+| archived `observer.so` | 2741496 bytes, artifact `9e446ae7…`, content `971de6c9…` |
+| rebuild, twice, from the frozen source | 2741496 bytes, artifact `a9fbeb1c…` and `18f9d9c4…`, content `1cf0f7fa…` both times |
+| rebuild versus archived | content differs; `.text` 1067 of 1292002 bytes (0.083%), plus `.dynsym` 7807, `.gnu.hash` 4837, `.rela.plt` 939, `.rela.dyn` 171, `__nv_module_id` 16 |
+| two consecutive rebuilds | content identical, `.strtab` differs by 4 bytes only, stripped binaries byte-identical |
+
+All declared inputs were verified byte-identical first, including `observer.cu`
+(`a2ca02f7…`), `build.py`, `nvcc` (`3aadf006…`) and `libnvbit.a` (`bd5fd2f0…`).
+The residual difference is inside nvcc/ptxas and host-link code generation.
+
+Two consequences:
+
+1. `observer/manifest.json` declares `build_inputs` and `nvbit_headers` only.
+   `nvcc` and `libnvbit.a` are **recorded** in the build receipt but never
+   **compared** to a declared expectation, so a changed NVBit or CUDA compiler
+   would not fail the build. They match the archived recording today, but that
+   was verified by hand, not by the build.
+2. The reproducible identity of the sampling toolchain is the source and header
+   SHA-256 values plus the recorded argv, which `build.py` does verify. Do not
+   use the `.so` hash as a tamper check.
+
+Report and compare the two identities with:
+
+```bash
+python3 integrations/sglang/tool_identity.py /absolute/fresh/observer-build/observer.so
+python3 integrations/sglang/tool_identity.py <build-a>/observer.so --compare <build-b>/observer.so
+```
+
+`artifact_sha256` is the whole file; `content_sha256` covers every section
+except `.symtab`, `.strtab`, `.comment` and `.note.gnu.build-id`, so it is
+equal across rebuilds of the same source and differs when the code differs.
+The command exits 1 when the two contents differ.
+
+The same treatment applies to `sampler.so`, which uses the same nvcc flow. Its
+identity has not been measured here because its build needs a real sample plan.
+
 ## 5. Declared workload matrices
 
 The adapter declares two matrices in `memgen-adapter/contract.json`. They are
@@ -261,7 +305,7 @@ Third-party rights are not assessed here. See
 
 ## 8. Change record
 
-Two reviewable passes touched this archive. Neither produced an accuracy claim.
+Three reviewable passes touched this archive. None produced an accuracy claim.
 
 **Pass 1, environment and preflight.** Added `integrations/sglang/preflight.py`,
 `integrations/sglang/bootstrap_vendor.py` and this document. The six files
@@ -295,8 +339,18 @@ updated manifest and passes for all 13 rows. Both negative tests fail as
 required: an unexplained tamper reports `PRESENT_DRIFT`, and a half-applied
 revision reports `DRIFT`.
 
-Re-verified after both passes: `scripts/verify_archive.py`,
+**Pass 3, tool build reproducibility.** Added
+`integrations/sglang/tool_identity.py` and section 4.4. The NVBit metadata
+observer was built from the frozen source on the reference host and compared
+against the archived build. No file of the frozen sampling chain was changed.
+The finding is that the `.so` hash recorded as an evidence identity is an
+artifact identity, that `nvcc` and `libnvbit.a` are recorded but not verified
+by `build.py`, and that the reproducible identity is the source and header
+hashes plus the recorded argv.
+
+Re-verified after all three passes: `scripts/verify_archive.py`,
 `scripts/run_cpu_smoke.sh`, `scripts/test_cache_core.py`,
-`tests/sampling/test_profile_census.py`, `bootstrap_vendor.py --check`,
-`preflight.py` and `tests/sglang/test_declared_cases.py` all pass. Nothing added
-here is a hardware-accuracy claim, and no evidence table was changed.
+`tests/sampling/test_profile_census.py`, `tests/sglang/test_declared_cases.py`,
+`bootstrap_vendor.py --check`, `preflight.py` and `tool_identity.py` all pass.
+Nothing added here is a hardware-accuracy claim, and no evidence table was
+changed.

@@ -94,6 +94,14 @@ The declared-case contract is portable and checked without a GPU:
 python3 -B tests/sglang/test_declared_cases.py
 ```
 
+A built NVBit tool has two distinct identities: the artifact hash of one build,
+which includes the build-id and nvcc's temporary file names, and a content hash
+that is stable across rebuilds of the same source. Compare them with:
+
+```bash
+python3 integrations/sglang/tool_identity.py /absolute/fresh/observer-build/observer.so
+```
+
 The corresponding bounded commands for the three research branches and their
 latest deterministic evidence identities are recorded in
 [`validation/branch_smoke_status.csv`](validation/branch_smoke_status.csv).
