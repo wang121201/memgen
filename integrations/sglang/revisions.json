@@ -12,9 +12,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a",
       "historical_bytes": 4250,
-      "current_sha256": "604528db771f3466831f8b60444f74fe17c177501958375ed1b4c923edffafe1",
-      "current_bytes": 4779,
-      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block, keeping the scale series prefills and decodes arrays unchanged so the 24 scale cases keep their identity, and add a display name per model so a receipt or a case id does not have to be read as a version string.",
+      "current_sha256": "74a4eff550d987a8a2cbc694572472b4838c7e5b872ea349aa10f707f0088acd",
+      "current_bytes": 5270,
+      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block, keeping the scale series prefills and decodes arrays unchanged so the 24 scale cases keep their identity, and add a display name per model so a receipt or a case id does not have to be read as a version string. Declare evidence_points: prefill 128 with decode 2 and 16 for qwen25_1p5b, the two points that have independent three-repeat NCU references. This reverses the earlier exclusion, which named P128D2 as an example of a pair that must be refused: the accepted evidence and the declared matrix could not both be right, and the evidence is what a run must reproduce. scale_series and basic_admission keep their axes, so the 26 existing cases keep their identity.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
     },
     {
@@ -26,9 +26,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6",
       "historical_bytes": 3730,
-      "current_sha256": "3d0a5fbf21295a61cacd564ffc993f28ad8eab9c473f2a931b0f4208a36c8c94",
-      "current_bytes": 5009,
-      "reason": "Derive the case axes and the accepted (model, prefill, decode) triples from contract.json instead of a hard-coded tuple, so a declared point can actually be selected, and reject undeclared pairs such as P32D128 or P128D2. The accepted case now records its declared_matrix name.",
+      "current_sha256": "bbc735ba402d39ba641d3e9e233dfd71a6b205464194caef1a2f5d0846e983d9",
+      "current_bytes": 5114,
+      "reason": "Derive the case axes and the accepted (model, prefill, decode) triples from contract.json instead of a hard-coded tuple, so a declared point can actually be selected, and reject undeclared pairs such as P32D128 or P128D2. The accepted case now records its declared_matrix name. Derive the evidence_points block the same way as basic_admission, so declaring a point is what makes it selectable and an undeclared model in the block is refused.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
     },
     {

@@ -16,18 +16,20 @@ def spec():
 def declared_cases(s):
     """Declared (model, prefill, decode) triples, grouped by matrix name.
 
-    The scale series applies to every pinned model. The basic admission point is
-    declared separately with its own explicit model list, so producing it can
-    never be read as extending the scale series.
+    The scale series applies to every pinned model. The basic admission point and
+    the evidence points are declared separately with their own explicit model
+    lists, so producing either can never be read as extending the scale series.
     """
     scale = {(m, p, d) for m in s['models'] for p in s['prefills'] for d in s['decodes']}
-    block = s.get('basic_admission') or {}
-    unknown = [m for m in block.get('models', []) if m not in s['models']]
-    if unknown:
-        raise RuntimeError('Basic admission names an unknown model: ' + repr(unknown))
-    basic = {(m, p, d) for m in block.get('models', [])
-             for p in block.get('prefills', []) for d in block.get('decodes', [])}
-    return {'scale_series': scale, 'basic_admission': basic}
+    blocks = {}
+    for name in ('basic_admission', 'evidence_points'):
+        block = s.get(name) or {}
+        unknown = [m for m in block.get('models', []) if m not in s['models']]
+        if unknown:
+            raise RuntimeError(f'{name} names an unknown model: ' + repr(unknown))
+        blocks[name] = {(m, p, d) for m in block.get('models', [])
+                        for p in block.get('prefills', []) for d in block.get('decodes', [])}
+    return {'scale_series': scale, **blocks}
 
 
 def declared_axis(s):

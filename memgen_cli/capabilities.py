@@ -30,19 +30,28 @@ def _gpu_pool() -> list[str]:
 def current_capabilities() -> dict[str, Any]:
     contract = _contract()
     admission = contract.get('basic_admission') or {}
+    evidence = contract.get('evidence_points') or {}
     declared = {
         'scale_series': {
-            'prefills': contract['prefills'],
-            'decodes': contract['decodes'],
+            'prefills': sorted(contract['prefills']),
+            'decodes': sorted(contract['decodes']),
             'models': sorted(contract['models']),
             'cases': len(contract['prefills']) * len(contract['decodes']) * len(contract['models']),
         },
         'basic_admission': {
-            'prefills': admission.get('prefills', []),
-            'decodes': admission.get('decodes', []),
-            'models': admission.get('models', []),
+            'prefills': sorted(admission.get('prefills', [])),
+            'decodes': sorted(admission.get('decodes', [])),
+            'models': sorted(admission.get('models', [])),
             'cases': (len(admission.get('prefills', [])) * len(admission.get('decodes', []))
                       * len(admission.get('models', []))),
+        },
+        'evidence_points': {
+            'prefills': sorted(evidence.get('prefills', [])),
+            'decodes': sorted(evidence.get('decodes', [])),
+            'models': sorted(evidence.get('models', [])),
+            'cases': (len(evidence.get('prefills', [])) * len(evidence.get('decodes', []))
+                      * len(evidence.get('models', []))),
+            'note': evidence.get('note', ''),
         },
     }
     return {

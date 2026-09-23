@@ -78,10 +78,12 @@ class DeclaredCases(unittest.TestCase):
         self.assertEqual(case['declared_matrix'], 'scale_series')
 
     def test_undeclared_pairs_are_refused(self):
+        # P128D2 and P128D16 are declared as evidence points, so they are no
+        # longer examples of a refused pair.
         for case in [('qwen25_1p5b', 32, 128), ('qwen25_1p5b', 32, 64),
-                     ('qwen25_1p5b', 64, 2), ('qwen25_1p5b', 128, 2),
-                     ('qwen25_1p5b', 256, 2), ('llama3_8b', 32, 16),
-                     ('qwen25_1p5b', 1024, 128 + 1)]:
+                     ('qwen25_1p5b', 64, 2), ('qwen25_1p5b', 256, 2),
+                     ('qwen25_1p5b', 128, 4), ('llama3_8b', 32, 16),
+                     ('llama3_8b', 128, 2), ('qwen25_1p5b', 1024, 128 + 1)]:
             with self.assertRaises(ValueError, msg=repr(case)):
                 workload.contract(*case)
 
@@ -164,7 +166,7 @@ class CollectionDriver(unittest.TestCase):
                                  '--list-cases'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         table = result.stdout.split('\n\n')[0].strip().splitlines()[1:]
-        self.assertEqual(len(table), 26)
+        self.assertEqual(len(table), 28)
         cases = [line.split()[0] for line in table]
         self.assertEqual(cases[0], 'llama3_8b-p32-d2')
         self.assertEqual(cases[-1], 'qwen25_1p5b-p1024-d128')

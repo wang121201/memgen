@@ -2,6 +2,7 @@
   "schema": "SGLANG_FULL_INFERENCE_V2",
   "scale_series_cases": 24,
   "basic_admission_cases": 2,
+  "evidence_points_cases": 2,
   "models": {
     "qwen25_1p5b": {
       "display": "Qwen2.5-1.5B-Instruct BF16",
@@ -50,6 +51,19 @@
       "llama3_8b"
     ],
     "note": "P32D2 basic admission point, declared separately from the scale series. Producing a point is not an accuracy result: every point still needs its own independent sample, packed profile and three-run NCU reference."
+  },
+  "evidence_points": {
+    "prefills": [
+      128
+    ],
+    "decodes": [
+      2,
+      16
+    ],
+    "models": [
+      "qwen25_1p5b"
+    ],
+    "note": "The two points with independent three-repeat NCU references in evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md: P128D2 and P128D16. Declaring a point makes it selectable and reproducible; it does not admit it, and neither point may be quoted until a run of this chain reproduces its reference."
   },
   "batch_size": 1,
   "dtype": "bfloat16",
