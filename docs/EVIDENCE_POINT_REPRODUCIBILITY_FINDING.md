@@ -64,21 +64,32 @@ repository, no full-model expansion is reachable at either point:
 - P128D2: 1010 of 2172 launches unsupported.
 
 So the accepted numbers cannot currently be reproduced by this repository, and
-nothing in this archive should be read as confirming or contradicting them. Two
-possibilities remain, and they are distinguishable:
+nothing in this archive should be read as confirming or contradicting them.
+Three explanations were considered:
 
-1. **The sampler revision differs.** The pinned `compact-sources` and
-   `memgen-adapter` are what the archive carries; the accepted numbers may have
-   come from a revision whose fitter accepted these classes. Recovering that
-   revision's `profiles.stdout` and expansion manifest, or its sampler sources,
-   would settle it by comparing rejection counts.
-2. **The accepted flow is a different path.** `run_memgen.py --expanded` accepts
-   any expansion, and `profile_cache.py` drives expand + replay; the accepted
-   numbers may have come from a flow whose expansion was built elsewhere and is
-   not in this archive.
+1. **The sampler revision differs — ruled out for the code that refuses.** The
+   refusals come from the address-rule fitter. Its two inputs are pinned by the
+   sampler itself, in
+   `compact-sources/upstream/template_adapter_r4/template_census.py`: the codec
+   (`CODEC_SHA c4b90ea4…`) and `shape_aware_cta_rules.py`
+   (`4dcd235e…`). Both files as loaded by this run hash to exactly those values.
+   The fit driver `sglang_sample_to_packed.py` does differ from the copy under
+   `sampled-workflow-r1/`, but the 22-line difference replaces an inline census
+   loop with `profile_census.count_profile` and states that it changes only
+   counting cost. So the code that refuses is the revision the archive pins.
+2. **The accepted numbers came from a different flow.** Still open, and the
+   archive contains a candidate: the historical family
+   (`evidence/historical-prefill-d32`, 33 phases / 19,258 kernels per point) did
+   reach full inference, and its receipt names the engine and mode it used —
+   `hbserve_profile_stream_cache_profile_rules_r7 --mode memgen` from the
+   `hyfiss-prefill-matrix-20260913` work root, not the SGLang sampled chain and
+   not the frozen `semantic_r17` core. Its binaries are still on this host.
+3. **The accepted run used a different plan or a hand-built expansion.** Not
+   excluded; it would need the 2026-09-21 work directory to settle.
 
-Until one of those is answered, the honest statement is: this chain, as pinned,
-cannot close the points it is compared against.
+Until one of 2 or 3 is answered, the honest statement is: this chain, as pinned,
+cannot close the points it is compared against, while a different full-inference
+flow in this archive demonstrably did cover whole models.
 
 ## 5. What can still be measured
 
