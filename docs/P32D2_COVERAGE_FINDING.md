@@ -46,6 +46,15 @@ if not manifest['complete_full_model']:
 
 ## 3. The 700 are two different problems
 
+First, what is **not** the problem: the expansion does reach the whole model.
+`plan/layer-bindings.json` names, for every target launch, the sampled launch
+that supplies its profile. In this run 1884 of the 2060 target launches (91%)
+reuse a primary-layer profile, and those targets are **layers 1 through 27**, 64
+to 70 launches per layer. One layer's packed profile is expanded onto every layer
+of the model, which is exactly the full-model expansion. It worked for 1360 of
+the launches; where it did not, the limit is in the *source* profile set, not in
+the expansion.
+
 Cross-referencing `plan/layer-bindings.json` (2060 bindings),
 `sample/profiles/profiles.index.jsonl` (150 packed profiles) and
 `expanded/manifest.json` gives an exact split. Both halves are 350:
