@@ -284,7 +284,7 @@ def main() -> int:
           f"{workload.spec()['models'][contract['model_key']].get('display', '')}")
     print(f"workload   prefill {contract['prefill_length']} tokens, "
           f"decode {contract['decode_steps']} steps, ids {contract['decode_input_ids']}")
-    print(f"gpu        index {index} of {len(table) - 1} -> it is {table[index][1]} "
+    print(f"gpu        index {index} of 0..{len(table) - 1} -> it is {table[index][1]} "
           f"({table[index][2]})")
     for i, uuid, name in table:
         print(f"             [{i}] {uuid}  {name}")
