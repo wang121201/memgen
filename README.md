@@ -88,14 +88,22 @@ for the census again.
 one row per kernel holding the counters:
 `runs/qwen25_1p5b-p32-d2-collect/followthrough/cache/model/kernel_summary.csv`.
 
+The table has one row per launch, so read totals by summing and read a hit rate
+as a ratio of sums, never as a mean of per-kernel rates:
+
 ```bash
 python3 - <<'PY'
 import csv, json, pathlib
 work = pathlib.Path('out/qwen25_1p5b-p32-d2-<UTC>')       # the run directory
 receipt = json.loads((work / 'collect-receipt.json').read_text())
-row = next(csv.DictReader(open(receipt['artifacts']['kernel_summary'])))
-for key in ('l1_hit_rate', 'l2_hit_rate', 'dram_load_bytes', 'dram_store_bytes'):
-    print(f'{key:18} {row[key]}')
+summary = receipt['artifacts']['kernel_summary']
+rows = list(csv.DictReader(open(summary)))
+total = lambda column: sum(int(row[column]) for row in rows)
+print('kernels    ', len(rows))
+print('l1 hit rate', f"{total('l1_hits') / total('l1_requests'):.6f}")
+print('l2 hit rate', f"{total('l2_hits') / total('l2_requests'):.6f}")
+print('dram read  ', total('dram_load_bytes'), 'bytes')
+print('dram write ', total('dram_store_bytes'), 'bytes')
 PY
 ```
 
@@ -106,8 +114,11 @@ coalescing (`write_full_sector_requests`, `write_partial_sector_requests`).
 These are diagnostics: the receipt states `raw_trace_persisted: false` and
 `hardware_accuracy_accepted: false`.
 
-Parameters live in [the runbook](docs/RUNBOOK.md) section 3; the stages and
-their budgets are in `./memgen capabilities` and in the same section.
+If the expansion does not cover the full model, no counters are produced at
+all and the run stops at `STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC`.
+`./memgen collect --partial` then replays what is covered and labels it: the
+counters are a lower bound, not the case traffic. Why a workload fails to close
+is in [the P32D2 coverage finding](docs/P32D2_COVERAGE_FINDING.md).
 
 It runs two jobs under the lease controller, which owns the CPU and GPU locks,
 the CPU affinity, the memory guard and `CUDA_VISIBLE_DEVICES`: job 1 is the

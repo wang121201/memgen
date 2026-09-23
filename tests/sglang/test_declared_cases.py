@@ -27,6 +27,25 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def fake_census(work, case, gpu, pid=938490, ticks=918072691):
+    """Write the census receipts a real run leaves, with its own values."""
+    observer = work / 'observers' / f'{case}-census' / f'process-{pid}-{ticks}'
+    host = work / 'runs' / f'{case}-census' / 'host' / f'process-{pid}'
+    observer.mkdir(parents=True)
+    host.mkdir(parents=True)
+    (observer / 'finish.json').write_text(json.dumps(
+        dict(status='PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE', pid=pid, start_ticks=ticks,
+             epoch_begin_count=6, epoch_end_count=6, active_epoch=0,
+             metadata_bytes_before_finish=10347345, max_total_bytes=268435456,
+             launch_before_count=2194)))
+    (host / 'finish.json').write_text(json.dumps(
+        dict(status='PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE',
+             input_contract=dict(case_id=case))))
+    (work / 'runs' / f'{case}-census' / 'job-finish.json').write_text(json.dumps(
+        dict(status='PASS_PROCESS_ONLY', cpu=8, gpu=gpu, case_id=case)))
+    return observer, host
+
+
 class DeclaredCases(unittest.TestCase):
     def setUp(self):
         self.spec = workload.spec()
@@ -458,6 +477,83 @@ class Resume(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('refusing existing work directory', result.stdout + result.stderr)
         self.assertIn('--resume', result.stdout + result.stderr)
+
+
+class PartialDiagnostic(unittest.TestCase):
+    """A partial expansion must name its coverage, never pass as the case traffic."""
+
+    CASE = 'qwen25_1p5b-p32-d2'
+    GPU = 'GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13'
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.work = self.tmp / 'work'
+        fake_census(self.work, self.CASE, self.GPU)
+        follow = self.work / 'runs' / f'{self.CASE}-collect' / 'followthrough'
+        (follow / 'expanded').mkdir(parents=True)
+        (follow / 'finish.json').write_text(json.dumps(
+            dict(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC', stages=[],
+                 unsupported_launches=700)))
+        (follow / 'expanded' / 'manifest.json').write_text(json.dumps(
+            dict(complete_full_model=False, target_launches=2060, packed_launches=1360,
+                 unsupported_launches=700)))
+        self.follow = follow
+
+    def resume(self, *extra):
+        return subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
+                               '--model', 'qwen25_1p5b', '--prefill-length', '32',
+                               '--decode-steps', '2', '--gpu', self.GPU,
+                               '--work', str(self.work), '--resume', *extra],
+                              capture_output=True, text=True)
+
+    def test_a_closed_job_two_is_reused_instead_of_rerun(self):
+        result = self.resume()
+        self.assertIn('reused from --work (--resume)', result.stdout)
+        self.assertIn('STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC', result.stdout)
+
+    def test_the_stop_names_its_coverage_and_points_at_partial(self):
+        result = self.resume()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('1360 of 2060 launches', result.stdout)
+        self.assertIn('--partial', result.stdout)
+        self.assertIn('no counters were produced', result.stdout)
+
+    def test_the_receipt_records_the_coverage_it_came_from(self):
+        self.resume()
+        receipt = json.loads((self.work / 'collect-receipt.json').read_text())
+        self.assertEqual(receipt['status'], 'STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC')
+        self.assertIsNone(receipt['partial_diagnostic'])
+        self.assertIs(receipt['hardware_accuracy_accepted'], False)
+        self.assertIsNone(receipt['artifacts']['kernel_summary'])
+
+    def test_the_declared_matrix_point_has_no_replay_to_reuse(self):
+        self.assertFalse((self.follow / 'cache' / 'model' / 'kernel_summary.csv').exists())
+
+    def test_counters_reader_sums_kernels_and_ratios_sums(self):
+        summary = self.tmp / 'kernel_summary.csv'
+        summary.write_text(
+            'kernel_id,l1_requests,l1_hits,l2_requests,l2_hits,dram_load_bytes,'
+            'dram_store_bytes,l2_writeback_dirty_sectors\n'
+            '1,2,1,4,1,64,0,2\n'
+            '2,6,3,4,3,192,128,0\n')
+        counters = self.driver.kernel_counters(summary)
+        self.assertEqual(counters['kernels'], 2)
+        self.assertEqual(counters['l1_requests'], 8)
+        self.assertEqual(counters['l1_hits'], 4)
+        self.assertEqual(counters['l1_hit_rate'], '0.500000')
+        self.assertEqual(counters['l2_hits'], 4)
+        self.assertEqual(counters['l2_hit_rate'], '0.500000')
+        self.assertEqual(counters['dram_load_bytes'], 256)
+        self.assertEqual(counters['dram_store_bytes'], 128)
+        self.assertEqual(counters['l2_writeback_dirty_sectors'], 2)
+
+    def test_the_engine_is_built_from_the_archived_source(self):
+        self.assertTrue(self.driver.ENGINE_SOURCE.is_file())
+        self.assertIn('release/source/tools/', str(self.driver.ENGINE_SOURCE))
 
 
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):

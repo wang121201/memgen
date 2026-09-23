@@ -51,6 +51,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 ADAPTER = HERE / 'memgen-adapter'
 SOURCES = HERE / 'compact-sources'
+# The frozen engine `run_memgen.py` replays through; RUNBOOK 2 builds it the same way.
+ENGINE_SOURCE = ROOT / 'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp'
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ADAPTER))
@@ -353,6 +355,99 @@ def verify_census(observer_finish: Path, host_finish: Path, job_finish: Path, ca
     return observer
 
 
+def kernel_counters(path: Path) -> dict:
+    """Case totals from the one-row-per-kernel summary.
+
+    Summing is not optional: the table has one row per launch, and a hit rate is a
+    ratio of sums, never a mean of ratios.
+    """
+    import csv
+    with path.open() as handle:
+        rows = list(csv.DictReader(handle))
+
+    def total(column: str) -> int:
+        return sum(int(row[column]) for row in rows)
+
+    result = {'kernels': len(rows),
+              'dram_load_bytes': total('dram_load_bytes'),
+              'dram_store_bytes': total('dram_store_bytes'),
+              'l2_writeback_dirty_sectors': total('l2_writeback_dirty_sectors')}
+    for level in ('l1', 'l2'):
+        requests, hits = total(f'{level}_requests'), total(f'{level}_hits')
+        result[f'{level}_requests'], result[f'{level}_hits'] = requests, hits
+        result[f'{level}_hit_rate'] = (f'{hits / requests:.6f}' if requests else None)
+    return result
+
+
+def build_engine(work: Path) -> Path:
+    """Build the frozen CPU engine from the archived source, per RUNBOOK 2.
+
+    It is built into `--work` so the partial replay names a binary that this run
+    produced and can hash, instead of depending on a machine-local build.
+    """
+    out = work / 'engine' / 'hbserve'
+    if out.is_file():
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    import subprocess
+    argv = ['mpic++', '-std=c++17', '-O2', '-ffunction-sections', '-fdata-sections',
+            '-Wl,--gc-sections', str(ENGINE_SOURCE), '-l:libzstd.so.1', '-lz',
+            '-lboost_mpi', '-lboost_serialization', '-lcrypto', '-pthread', '-o', str(out)]
+    print('  building the frozen engine from release/source/tools/ (no GPU)')
+    build = subprocess.run(argv, capture_output=True, text=True)
+    if build.returncode or not out.is_file():
+        raise SystemExit('engine build failed:\n' + build.stdout + build.stderr)
+    return out
+
+
+def run_partial_replay(case: str, args, follow: Path) -> dict:
+    """Replay an expansion that does not cover the full model, labelled partial.
+
+    `followthrough.py` stops at `STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC`
+    rather than emit a full-model number from a partial stream, which is right.
+    This step exists so the covered part can still be measured, and every number
+    it produces is labelled with the coverage it came from.
+    """
+    expansion = follow / 'expanded'
+    manifest = json.loads((expansion / 'manifest.json').read_text())
+    engine = Path(args.engine).resolve() if args.engine else build_engine(args.work)
+    if not engine.is_file():
+        raise SystemExit('engine not found: ' + str(engine))
+    stamp = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
+    output = args.work / f'partial-cache-{stamp}'
+    spec = args.work / 'partial-spec.json'
+    sources = source_pins(['run_memgen.py', 'contract.json'], compact=False)
+    sources.append(pin(engine))
+    sources.append(pin(expansion / 'manifest.json'))
+    spec.write_text(json.dumps(dict(
+        case_id=case, tool='memgen', input_kind='partial_model_cache', cpu=args.cpu, gpu=None,
+        seconds=args.job_seconds, cache_directory=str(args.work / 'cache'),
+        argv=[args.python, '-B', str(ADAPTER / 'run_memgen.py'), '--expanded', str(expansion),
+              '--allow-partial-diagnostic', '--binary', str(engine), '--output', str(output)],
+        sources=sources), indent=2) + '\n')
+    print()
+    print('== partial replay: what the expansion does cover ==')
+    print('  spec ' + str(spec))
+    if run_job(spec, args.work / 'runs' / f'{case}-partial', False, 0):
+        print('  the partial replay failed; the expansion is untouched', file=sys.stderr)
+        return None
+    counters = output / 'model' / 'kernel_summary.csv'
+    result = dict(complete_full_model=False,
+                  target_launches=manifest['target_launches'],
+                  packed_launches=manifest['packed_launches'],
+                  unsupported_launches=manifest['unsupported_launches'],
+                  engine=str(engine), kernel_summary=str(counters),
+                  counters=kernel_counters(counters) if counters.is_file() else None)
+    print(f"  coverage {result['packed_launches']} of {result['target_launches']} launches; "
+          f"{result['unsupported_launches']} have no profile")
+    if result['counters']:
+        for name, value in result['counters'].items():
+            print(f'  {name:26} {value}')
+    print('  PARTIAL_MODEL_DIAGNOSTIC: these counters are not the case traffic, because')
+    print('  the missing launches are not modelled and are not zero.')
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -385,6 +480,11 @@ def main() -> int:
     parser.add_argument('--resume', action='store_true',
                         help='reuse an existing --work whose census passed the gate and start '
                              'from job 2; job 1 is the only stage that costs GPU time twice')
+    parser.add_argument('--partial', action='store_true',
+                        help='when the expansion does not cover the full model, replay what it '
+                             'does cover and label the counters partial')
+    parser.add_argument('--engine', type=Path,
+                        help='frozen CPU engine for --partial; built into --work by default')
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
 
@@ -490,9 +590,6 @@ def main() -> int:
               f"{observer['launch_before_count']} launches, "
               f"{observer['metadata_bytes_before_finish']} of "
               f"{observer['max_total_bytes']} metadata bytes")
-        stashed = stash_job_output(args.work, case)
-        if stashed is not None:
-            print(f'  previous job 2 output kept as runs/{stashed.name}')
         print('  the census journal and host receipt are the inputs job 2 reads')
     else:
         if args.observer is None:
@@ -538,15 +635,26 @@ def main() -> int:
 
     print()
     print('== job 2: sample, expand and cache replay ==')
-    spec2 = args.work / 'collect-spec.json'
-    if journal is None:
-        journal, host = 'process-<pid>-<ticks>', 'process-<pid>'
-    spec2.write_text(json.dumps(collect_spec(case, args.work, args, journal, host),
-                               indent=2) + '\n')
-    print('  spec ' + str(spec2))
-    if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,
-               args.gpu_wait_seconds):
-        return 1
+    follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
+    if args.resume and (follow / 'finish.json').is_file():
+        closed = json.loads((follow / 'finish.json').read_text())
+        print(f"  reused from --work (--resume): {closed['status']}")
+        print(f"  expansion {follow / 'expanded' / 'manifest.json'}")
+    else:
+        if args.resume:
+            stashed = stash_job_output(args.work, case)
+            if stashed is not None:
+                print(f'  previous job 2 output kept as runs/{stashed.name}')
+        spec2 = args.work / 'collect-spec.json'
+        if journal is None:
+            journal, host = 'process-<pid>-<ticks>', 'process-<pid>'
+        spec2.write_text(json.dumps(collect_spec(case, args.work, args, journal, host),
+                                   indent=2) + '\n')
+        print('  spec ' + str(spec2))
+        if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,
+                   args.gpu_wait_seconds):
+            return 1
+        follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
 
     if args.dry_run:
         print()
@@ -559,14 +667,26 @@ def main() -> int:
     follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
     finish = json.loads((follow / 'finish.json').read_text())
     replay = follow / 'cache' / 'model' / 'kernel_summary.csv'
+    partial = None
+    if finish['status'] == 'STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC':
+        manifest = json.loads((follow / 'expanded' / 'manifest.json').read_text())
+        if not args.partial:
+            print()
+            print(f"  the expansion covers {manifest['packed_launches']} of "
+                  f"{manifest['target_launches']} launches, so no counters were produced.")
+            print('  `--partial` replays the covered part and labels the result partial.')
+        else:
+            partial = run_partial_replay(case, args, follow)
+            if partial is None:
+                return 1
     receipt = dict(schema='SG_CASE_COLLECTION_V1', case_id=case,
                    declared_matrix=contract['declared_matrix'],
                    status=finish['status'], stages=finish['stages'],
                    work=str(args.work), artifacts=dict(
                        census_observer_finish=str(observer_root(args.work, case)
-                                                  / args.journal_process / 'finish.json'),
+                                                  / journal / 'finish.json'),
                        census_host_finish=str(args.work / 'runs' / f'{case}-census' / 'host'
-                                              / args.journal_process / 'finish.json'),
+                                              / host / 'finish.json'),
                        sample_plan=str(follow / 'plan' / 'sample-plan.json'),
                        packed_profiles=str(follow / 'sample' / 'profiles' / 'profiles.index.jsonl'),
                        expanded_manifest=str(follow / 'expanded' / 'manifest.json'),
@@ -575,6 +695,7 @@ def main() -> int:
                        if (follow / 'cache' / 'model' / 'cache_observation.json').is_file() else None),
                    raw_trace_persisted=False, full_native_address_coverage=False,
                    hardware_accuracy_accepted=False,
+                   partial_diagnostic=partial,
                    claim_boundary='Collected counters for one declared case. Not an accuracy '
                                   'admission: that needs an independent three-repeat NCU reference '
                                   'for the same ranges, recorded in validation/.')
@@ -585,6 +706,8 @@ def main() -> int:
     for name, value in receipt['artifacts'].items():
         print(f"  {name:24} {value if value else 'not produced'}")
     print(f"  receipt                  {args.work / 'collect-receipt.json'}")
+    # Exit 2 even when --partial produced counters: the documented meaning of 0 is
+    # "every stage receipt closed", and a partial model never satisfies that.
     return 0 if receipt['status'].startswith('PASS_') else 2
 
 

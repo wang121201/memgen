@@ -101,6 +101,12 @@ def current_capabilities() -> dict[str, Any]:
             'NVIDIA hardware write-back and dirty-release behaviour',
             'GPU arrival concurrency and completion timing',
         ],
+        'partial_expansion': 'A profile expansion that does not cover the full model yields no '
+                             'counters; followthrough.py stops at '
+                             'STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC instead. '
+                             '`memgen collect --partial` replays the covered launches with '
+                             'run_memgen.py --allow-partial-diagnostic and records the coverage '
+                             'it came from, so the counters are a labelled lower bound.',
         'unreconciled': {
             'dram_write_gate': 'docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 6 states at most '
                                '20%; evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md states '

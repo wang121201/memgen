@@ -161,6 +161,8 @@ every declared case.
 | `--job-seconds` | job 2 wall-clock ceiling. `0`, the default, runs to completion |
 | `--gpu-wait-seconds` | how long to wait for a device that is busy at fresh admission. Default 600, `0` fails at once |
 | `--resume` | reuse an existing `--work` whose census passed the gate and start from job 2 |
+| `--partial` | when the expansion does not cover the full model, replay the covered part and label the counters partial |
+| `--engine PATH` | frozen CPU engine for `--partial`; built from `release/source/tools/` into `--work` by default |
 | `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
 | `--dry-run` | write the two job specs and print the plan, execute nothing |
 
@@ -207,6 +209,25 @@ own directory, and its `--host-finish` is
 derived from the observer receipt's `pid` and `start_ticks` and checked against
 the directory that receipt was read from, so a rename is caught rather than
 producing a `FileNotFoundError` in `followthrough.py`.
+
+**A partial expansion produces no counters unless you ask.** When
+`expanded/manifest.json` has `complete_full_model: false`, `followthrough.py`
+stops at `STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC` (exit 2) instead of
+replaying a stream that covers only part of the model. `--partial` replays what
+is covered anyway, with `run_memgen.py --allow-partial-diagnostic`, and the
+receipt records `partial_diagnostic` with the coverage it came from:
+
+```bash
+./memgen collect --resume --partial --work /absolute/path/to/the/run \
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 --gpu-index 1
+```
+
+Exit stays 2, because the model is still not covered: the counters are a
+lower-bound diagnostic over `packed_launches` of `target_launches`, and the
+missing launches are not modelled and are not zero. Read them from
+`partial-cache-<UTC>/model/kernel_summary.csv` and never quote them as the
+case's traffic. Why a given workload cannot close is in
+[the P32D2 coverage finding](P32D2_COVERAGE_FINDING.md).
 
 **Budgets are hard limits, not estimates.** A stage that exceeds its budget is
 killed: the census job and the whole of job 2 are bounded by `run_job.py`

@@ -10,6 +10,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# Generated run directories: `./memgen` writes them, git ignores them, and they are
+# not archive content.
+GENERATED_DIRS = ("out",)
 FORBIDDEN_SUFFIXES = {
     ".gguf",
     ".mem",
@@ -105,6 +108,12 @@ def main() -> None:
     oversized = []
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts:
+            continue
+        # `./memgen` writes run directories here. They are gitignored, so they are
+        # not archive content, and a real collection legitimately holds hundreds of
+        # megabytes of packed profiles. Everything else in the tree is still
+        # checked, including any forbidden artifact that would ship.
+        if path.relative_to(ROOT).parts[0] in GENERATED_DIRS:
             continue
         lower = path.name.lower()
         if path.suffix.lower() in FORBIDDEN_SUFFIXES or lower.endswith(".memc.zst"):
