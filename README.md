@@ -69,6 +69,9 @@ python3 integrations/sglang/collect_case.py \
   --gpu-index 1 --work /tmp/qwen15b-p32d2-r1
 ```
 
+This is the real collection, not the CPU smoke test; the smoke runs a synthetic
+fixture with no GPU and belongs to [verify without a GPU](#verify-without-a-gpu).
+
 It runs two jobs under the lease controller, which owns the CPU and GPU locks,
 the CPU affinity, the memory guard and `CUDA_VISIBLE_DEVICES`: job 1 is the
 census, the SGLang run under the NVBit metadata observer; job 2 is the plan, the

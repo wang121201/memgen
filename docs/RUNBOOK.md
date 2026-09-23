@@ -177,6 +177,21 @@ stream did not cover the full model, which the receipt reports as
 `process-<pid>` as a placeholder because job 1 resolves the real census process
 directory before job 2 is written.
 
+**Budgets are hard limits, not estimates.** A stage that exceeds its budget is
+killed: the census job and the whole of job 2 are bounded by `run_job.py`
+through `parent_controller`, and the sampling stage additionally enforces its
+own budget inside `sample_pipeline.py`, which is why `--sample-seconds` must
+stay within `60..21600` and cannot be set to zero. A kill releases the lease and
+exits non-zero. `--census-seconds 0` removes the census ceiling, and the replay
+has no deadline at any layer.
+
+**This is not the smoke test.** `scripts/run_cpu_smoke.sh` replays a synthetic
+two-kernel fixture on the CPU with no GPU, no model and no NVBit, and only
+checks that the frozen engine is deterministic; it belongs to section 1.
+`collect_case.py` runs the real Qwen workload through SGLang, NVBit and the
+cache model. Collect nothing until section 1 passes, and never read a passing
+smoke as evidence about a workload.
+
 ### 3.2 Stage by stage
 
 Use this when a stage fails and you want to rerun one of them, or when you want

@@ -76,6 +76,11 @@ class DeclaredCases(unittest.TestCase):
         self.assertEqual(workload.contract('qwen25_1p5b', 32, 2),
                          workload.contract('qwen25_1p5b', 32, 2))
 
+    def test_declared_models_carry_a_display_name(self):
+        for key, row in self.spec['models'].items():
+            self.assertTrue(row.get('display'), key)
+            self.assertIn('BF16', row['display'])
+
     def test_mirrored_copies_are_identical(self):
         for name in ('contract.json', 'matrix_workload.py'):
             self.assertEqual(sha256(ADAPTER / name), sha256(SGLANG / 'metadata-host/vendor' / name),
@@ -135,11 +140,27 @@ class CollectionDriver(unittest.TestCase):
         result = subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
                                  '--list-cases'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        rows = [line.split() for line in result.stdout.strip().splitlines()[1:]]
-        self.assertEqual(len(rows), 26)
-        self.assertEqual(rows[0][0], 'llama3_8b-p32-d2')
-        self.assertEqual(rows[-1][0], 'qwen25_1p5b-p1024-d128')
-        self.assertEqual({row[1] for row in rows}, {'scale_series', 'basic_admission'})
+        table = result.stdout.split('\n\n')[0].strip().splitlines()[1:]
+        self.assertEqual(len(table), 26)
+        cases = [line.split()[0] for line in table]
+        self.assertEqual(cases[0], 'llama3_8b-p32-d2')
+        self.assertEqual(cases[-1], 'qwen25_1p5b-p1024-d128')
+        matrices = {token for line in table for token in line.split()
+                    if token in ('scale_series', 'basic_admission')}
+        self.assertEqual(matrices, {'scale_series', 'basic_admission'})
+        # The model key is terse, so the readable name must be visible too.
+        self.assertIn('Qwen2.5-1.5B-Instruct', result.stdout)
+        self.assertIn('Meta-Llama-3-8B-Instruct', result.stdout)
+
+    def test_sample_budget_cannot_be_asked_to_run_unbounded(self):
+        result = subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
+                                 '--model', 'qwen25_1p5b', '--prefill-length', '32',
+                                 '--decode-steps', '2', '--sample-seconds', '0',
+                                 '--work', '/tmp/collect-case-test-never-created',
+                                 '--dry-run'], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('60..21600', result.stdout + result.stderr)
+        self.assertFalse(Path('/tmp/collect-case-test-never-created').exists())
 
     def test_driver_declares_the_same_cases_as_the_contract(self):
         expected = sorted(set().union(*workload.declared_cases(workload.spec()).values()))

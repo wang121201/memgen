@@ -12,9 +12,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a",
       "historical_bytes": 4250,
-      "current_sha256": "735139a490fe71a472560ea28402acf3b180997419f23d17088c50dc05e37281",
-      "current_bytes": 4682,
-      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block. The scale series prefills and decodes arrays are unchanged, so the 24 scale cases keep their identity. The schema string was bumped to SGLANG_FULL_INFERENCE_V2 so a receipt cannot silently mix the old and new contract.",
+      "current_sha256": "604528db771f3466831f8b60444f74fe17c177501958375ed1b4c923edffafe1",
+      "current_bytes": 4779,
+      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block, keeping the scale series prefills and decodes arrays unchanged so the 24 scale cases keep their identity, and add a display name per model so a receipt or a case id does not have to be read as a version string.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
     },
     {

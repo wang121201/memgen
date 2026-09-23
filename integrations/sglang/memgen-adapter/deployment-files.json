@@ -23,8 +23,8 @@
     },
     {
       "name": "contract.json",
-      "bytes": 4682,
-      "sha256": "735139a490fe71a472560ea28402acf3b180997419f23d17088c50dc05e37281"
+      "bytes": 4779,
+      "sha256": "604528db771f3466831f8b60444f74fe17c177501958375ed1b4c923edffafe1"
     },
     {
       "name": "make_sample_plan.py",

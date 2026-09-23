@@ -242,6 +242,10 @@ a reviewed change.
   `wall_clock_deadline` as `unbounded` or the number.
 - `collect_case.py` chooses the GPU by index into the admitted pool, which is
   the same numbering `preflight.py` prints, so no UUID has to be typed.
+- The census ceiling and the job ceiling accept `0`, meaning no limit. The
+  sampling stage does not: `sample_pipeline.py` validates its own runtime into
+  `60..21600` and raises `Sparse pipeline runtime budget` beyond it, so
+  `--sample-seconds 0` is refused rather than silently downgraded.
 - Every output directory must be fresh. `run_cpu_smoke.sh`, `test_cache_core.py`
   and `run_memgen.py` all refuse an existing path.
 - `release/config/RTX4000Ada.r4.config` requires `--r4-context`; the legacy

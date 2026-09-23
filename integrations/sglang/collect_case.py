@@ -192,9 +192,11 @@ def main() -> int:
     where.add_argument('--cpu', type=int, default=8, help='one CPU id from 0..15 (default 8)')
     where.add_argument('--python', default='/home/xmu/sgl/bin/python',
                        help='interpreter that carries the SGLang stack')
-    budget = parser.add_argument_group('budgets in seconds; these bound the GPU stages only')
-    budget.add_argument('--census-seconds', type=int, default=1800)
-    budget.add_argument('--sample-seconds', type=int, default=7200)
+    budget = parser.add_argument_group('budgets in seconds; a stage that exceeds its budget is killed')
+    budget.add_argument('--census-seconds', type=int, default=1800,
+                        help='census job ceiling; 0 means no limit (default 1800)')
+    budget.add_argument('--sample-seconds', type=int, default=7200,
+                        help='sampling ceiling; sample_pipeline.py requires 60..21600 of its own')
     budget.add_argument('--job-seconds', type=int, default=0,
                         help='job 2 wall-clock ceiling; 0 means run to completion (default 0)')
     parser.add_argument('--observer', type=Path, help='prebuilt observer.so; built into --work if omitted')
@@ -202,11 +204,17 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.list_cases:
-        print(f"{'case id':32} {'matrix':16} models  axes")
+        models = workload.spec()['models']
+        print(f"{'case id':24} {'workload':26} {'matrix':16} model")
         for name in sorted(declared_cases()):
             value = workload.contract(*name)
-            print(f"{value['case_id']:32} {value['declared_matrix']:16} "
-                  f"{name[0]:16} prefill {name[1]}, decode {name[2]}")
+            workload_label = f'prefill {name[1]}, decode {name[2]}'
+            print(f"{value['case_id']:24} {workload_label:26} {value['declared_matrix']:16} "
+                  f"{models[name[0]].get('display', name[0])}")
+        print()
+        print('The model key is the shipped identifier; the last column is what it means.')
+        print('Example: qwen25_1p5b is Qwen2.5-1.5B, and qwen25_1p5b-p128-d32 is that')
+        print('model with 128 prefill tokens and 32 decode steps.')
         return 0
 
     if args.case:
@@ -237,6 +245,11 @@ def main() -> int:
         index, gpu = table[args.gpu_index][0], table[args.gpu_index][1]
     if not 0 <= args.cpu < 16:
         raise SystemExit('--cpu must be 0..15')
+    if args.census_seconds != 0 and not 1 <= args.census_seconds <= 86400:
+        raise SystemExit('--census-seconds must be 0 (no limit) or 1..86400')
+    if not 60 <= args.sample_seconds <= 21600:
+        raise SystemExit('--sample-seconds must be 60..21600: sample_pipeline.py enforces its own '
+                         'bounded runtime and cannot be asked to run unbounded')
     if args.job_seconds != 0 and not 1 <= args.job_seconds <= 86400:
         raise SystemExit('--job-seconds must be 0 (run to completion) or 1..86400')
     if not args.work:
@@ -250,7 +263,8 @@ def main() -> int:
     case = contract['case_id']
 
     print(f"case       {contract['case_id']}  (matrix {contract['declared_matrix']})")
-    print(f"model      {contract['model']}")
+    print(f"model      {contract['model_key']}  "
+          f"{workload.spec()['models'][contract['model_key']].get('display', '')}")
     print(f"workload   prefill {contract['prefill_length']} tokens, "
           f"decode {contract['decode_steps']} steps, ids {contract['decode_input_ids']}")
     print(f"gpu        index {index} of {len(table) - 1} -> it is {table[index][1]} "
@@ -259,8 +273,11 @@ def main() -> int:
         print(f"             [{i}] {uuid}  {name}")
     print(f"cpu        {args.cpu} of 0..15")
     print(f"work       {args.work}")
-    print(f"budgets    census {args.census_seconds} s, sample {args.sample_seconds} s, "
+    census = 'no limit' if args.census_seconds == 0 else f'{args.census_seconds} s hard limit'
+    print(f"budgets    census {census}; sample {args.sample_seconds} s hard limit; "
           f"replay {'to completion' if args.job_seconds == 0 else str(args.job_seconds) + ' s'}")
+    print('           a stage that exceeds its budget is killed and its lease released;')
+    print('           the replay has no wall-clock deadline at any layer')
     print()
 
     args.work.mkdir(parents=True)
