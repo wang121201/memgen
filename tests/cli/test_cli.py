@@ -5,8 +5,10 @@ These are portable. They need no GPU, no model and no NVBit; the GPU-dependent
 verbs are only checked up to their argument validation.
 """
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -42,6 +44,29 @@ class Dispatch(unittest.TestCase):
                      '--decode-steps', '2', '--dry-run')
         self.assertEqual(result.returncode, 2)
         self.assertIn('memgen plan', result.stderr)
+
+
+    def test_plan_builds_the_observer_and_writes_both_specs(self):
+        work = Path(tempfile.mkdtemp()).resolve() / 'plan'
+        self.addCleanup(shutil.rmtree, work.parent, ignore_errors=True)
+        result = run('plan', '--model', 'qwen25_1p5b', '--prefill-length', '128',
+                     '--decode-steps', '2', '--work', str(work))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        # The default observer path still has to be built: setting the default must
+        # not be mistaken for the caller having supplied one.
+        self.assertIn('would build', result.stdout)
+        self.assertIn('census-spec.json', result.stdout)
+        self.assertIn('collect-spec.json', result.stdout)
+        spec = json.loads((work / 'census-spec.json').read_text())
+        self.assertEqual(spec['environment']['SG_NVBIT_SCOPE_ABI'], '1')
+        self.assertTrue(Path(spec['environment']['SG_NVBIT_OUTPUT_ROOT']).is_dir())
+
+    def test_declared_evidence_points_are_selectable(self):
+        result = run('cases')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for case in ('qwen25_1p5b-p128-d2', 'qwen25_1p5b-p128-d16'):
+            self.assertIn(case, result.stdout)
+        self.assertIn('evidence_points', result.stdout)
 
 
 class Capabilities(unittest.TestCase):

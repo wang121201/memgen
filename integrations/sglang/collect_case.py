@@ -578,7 +578,10 @@ def main() -> int:
 
     args.work.mkdir(parents=True, exist_ok=True)
     observer_root(args.work, case)
-    if args.observer is None:
+    # Resolved here so the reuse path can name it, but the build below has to know
+    # whether the path was asked for: the default still has to be built.
+    build_observer = args.observer is None
+    if build_observer:
         args.observer = args.work / 'observer-build' / 'observer.so'
 
     print()
@@ -592,8 +595,7 @@ def main() -> int:
               f"{observer['max_total_bytes']} metadata bytes")
         print('  the census journal and host receipt are the inputs job 2 reads')
     else:
-        if args.observer is None:
-            args.observer = args.work / 'observer-build' / 'observer.so'
+        if build_observer:
             print('== build the metadata observer (no GPU) ==')
             if args.dry_run:
                 print(f'  would build {args.observer} and pin its identity before job 1')
