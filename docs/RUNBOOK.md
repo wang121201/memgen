@@ -274,12 +274,17 @@ Expected, all three must hold before continuing:
 | `$WORK/runs/$CASE-census/host/process-<pid>/finish.json` | `status` | `PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE` |
 | `$WORK/runs/$CASE-census/job-finish.json` | `status` | `PASS_PROCESS_ONLY` |
 
-The observer and the host must share one `pid`; `wait_then_sample.py` also
-checks `epoch_begin_count == epoch_end_count`, `active_epoch == 0`, and that
-`max_metadata_bytes` was not exhausted. A census that hits the metadata cap is
-a failure, not a partial success. The census is also the stage that fails first
-if the observer root is missing or non-canonical: the observer reports
-`fatal: canonical existing output root` and the job exits before any CUDA call.
+The observer and the host must share one `pid`. Their directories are named
+differently on purpose — the observer writes `process-<pid>-<ticks>` because it
+does not know the controller's name, the controller writes `process-<pid>` — so
+compare pids, never directory names. `collect_case.py` applies the same gate as
+`wait_then_sample.py`: both statuses, one pid, `epoch_begin_count ==
+epoch_end_count` with `active_epoch == 0`, metadata below the quota, and
+receipts that name the requested case, CPU and GPU. A census that hits the
+metadata cap is a failure, not a partial success. The census is also the stage
+that fails first if the observer root is missing or non-canonical: the observer
+reports `fatal: canonical existing output root` and the job exits before any
+CUDA call.
 
 ### Stage 2, plan (no GPU): pick one decoder layer and the sample set
 

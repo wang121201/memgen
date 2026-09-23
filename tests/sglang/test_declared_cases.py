@@ -245,6 +245,83 @@ class ObserverOutputRoot(unittest.TestCase):
         self.assertTrue(journal.parent.is_dir())
 
 
+class CensusClosure(unittest.TestCase):
+    """The gate that decides whether a census may be continued from.
+
+    Field values and both directory names come from a real run: the observer
+    writes `process-<pid>-<ticks>` because it does not know the controller's
+    name, and the controller writes `process-<pid>`, so comparing the two names
+    can never pass and comparing the pids always must.
+    """
+
+    PID = 938490
+    TICKS = 918072691
+    GPU = 'GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13'
+    CASE = 'qwen25_1p5b-p32-d2'
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.observer = dict(status='PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE', pid=self.PID,
+                             start_ticks=self.TICKS, epoch_begin_count=6, epoch_end_count=6,
+                             active_epoch=0, metadata_bytes_before_finish=10347345,
+                             max_total_bytes=268435456, launch_before_count=2194)
+        self.host = dict(status='PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE',
+                         input_contract=dict(case_id=self.CASE))
+        self.job = dict(status='PASS_PROCESS_ONLY', cpu=8, gpu=self.GPU, case_id=self.CASE)
+        self.observer_path = self.write(
+            f'observers/{self.CASE}-census/process-{self.PID}-{self.TICKS}/finish.json', self.observer)
+        self.host_path = self.write(f'runs/{self.CASE}-census/host/process-{self.PID}/finish.json',
+                                    self.host)
+        self.job_path = self.write(f'runs/{self.CASE}-census/job-finish.json', self.job)
+
+    def write(self, relative, payload):
+        path = self.tmp / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload))
+        return path
+
+    def verify(self, observer=None, host=None, job=None, case=None, cpu=8, gpu=None):
+        for path, payload in ((self.observer_path, observer), (self.host_path, host),
+                              (self.job_path, job)):
+            if payload is not None:
+                path.write_text(json.dumps(payload))
+        return self.driver.verify_census(self.observer_path, self.host_path, self.job_path,
+                                        case or self.CASE, cpu, gpu or self.GPU)
+
+    def test_one_process_with_two_directory_names_is_accepted(self):
+        returned = self.verify()
+        self.assertEqual(returned['pid'], self.PID)
+        self.assertEqual(self.host_path.parent.name, f'process-{self.PID}')
+        self.assertNotEqual(self.observer_path.parent.name, self.host_path.parent.name)
+
+    def test_another_pid_is_refused(self):
+        with self.assertRaises(SystemExit) as caught:
+            self.verify(observer=dict(self.observer, pid=self.PID + 1))
+        self.assertIn('not one process', str(caught.exception))
+
+    def test_open_epochs_are_refused(self):
+        with self.assertRaises(SystemExit) as caught:
+            self.verify(observer=dict(self.observer, epoch_end_count=5, active_epoch=1))
+        self.assertIn('epochs did not close', str(caught.exception))
+
+    def test_exhausted_metadata_quota_is_refused(self):
+        with self.assertRaises(SystemExit) as caught:
+            self.verify(observer=dict(self.observer, metadata_bytes_before_finish=268435456))
+        self.assertIn('metadata quota', str(caught.exception))
+
+    def test_receipt_for_another_resource_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.verify(job=dict(self.job, cpu=9))
+        with self.assertRaises(SystemExit):
+            self.verify(job=dict(self.job, case_id='llama3_8b-p32-d2'))
+        with self.assertRaises(SystemExit):
+            self.verify(host=dict(self.host, input_contract=dict(case_id='llama3_8b-p32-d2')))
+
+
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):
     """The wrappers must not kill a replay that run_memgen.py says is unbounded."""
 

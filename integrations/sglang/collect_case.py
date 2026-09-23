@@ -187,6 +187,39 @@ def run_job(spec_path: Path, output: Path, dry: bool) -> int:
     return subprocess.call(argv + ['--execute'])
 
 
+def verify_census(observer_finish: Path, host_finish: Path, job_finish: Path, case: str,
+                  cpu: int, gpu: str) -> dict:
+    """The census gate `wait_then_sample.py` applies, with its exact meanings.
+
+    The two process directories are named differently on purpose: the observer
+    writes `process-<pid>-<ticks>` because it does not know the controller's
+    name, and the controller writes `process-<pid>`. They must therefore be
+    compared by pid, not by directory name.
+    """
+    observer = status_of(observer_finish, 'PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE')
+    host = status_of(host_finish, 'PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE')
+    job = status_of(job_finish, 'PASS_PROCESS_ONLY')
+    if host_finish.parent.name != f"process-{observer['pid']}":
+        raise SystemExit(f"census observer pid {observer['pid']} and host process "
+                         f"{host_finish.parent.name} are not one process")
+    if observer['epoch_begin_count'] != observer['epoch_end_count'] or observer['active_epoch'] != 0:
+        raise SystemExit('census epochs did not close: '
+                         f"{observer['epoch_begin_count']} begin, "
+                         f"{observer['epoch_end_count']} end, "
+                         f"{observer['active_epoch']} still active")
+    if observer['metadata_bytes_before_finish'] >= observer['max_total_bytes']:
+        raise SystemExit('census exhausted the observer metadata quota: '
+                         f"{observer['metadata_bytes_before_finish']} of "
+                         f"{observer['max_total_bytes']} bytes")
+    if (job['cpu'], job['gpu'], job['case_id']) != (cpu, gpu, case):
+        raise SystemExit('census receipt names other resources: '
+                         f"cpu {job['cpu']}, gpu {job['gpu']}, case {job['case_id']}")
+    if host['input_contract']['case_id'] != case:
+        raise SystemExit('census host receipt names another case: '
+                         f"{host['input_contract']['case_id']}")
+    return observer
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -328,13 +361,14 @@ def main() -> int:
     if not args.dry_run:
         observer_finish = only(observer_root(args.work, case), 'process-*/finish.json')
         host_finish = only(args.work / 'runs' / f'{case}-census' / 'host', 'process-*/finish.json')
-        status_of(observer_finish, 'PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE')
-        status_of(host_finish, 'PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE')
-        status_of(args.work / 'runs' / f'{case}-census' / 'job-finish.json', 'PASS_PROCESS_ONLY')
-        if observer_finish.parent.name != host_finish.parent.name:
-            raise SystemExit('observer and host did not close in one process')
+        observer = verify_census(observer_finish, host_finish,
+                                 args.work / 'runs' / f'{case}-census' / 'job-finish.json',
+                                 case, args.cpu, args.gpu)
         args.journal_process = observer_finish.parent.name
-        print(f"  closed {args.journal_process}: census receipts verified")
+        print(f"  closed {args.journal_process}: observer pid {observer['pid']}, "
+              f"{observer['launch_before_count']} launches, "
+              f"{observer['metadata_bytes_before_finish']} of "
+              f"{observer['max_total_bytes']} metadata bytes")
 
     print()
     print('== job 2: sample, expand and cache replay ==')
