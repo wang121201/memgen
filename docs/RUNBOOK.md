@@ -18,10 +18,19 @@ admission decision; see section 5.
 
 ---
 
-## 1. Tier A: the full CPU verification suite
+## 1. Step 0: implementation health, no GPU
 
 No GPU, no model, no NVBit. Run this after any change to the repository. Each
 command writes only to a fresh directory you name.
+
+The split from section 3 exists because the two kinds of check cost different
+things and answer different questions. This section is cheap, needs nothing
+beyond a C++17 toolchain, and can therefore be run by anyone reviewing an
+archive change to confirm that the frozen engine, the pinned deployment and the
+declared-case contract are intact. Section 3 needs the GPU host, the SGLang
+stack and NVBit, and is what actually collects the target data. Do not treat a
+passing Step 0 as evidence about a workload, and do not treat section 3 as a
+substitute for the pin-integrity checks.
 
 ```bash
 cd <repository root>
@@ -70,7 +79,7 @@ is a failure and must be investigated, never silenced.
 
 ---
 
-## 2. Tier B: prerequisites for a real run
+## 2. Prerequisites for the target run
 
 ```bash
 python3 integrations/sglang/preflight.py            # all required checks OK
@@ -106,10 +115,44 @@ controller dies. Do not launch two jobs with the same `cpu`/`gpu`.
 
 ---
 
-## 3. Tier B stages
+## 3. The target run
 
-Set the working paths once. Everything below is `bash`; the case is the P32D2
-basic admission point.
+### 3.1 One command
+
+`integrations/sglang/collect_case.py` drives the whole chain for one declared
+case as two jobs under the lease controller. It builds the observer, writes
+both job specs with their sources pinned by hash, verifies every stage receipt
+and writes a collection receipt with the artifact map.
+
+```bash
+# review the plan: writes both specs, runs nothing, uses no GPU
+python3 integrations/sglang/collect_case.py \
+  --case qwen25_1p5b-p32-d2 \
+  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
+  --work /absolute/fresh/qwen15b-p32d2-r1 --dry-run
+
+# collect
+python3 integrations/sglang/collect_case.py \
+  --case qwen25_1p5b-p32-d2 \
+  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
+  --work /absolute/fresh/qwen15b-p32d2-r1
+```
+
+It refuses a case outside the declared matrix, a GPU outside the admitted pool,
+an existing `--work` and a missing interpreter, so a typo fails before any GPU
+time is spent. Exit 0 means every stage receipt closed; exit 2 means the profile
+stream did not cover the full model, which the receipt reports as
+`STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC` rather than hiding.
+
+`--dry-run` writes `census-spec.json` and `collect-spec.json`. The second names
+`process-<pid>` as a placeholder because job 1 resolves the real census process
+directory before job 2 is written.
+
+### 3.2 Stage by stage
+
+Use this when a stage fails and you want to rerun one of them, or when you want
+to drive `wait_then_sample.py` instead. Set the working paths once; the case is
+the P32D2 basic admission point.
 
 ```bash
 REPO=$PWD                                   # repository root
@@ -332,7 +375,7 @@ names its own limit.
 
 | Artifact | Proves | Does not prove |
 | --- | --- | --- |
-| Tier A suite | implementation health, determinism, pin integrity | anything about a real workload |
+| Step 0 suite | implementation health, determinism, pin integrity | anything about a real workload |
 | `observer.so` build receipt | the frozen source and headers compiled, no GPU used | that the binary is byte-reproducible, see `ENVIRONMENT.md` 4.4 |
 | census receipt | the launch journal closed for one case and no metadata cap was hit | that a sample is representative |
 | sample plan | one decoder layer plus exceptions were selected from a real census | full-model coverage |
