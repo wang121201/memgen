@@ -111,6 +111,19 @@ def source_pins(files, compact: bool) -> list[dict]:
     return pins
 
 
+def observer_root(work: Path, case: str) -> Path:
+    """The census observer's output root, created because it must pre-exist.
+
+    `observer.cu` refuses to initialize unless `SG_NVBIT_OUTPUT_ROOT` exists and
+    is byte-identical to its own `realpath`, and it initializes before the child
+    interpreter runs, so `host.py` cannot create it in time. Both properties are
+    established here rather than left to the caller's `--work` spelling.
+    """
+    root = (work / 'observers' / f'{case}-census').resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def census_spec(case: str, work: Path, contract: dict, args) -> dict:
     pins = source_pins(['host.py', 'contract.json', 'matrix_workload.py'], compact=False)
     if Path(args.observer).is_file():
@@ -125,7 +138,7 @@ def census_spec(case: str, work: Path, contract: dict, args) -> dict:
                       '--output', str(work / 'runs' / f'{case}-census' / 'host')],
                 environment={'LD_PRELOAD': str(args.observer),
                              'SG_NVBIT_SCOPE_ABI': '1',
-                             'SG_NVBIT_OUTPUT_ROOT': str(work / 'observers' / f'{case}-census'),
+                             'SG_NVBIT_OUTPUT_ROOT': str(observer_root(work, case)),
                              'SG_NVBIT_MAX_BYTES': str(256 << 20),
                              'ACK_CTX_INIT_LIMITATION': '1'},
                 sources=pins)
@@ -137,7 +150,7 @@ def collect_spec(case: str, work: Path, args) -> dict:
                 cpu=args.cpu, gpu=args.gpu, seconds=args.job_seconds,
                 cache_directory=str(work / 'cache'),
                 argv=[args.python, '-B', str(ADAPTER / 'followthrough.py'),
-                      '--journal', str(work / 'observers' / f'{case}-census' / args.journal_process),
+                      '--journal', str(observer_root(work, case) / args.journal_process),
                       '--host-finish', str(work / 'runs' / f'{case}-census' / 'host'
                                            / args.journal_process / 'finish.json'),
                       '--sources', str(SOURCES),
@@ -256,6 +269,10 @@ def main() -> int:
         raise SystemExit('--work is required')
     if args.work.exists():
         raise SystemExit('refusing existing work directory: ' + str(args.work))
+    # Canonical from here on: `SG_NVBIT_OUTPUT_ROOT` must equal its own realpath,
+    # so a `--work` reached through a symlink would otherwise fail at observer
+    # init. The receipt then names the real directory.
+    args.work = args.work.resolve()
     if not args.dry_run and not Path(args.python).exists():
         raise SystemExit('interpreter not found: ' + args.python)
     args.journal_process = None
@@ -281,6 +298,7 @@ def main() -> int:
     print()
 
     args.work.mkdir(parents=True)
+    observer_root(args.work, case)
     if args.observer is None:
         args.observer = args.work / 'observer-build' / 'observer.so'
         print('== build the metadata observer (no GPU) ==')
@@ -308,7 +326,7 @@ def main() -> int:
     if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run):
         return 1
     if not args.dry_run:
-        observer_finish = only(args.work / 'observers' / f'{case}-census', 'process-*/finish.json')
+        observer_finish = only(observer_root(args.work, case), 'process-*/finish.json')
         host_finish = only(args.work / 'runs' / f'{case}-census' / 'host', 'process-*/finish.json')
         status_of(observer_finish, 'PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE')
         status_of(host_finish, 'PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE')
@@ -342,7 +360,7 @@ def main() -> int:
                    declared_matrix=contract['declared_matrix'],
                    status=finish['status'], stages=finish['stages'],
                    work=str(args.work), artifacts=dict(
-                       census_observer_finish=str(args.work / 'observers' / f'{case}-census'
+                       census_observer_finish=str(observer_root(args.work, case)
                                                   / args.journal_process / 'finish.json'),
                        census_host_finish=str(args.work / 'runs' / f'{case}-census' / 'host'
                                               / args.journal_process / 'finish.json'),

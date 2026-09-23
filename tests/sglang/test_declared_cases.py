@@ -9,8 +9,10 @@ accuracy test and they do not admit any workload.
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -135,6 +137,8 @@ class CollectionDriver(unittest.TestCase):
         sys.path.insert(0, str(SGLANG))
         import collect_case
         self.driver = collect_case
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
 
     def test_list_cases_prints_every_declared_case(self):
         result = subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
@@ -176,7 +180,7 @@ class CollectionDriver(unittest.TestCase):
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
                                   python=sys.executable, sample_seconds=7200,
                                   journal_process='process-0000')
-        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', Path('/tmp/placeholder'), args)
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'work', args)
         self.assertEqual(spec['seconds'], 0)
         self.assertNotIn('--seconds', spec['argv'])
         self.assertNotIn('--memgen-seconds', spec['argv'])
@@ -186,10 +190,59 @@ class CollectionDriver(unittest.TestCase):
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', census_seconds=1800,
                                   python=sys.executable, observer='/nonexistent/observer.so')
         contract = workload.contract('qwen25_1p5b', 32, 2)
-        spec = self.driver.census_spec('qwen25_1p5b-p32-d2', Path('/tmp/placeholder'),
-                                      contract, args)
+        spec = self.driver.census_spec('qwen25_1p5b-p32-d2', self.tmp / 'work',
+                                       contract, args)
         self.assertEqual(spec['seconds'], 1800)
         self.assertEqual(spec['environment']['SG_NVBIT_SCOPE_ABI'], '1')
+
+
+class ObserverOutputRoot(unittest.TestCase):
+    """observer.cu needs its root to exist and to equal its own realpath.
+
+    It initializes before the child interpreter runs, so `host.py` cannot create
+    the directory and the driver has to. A symlinked `--work` must not leak into
+    the variable either, because the observer compares the two as strings.
+    """
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.work = self.tmp / 'work'
+        self.work.mkdir()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def spec(self, work):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', census_seconds=1800,
+                                  python=sys.executable, observer='/nonexistent/observer.so')
+        return self.driver.census_spec('qwen25_1p5b-p32-d2', work,
+                                      workload.contract('qwen25_1p5b', 32, 2), args)
+
+    def test_census_spec_names_an_existing_canonical_root(self):
+        root = Path(self.spec(self.work)['environment']['SG_NVBIT_OUTPUT_ROOT'])
+        self.assertTrue(root.is_dir())
+        self.assertEqual(str(root), str(root.resolve()))
+        self.assertEqual(root, self.work / 'observers' / 'qwen25_1p5b-p32-d2-census')
+
+    def test_symlinked_work_yields_the_real_path(self):
+        link = self.tmp / 'link'
+        link.symlink_to(self.work)
+        root = Path(self.spec(link)['environment']['SG_NVBIT_OUTPUT_ROOT'])
+        self.assertEqual(str(root), str(root.resolve()))
+        self.assertNotIn('link', str(root))
+
+    def test_collect_spec_reads_the_same_root(self):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
+                                  python=sys.executable, sample_seconds=7200,
+                                  journal_process='process-123')
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.work, args)
+        journal = Path(spec['argv'][spec['argv'].index('--journal') + 1])
+        self.assertEqual(journal.parent,
+                         self.work / 'observers' / 'qwen25_1p5b-p32-d2-census')
+        self.assertTrue(journal.parent.is_dir())
 
 
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):

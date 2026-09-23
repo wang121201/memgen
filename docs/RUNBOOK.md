@@ -200,13 +200,18 @@ the P32D2 basic admission point.
 REPO=$PWD                                   # repository root
 CASE=qwen25_1p5b-p32-d2                     # or qwen25_1p5b-p128-d32 to rehearse
 MODEL=qwen25_1p5b; P=32; D=2                # keep consistent with CASE
-WORK=/absolute/fresh/work-$CASE             # must not exist yet
+WORK=/absolute/fresh/work-$CASE             # must not exist yet, and must be canonical
 OBSERVER=/tmp/mg-observer/observer.so
 ENGINE=/tmp/mg-engine/hbserve
 PY=/home/xmu/sgl/bin/python                 # interpreter that carries SGLang
 GPU=GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13   # any UUID from the preflight.py GPU table
 mkdir -p "$WORK"
 ```
+
+`$WORK` must be absolute and canonical, with no symlink in any component: the
+observer compares `SG_NVBIT_OUTPUT_ROOT` with its own `realpath` and refuses a
+mismatch. `collect_case.py` canonicalises the root and creates it for you; in
+this hand-driven form both are your job.
 
 > Rehearse first on `CASE=qwen25_1p5b-p128-d32` with `P=128 D=32`. That point
 > was the one actually driven through this chain in the archived deployment, so
@@ -225,7 +230,10 @@ python3 - "$REPO" "$WORK" "$CASE" "$MODEL" "$P" "$D" "$OBSERVER" "$PY" "$GPU" <<
 import hashlib, json, sys
 from pathlib import Path
 repo, work, case, model, p, d, observer, python, gpu = sys.argv[1:10]
-work = Path(work)
+work = Path(work).resolve()
+# The observer initialises before the child interpreter runs and refuses to start
+# unless this root exists and is byte-identical to its own realpath.
+(work / 'observers' / (case + '-census')).mkdir(parents=True, exist_ok=True)
 def pin(path):
     path = Path(path).resolve(); b = path.read_bytes()
     return dict(path=str(path), bytes=len(b), sha256=hashlib.sha256(b).hexdigest())
@@ -269,7 +277,9 @@ Expected, all three must hold before continuing:
 The observer and the host must share one `pid`; `wait_then_sample.py` also
 checks `epoch_begin_count == epoch_end_count`, `active_epoch == 0`, and that
 `max_metadata_bytes` was not exhausted. A census that hits the metadata cap is
-a failure, not a partial success.
+a failure, not a partial success. The census is also the stage that fails first
+if the observer root is missing or non-canonical: the observer reports
+`fatal: canonical existing output root` and the job exits before any CUDA call.
 
 ### Stage 2, plan (no GPU): pick one decoder layer and the sample set
 
