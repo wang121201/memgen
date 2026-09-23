@@ -197,8 +197,16 @@ stream did not cover the full model, which the receipt reports as
 `STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC` rather than hiding.
 
 `--dry-run` writes `census-spec.json` and `collect-spec.json`. The second names
-`process-<pid>` as a placeholder because job 1 resolves the real census process
-directory before job 2 is written.
+`process-<pid>-<ticks>` and `process-<pid>` as placeholders because job 1
+resolves both real directories from the observer receipt before job 2 is written.
+
+**Job 2 reads two directories that are named differently on purpose.** Its
+`--journal` is `observers/<case>-census/process-<pid>-<ticks>`, the observer's
+own directory, and its `--host-finish` is
+`runs/<case>-census/host/process-<pid>/finish.json`, the controller's. Both are
+derived from the observer receipt's `pid` and `start_ticks` and checked against
+the directory that receipt was read from, so a rename is caught rather than
+producing a `FileNotFoundError` in `followthrough.py`.
 
 **Budgets are hard limits, not estimates.** A stage that exceeds its budget is
 killed: the census job and the whole of job 2 are bounded by `run_job.py`

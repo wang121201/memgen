@@ -150,15 +150,32 @@ def census_spec(case: str, work: Path, contract: dict, args) -> dict:
                 sources=pins)
 
 
-def collect_spec(case: str, work: Path, args) -> dict:
+def census_process_names(observer: dict, observer_finish: Path) -> tuple[str, str]:
+    """The two census process directories, which differ on purpose.
+
+    The observer adds its start ticks to its own directory because it cannot
+    know the controller's name for it, and the controller writes `process-<pid>`
+    alone. Both are derived from the observer's receipt and checked against the
+    directory that receipt was read from, so job 2 cannot be pointed at a path
+    that does not exist.
+    """
+    journal = f"process-{observer['pid']}-{observer['start_ticks']}"
+    if observer_finish.parent.name != journal:
+        raise SystemExit('census receipt and its directory disagree: '
+                         f"{journal} vs {observer_finish.parent.name}")
+    return journal, f"process-{observer['pid']}"
+
+
+def collect_spec(case: str, work: Path, args, journal: str, host: str) -> dict:
+    """Job 2's spec, given the two census process names it has to read."""
     follow = work / 'runs' / f'{case}-collect' / 'followthrough'
     return dict(case_id=case, tool='memgen', input_kind='sample_and_cache',
                 cpu=args.cpu, gpu=args.gpu, seconds=args.job_seconds,
                 cache_directory=str(work / 'cache'),
                 argv=[args.python, '-B', str(ADAPTER / 'followthrough.py'),
-                      '--journal', str(observer_root(work, case) / args.journal_process),
-                      '--host-finish', str(work / 'runs' / f'{case}-census' / 'host'
-                                           / args.journal_process / 'finish.json'),
+                      '--journal', str(observer_root(work, case) / journal),
+                      '--host-finish', str(work / 'runs' / f'{case}-census' / 'host' / host
+                                           / 'finish.json'),
                       '--sources', str(SOURCES),
                       '--output', str(follow),
                       '--stop-after', 'memgen',
@@ -194,7 +211,7 @@ def gpu_admission_is_busy(text: str) -> bool:
     return 'selected GPU not idle at fresh locked admission' in text
 
 
-def reused_census(work: Path, case: str, cpu: int, gpu: str) -> tuple[str, dict]:
+def reused_census(work: Path, case: str, cpu: int, gpu: str) -> tuple[Path, dict]:
     """Re-verify the census receipts an earlier run left in this `--work`.
 
     `--resume` exists because job 1 is the only stage whose result cannot be
@@ -207,7 +224,7 @@ def reused_census(work: Path, case: str, cpu: int, gpu: str) -> tuple[str, dict]
     observer = verify_census(observer_finish, host_finish,
                              work / 'runs' / f'{case}-census' / 'job-finish.json',
                              case, cpu, gpu)
-    return observer_finish.parent.name, observer
+    return observer_finish, observer
 
 
 def stash_job_output(work: Path, case: str) -> Path | None:
@@ -437,7 +454,7 @@ def main() -> int:
     args.work = args.work.resolve()
     if not args.dry_run and not Path(args.python).exists():
         raise SystemExit('interpreter not found: ' + args.python)
-    args.journal_process = None
+    journal = host = None
     args.gpu = gpu
     case = contract['case_id']
 
@@ -467,8 +484,9 @@ def main() -> int:
     print()
     if args.resume:
         print('== job 1: census reused from --work (--resume) ==')
-        args.journal_process, observer = reused_census(args.work, case, args.cpu, args.gpu)
-        print(f"  closed {args.journal_process}: observer pid {observer['pid']}, "
+        observer_finish, observer = reused_census(args.work, case, args.cpu, args.gpu)
+        journal, host = census_process_names(observer, observer_finish)
+        print(f"  closed {journal}: observer pid {observer['pid']}, "
               f"{observer['launch_before_count']} launches, "
               f"{observer['metadata_bytes_before_finish']} of "
               f"{observer['max_total_bytes']} metadata bytes")
@@ -512,8 +530,8 @@ def main() -> int:
             observer = verify_census(observer_finish, host_finish,
                                      args.work / 'runs' / f'{case}-census' / 'job-finish.json',
                                      case, args.cpu, args.gpu)
-            args.journal_process = observer_finish.parent.name
-            print(f"  closed {args.journal_process}: observer pid {observer['pid']}, "
+            journal, host = census_process_names(observer, observer_finish)
+            print(f"  closed {journal}: observer pid {observer['pid']}, "
                   f"{observer['launch_before_count']} launches, "
                   f"{observer['metadata_bytes_before_finish']} of "
                   f"{observer['max_total_bytes']} metadata bytes")
@@ -521,9 +539,10 @@ def main() -> int:
     print()
     print('== job 2: sample, expand and cache replay ==')
     spec2 = args.work / 'collect-spec.json'
-    if args.journal_process is None:
-        args.journal_process = 'process-<pid>'
-    spec2.write_text(json.dumps(collect_spec(case, args.work, args), indent=2) + '\n')
+    if journal is None:
+        journal, host = 'process-<pid>-<ticks>', 'process-<pid>'
+    spec2.write_text(json.dumps(collect_spec(case, args.work, args, journal, host),
+                               indent=2) + '\n')
     print('  spec ' + str(spec2))
     if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,
                args.gpu_wait_seconds):
@@ -532,8 +551,9 @@ def main() -> int:
     if args.dry_run:
         print()
         print('DRY_RUN_PLAN_ONLY: nothing was executed and no GPU time was used')
-        print('  collect-spec.json names process-<pid> as a placeholder; job 1 resolves the')
-        print('  real census process directory before job 2 is written.')
+        print('  collect-spec.json names process-<pid>-<ticks> and process-<pid> as')
+        print('  placeholders; job 1 resolves both from its own receipts before job 2')
+        print('  is written.')
         return 0
 
     follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'

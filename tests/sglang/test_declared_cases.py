@@ -178,9 +178,9 @@ class CollectionDriver(unittest.TestCase):
     def test_collect_job_has_no_wall_clock_ceiling(self):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
-                                  python=sys.executable, sample_seconds=7200,
-                                  journal_process='process-0000')
-        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'work', args)
+                                  python=sys.executable, sample_seconds=7200)
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'work', args,
+                                       'process-0001-000000002', 'process-0001')
         self.assertEqual(spec['seconds'], 0)
         self.assertNotIn('--seconds', spec['argv'])
         self.assertNotIn('--memgen-seconds', spec['argv'])
@@ -236,9 +236,9 @@ class ObserverOutputRoot(unittest.TestCase):
     def test_collect_spec_reads_the_same_root(self):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
-                                  python=sys.executable, sample_seconds=7200,
-                                  journal_process='process-123')
-        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.work, args)
+                                  python=sys.executable, sample_seconds=7200)
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.work, args,
+                                       'process-938490-918072691', 'process-938490')
         journal = Path(spec['argv'][spec['argv'].index('--journal') + 1])
         self.assertEqual(journal.parent,
                          self.work / 'observers' / 'qwen25_1p5b-p32-d2-census')
@@ -277,6 +277,12 @@ class CensusClosure(unittest.TestCase):
         self.host_path = self.write(f'runs/{self.CASE}-census/host/process-{self.PID}/finish.json',
                                     self.host)
         self.job_path = self.write(f'runs/{self.CASE}-census/job-finish.json', self.job)
+
+    def test_the_two_process_directories_are_named_differently(self):
+        """Job 2 reads <journal> and <host>/process-<pid>/finish.json, nothing else."""
+        self.assertEqual(self.observer_path.parent.name, f'process-{self.PID}-{self.TICKS}')
+        self.assertEqual(self.host_path.parent.name, f'process-{self.PID}')
+        self.assertNotEqual(self.observer_path.parent.name, self.host_path.parent.name)
 
     def write(self, relative, payload):
         path = self.tmp / relative
@@ -376,9 +382,9 @@ class Resume(unittest.TestCase):
         host_root.mkdir(parents=True)
         (observer_root / 'finish.json').write_text(json.dumps(
             dict(status='PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE', pid=938490,
-                 epoch_begin_count=6, epoch_end_count=6, active_epoch=0,
-                 metadata_bytes_before_finish=10347345, max_total_bytes=268435456,
-                 launch_before_count=2194)))
+                 start_ticks=918072691, epoch_begin_count=6, epoch_end_count=6,
+                 active_epoch=0, metadata_bytes_before_finish=10347345,
+                 max_total_bytes=268435456, launch_before_count=2194)))
         (host_root / 'finish.json').write_text(json.dumps(
             dict(status='PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE',
                  input_contract=dict(case_id=self.CASE))))
@@ -393,9 +399,33 @@ class Resume(unittest.TestCase):
                               capture_output=True, text=True)
 
     def test_reused_census_reads_the_receipts(self):
-        journal, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
-        self.assertEqual(journal, 'process-938490-918072691')
+        finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        self.assertEqual(finish.parent.name, 'process-938490-918072691')
         self.assertEqual(observer['launch_before_count'], 2194)
+
+    def test_the_two_process_names_are_derived_not_guessed(self):
+        finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        journal, host = self.driver.census_process_names(observer, finish)
+        self.assertEqual(journal, 'process-938490-918072691')
+        self.assertEqual(host, 'process-938490')
+        self.assertNotEqual(journal, host)
+
+    def test_a_receipt_that_disagrees_with_its_directory_is_refused(self):
+        finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        with self.assertRaises(SystemExit) as caught:
+            self.driver.census_process_names(dict(observer, start_ticks=1), finish)
+        self.assertIn('disagree', str(caught.exception))
+
+    def test_collect_spec_points_at_both_real_directories(self):
+        import argparse
+        finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        journal, host = self.driver.census_process_names(observer, finish)
+        args = argparse.Namespace(cpu=8, gpu=self.GPU, job_seconds=0, python=sys.executable,
+                                  sample_seconds=7200)
+        spec = self.driver.collect_spec(self.CASE, self.work, args, journal, host)
+        given = dict(zip(spec['argv'], spec['argv'][1:]))
+        self.assertTrue(Path(given['--journal']).is_dir())
+        self.assertTrue(Path(given['--host-finish']).is_file())
 
     def test_reused_census_still_applies_the_gate(self):
         (self.work / 'runs' / f'{self.CASE}-census' / 'job-finish.json').write_text(json.dumps(
