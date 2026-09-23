@@ -332,6 +332,14 @@ launch.
 
 ### Stage 5, expand and replay (no GPU after expansion)
 
+Expand turns the packed profile into a full-inference address stream; replay
+streams that stream through the functional L1/L2 cache filter and writes
+aggregate counters. Neither stage is HBFSim cosimulation: there is no
+dependency DAG, no queue, bank or channel scheduling and no completion stall, so
+no timing claim can come from here. HBFSim lives on
+`research/hbfsim-cosimulation` in a separate worktree and is not reachable from
+`main`.
+
 ```bash
 python3 -B integrations/sglang/memgen-adapter/followthrough.py \
   --journal "$JOURNAL" --host-finish "$HOST_FINISH" \
@@ -368,7 +376,10 @@ python3 integrations/sglang/memgen-adapter/run_memgen.py \
 
 Read the result from `<replay>/model/kernel_summary.csv` and
 `<replay>/model/cache_observation.json`. That JSON states
-`hardware_acceptance = DIAGNOSTIC_NOT_HARDWARE_ACCEPTANCE`; keep that label.
+`hardware_acceptance = DIAGNOSTIC_NOT_HARDWARE_ACCEPTANCE`; keep that label. The
+receipt says `raw_trace_materialized: false` and
+`hardware_accuracy_accepted: false`, so the counters are summary traffic
+counters, not an accepted hardware result.
 
 ### Optional: the one-shot waiter
 

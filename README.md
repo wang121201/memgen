@@ -85,7 +85,10 @@ It runs two jobs under the lease controller, which owns the CPU and GPU locks,
 the CPU affinity, the memory guard and `CUDA_VISIBLE_DEVICES`: job 1 is the
 census, the SGLang run under the NVBit metadata observer; job 2 is the plan, the
 sampler build, the sparse sampling, the expansion and the cache replay, which
-runs to completion with **no wall-clock deadline**. The run's directory holds
+runs to completion with **no wall-clock deadline**. Replay means streaming the
+generated addresses through the functional L1/L2 filter: aggregate cache and
+DRAM byte counters, no HBFSim cosimulation and no timing. The run's directory
+holds
 the launch journal and receipts, the sample plan, the packed profile, the
 expansion manifest, `kernel_summary.csv` with the per-kernel cache, hit and DRAM
 counters, `cache_observation.json` and `collect-receipt.json`.
@@ -111,7 +114,7 @@ drove through this chain.
 | `memgen capabilities` | machine-readable claim boundary, stages and budgets | no |
 | `memgen plan` | write the job specs for one case and print the plan | no |
 | `memgen collect` | census, sampler build, sparse sampling, expand and replay | **yes** |
-| `memgen replay` | an admitted profile stream through the cache model | no |
+| `memgen replay` | an admitted profile stream through the functional L1/L2 cache filter | no |
 
 Run `memgen <command> --help` for options, and `docs/RUNBOOK.md` for the
 stage-by-stage form, the expected receipt of each stage and failure handling.

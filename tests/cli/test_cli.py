@@ -69,6 +69,7 @@ class Capabilities(unittest.TestCase):
     def test_unreachable_and_unreconciled_are_declared(self):
         self.assertIn('per_address_trace', self.payload['not_reachable'])
         self.assertIn('ncu_reference_for_sglang_bf16', self.payload['not_reachable'])
+        self.assertIn('hbfsim_cosimulation', self.payload['not_reachable'])
         self.assertIn('dram_write_gate', self.payload['unreconciled'])
 
     def test_every_stage_states_a_budget_policy(self):

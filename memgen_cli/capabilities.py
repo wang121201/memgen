@@ -74,7 +74,9 @@ def current_capabilities() -> dict[str, Any]:
              'produces': 'full-inference profile stream and its manifest'},
             {'name': 'replay', 'device': 'cpu', 'command': 'run_memgen.py',
              'budget_seconds': None, 'budget': 'no wall-clock deadline at any layer',
-             'produces': 'kernel_summary.csv and cache counters'},
+             'produces': 'kernel_summary.csv and cache counters',
+             'scope': 'the functional L1/L2 filter only: aggregate cache and DRAM byte '
+                      'counters, no HBFSim cosimulation and no timing'},
         ],
         'reachable_artifacts': [
             'launch journal', 'census and host receipts', 'sample plan', 'packed profile',
@@ -89,6 +91,10 @@ def current_capabilities() -> dict[str, Any]:
             'ncu_reference_for_sglang_bf16': 'not present in this archive; the in-repo NCU tool '
                                              'belongs to the historical llama.cpp/Q8 stack',
             'decode_steps_4_8_16': 'not declared, so not selectable',
+            'hbfsim_cosimulation': 'research/hbfsim-cosimulation is a separate branch and '
+                                   'worktree. main only replays the stream through the functional '
+                                   'cache filter, which emits aggregate counters and no timing, '
+                                   'no queueing and no completion stalls',
         },
         'not_modeled': [
             'DRAM bank timing', 'MSHR queueing, finite concurrency and merge',
@@ -113,8 +119,7 @@ def current_capabilities() -> dict[str, Any]:
             'gpus': 'admitted GPUs by index',
             'plan': 'write the job specs for a case and print the plan',
             'collect': 'run census, sample, expand and replay for a case',
-            'replay': 'run an admitted profile stream through the cache model',
-            'smoke': 'replay the frozen engine fixture on the CPU',
+            'replay': 'run an admitted profile stream through the functional cache filter',            'smoke': 'replay the frozen engine fixture on the CPU',
             'test': 'portable regression tests',
         },
         'entry_points': {
