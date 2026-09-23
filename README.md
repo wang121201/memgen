@@ -78,6 +78,30 @@ nominates one, and existing results are never overwritten. The CLI prints the
 underlying command before running it, so the entry point teaches the pipeline
 instead of hiding it.
 
+### Where the traffic numbers are
+
+`collect-receipt.json` in the run directory names every artifact, including the
+one row per kernel holding the counters:
+`runs/qwen25_1p5b-p32-d2-collect/followthrough/cache/model/kernel_summary.csv`.
+
+```bash
+python3 - <<'PY'
+import csv, json, pathlib
+work = pathlib.Path('out/qwen25_1p5b-p32-d2-<UTC>')       # the run directory
+receipt = json.loads((work / 'collect-receipt.json').read_text())
+row = next(csv.DictReader(open(receipt['artifacts']['kernel_summary'])))
+for key in ('l1_hit_rate', 'l2_hit_rate', 'dram_load_bytes', 'dram_store_bytes'):
+    print(f'{key:18} {row[key]}')
+PY
+```
+
+`dram_load_bytes` and `dram_store_bytes` are the DRAM read and write totals,
+`l1_hit_rate` and `l2_hit_rate` the hit ratios; the sixty columns also split the
+requests by level and direction (`l2_read_*`, `l2_write_*`) and record write
+coalescing (`write_full_sector_requests`, `write_partial_sector_requests`).
+These are diagnostics: the receipt states `raw_trace_persisted: false` and
+`hardware_accuracy_accepted: false`.
+
 Parameters live in [the runbook](docs/RUNBOOK.md) section 3; the stages and
 their budgets are in `./memgen capabilities` and in the same section.
 
