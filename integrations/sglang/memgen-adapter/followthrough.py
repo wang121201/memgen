@@ -19,7 +19,8 @@ def main():
  p.add_argument('--output',type=Path,required=True)
  p.add_argument('--stop-after',choices=('plan','build','sample','expand','memgen'),default='memgen')
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
- p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600)
+ p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600,
+  help='accepted for compatibility; the replay has no wall-clock deadline')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  host=json.loads(a.host_finish.read_text());contract=host['input_contract'];stages=[];start=time.monotonic()
  result=dict(status='RUNNING',raw_trace_files=False,hardware_accuracy_accepted=False,stages=stages)
@@ -60,7 +61,7 @@ def main():
     result.update(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC',unsupported_launches=manifest['unsupported_launches'])
    else:
     run('memgen',[a.python,'-B',str(HERE/'run_memgen.py'),'--expanded',str(a.output/'expanded'),
-     '--output',str(a.output/'cache'),'--seconds',str(a.memgen_seconds)],a.memgen_seconds+60)
+     '--output',str(a.output/'cache')],None)
   if result['status']=='RUNNING':result['status']='PASS_THROUGH_'+stages[-1]['stage'].upper()
  except BaseException as e:result.update(status='FAIL_DEPENDENCY',error=type(e).__name__+': '+str(e))
  result.update(wall_minutes=(time.monotonic()-start)/60,input_contract=contract)

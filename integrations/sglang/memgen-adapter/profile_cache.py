@@ -8,7 +8,8 @@ HERE=Path(__file__).resolve().parent
 def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--sample',type=Path,required=True);p.add_argument('--bindings',type=Path,required=True)
- p.add_argument('--output',type=Path,required=True);p.add_argument('--seconds',type=int,default=21600)
+ p.add_argument('--output',type=Path,required=True);p.add_argument('--seconds',type=int,default=21600,
+  help='accepted for compatibility; the cache replay has no wall-clock deadline')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  if os.environ.get('CUDA_VISIBLE_DEVICES'):raise ValueError('CPU-only cache stage requires no GPU')
  result=dict(status='RUNNING',stages=[],hardware_accuracy_accepted=False);start=time.monotonic()
@@ -16,7 +17,7 @@ def main():
   cmds=[('expand',[sys.executable,'-B',str(HERE/'expand_profiles.py'),'--sample-output',str(a.sample),
     '--layer-bindings',str(a.bindings),'--output',str(a.output/'expanded')],1800),
    ('cache',[sys.executable,'-B',str(HERE/'run_memgen.py'),'--expanded',str(a.output/'expanded'),
-    '--output',str(a.output/'cache'),'--seconds',str(a.seconds)],a.seconds+60)]
+    '--output',str(a.output/'cache')],None)]
   for name,argv,timeout in cmds:
    if name=='cache':
     m=json.loads((a.output/'expanded/manifest.json').read_text())

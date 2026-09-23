@@ -123,5 +123,72 @@ class DeploymentPins(unittest.TestCase):
                              row['name'])
 
 
+class CollectionDriver(unittest.TestCase):
+    """The driver must agree with the contract and must not bound the replay."""
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+
+    def test_list_cases_prints_every_declared_case(self):
+        result = subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
+                                 '--list-cases'], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        rows = [line.split() for line in result.stdout.strip().splitlines()[1:]]
+        self.assertEqual(len(rows), 26)
+        self.assertEqual(rows[0][0], 'llama3_8b-p32-d2')
+        self.assertEqual(rows[-1][0], 'qwen25_1p5b-p1024-d128')
+        self.assertEqual({row[1] for row in rows}, {'scale_series', 'basic_admission'})
+
+    def test_driver_declares_the_same_cases_as_the_contract(self):
+        expected = sorted(set().union(*workload.declared_cases(workload.spec()).values()))
+        self.assertEqual(self.driver.declared_cases(), expected)
+
+    def test_gpu_index_numbering_is_stable_and_covers_the_pool(self):
+        table = self.driver.gpu_table()
+        self.assertEqual([index for index, _, _ in table], list(range(len(table))))
+        self.assertEqual({uuid for _, uuid, _ in table}, self.driver.gpu_pool())
+
+    def test_collect_job_has_no_wall_clock_ceiling(self):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
+                                  python=sys.executable, sample_seconds=7200,
+                                  journal_process='process-0000')
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', Path('/tmp/placeholder'), args)
+        self.assertEqual(spec['seconds'], 0)
+        self.assertNotIn('--seconds', spec['argv'])
+        self.assertNotIn('--memgen-seconds', spec['argv'])
+
+    def test_census_job_stays_bounded(self):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', census_seconds=1800,
+                                  python=sys.executable, observer='/nonexistent/observer.so')
+        contract = workload.contract('qwen25_1p5b', 32, 2)
+        spec = self.driver.census_spec('qwen25_1p5b-p32-d2', Path('/tmp/placeholder'),
+                                      contract, args)
+        self.assertEqual(spec['seconds'], 1800)
+        self.assertEqual(spec['environment']['SG_NVBIT_SCOPE_ABI'], '1')
+
+
+class ReplayWrappersHaveNoDeadline(unittest.TestCase):
+    """The wrappers must not kill a replay that run_memgen.py says is unbounded."""
+
+    def test_followthrough_runs_the_replay_without_a_timeout(self):
+        text = (ADAPTER / 'followthrough.py').read_text()
+        self.assertIn("'--output',str(a.output/'cache')],None)", text)
+        self.assertNotIn('a.memgen_seconds+60', text)
+
+    def test_profile_cache_runs_the_replay_without_a_timeout(self):
+        text = (ADAPTER / 'profile_cache.py').read_text()
+        self.assertIn("'--output',str(a.output/'cache')],None)]", text)
+        self.assertNotIn('a.seconds+60', text)
+
+    def test_controller_can_express_an_unbounded_job(self):
+        text = (SGLANG / 'run_job.py').read_text()
+        self.assertIn('seconds == 0', text)
+        self.assertIn('no wall-clock deadline', text)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

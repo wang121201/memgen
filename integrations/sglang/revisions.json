@@ -43,6 +43,45 @@
       "current_bytes": 8714,
       "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child.",
       "record": "docs/ENVIRONMENT.md section 5"
+    },
+    {
+      "name": "run_job.py",
+      "paths": [
+        "run_job.py"
+      ],
+      "historical_manifest": "package.json",
+      "historical_sha256": "c82c0fdc9ccb817901f51bbd47f65579b8ba9214f3a893a4ec6d8d9836884ff1",
+      "historical_bytes": 4684,
+      "current_sha256": "c66b6c629ca2f62e3cf617c2acbad679b404e2d61ddcc5094748259e1bb73d67",
+      "current_bytes": 5114,
+      "reason": "Accept seconds = 0 as no wall-clock deadline. The replay entry documents that it has no deadline, so the controller must be able to express that instead of capping every job at 86400 s. Positive values keep the 1..86400 bound and the receipt records wall_clock_deadline.",
+      "record": "docs/ENVIRONMENT.md section 6"
+    },
+    {
+      "name": "followthrough.py",
+      "paths": [
+        "memgen-adapter/followthrough.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91",
+      "historical_bytes": 4336,
+      "current_sha256": "1b745325eaeabd66564a11aab6be28f6d019cb68e399f307cf622eb29a9fe1a4",
+      "current_bytes": 4363,
+      "reason": "Run the memgen stage without a wall-clock timeout. It previously killed the child at memgen-seconds + 60, which contradicted run_memgen.py's documented no-deadline behaviour. --memgen-seconds is now accepted for compatibility and ignored, and --seconds is no longer forwarded to run_memgen.py.",
+      "record": "docs/ENVIRONMENT.md section 6"
+    },
+    {
+      "name": "profile_cache.py",
+      "paths": [
+        "memgen-adapter/profile_cache.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "0db83c0c98f83b904d76ad23a6e13c7f76646ad74f78dc384a55f0b9eb136a8c",
+      "historical_bytes": 2478,
+      "current_sha256": "2999cf51e7531307918ea78e684b0a40f7b8f54ef7f8965587163997abed7135",
+      "current_bytes": 2525,
+      "reason": "Same no-deadline fix for the cache stage, which killed the child at seconds + 60. --seconds is accepted and ignored.",
+      "record": "docs/ENVIRONMENT.md section 6"
     }
   ],
   "claim_boundary": "Producing a declared point is not an accuracy result and not an admission decision. validation/p32d2_branch_status.csv remains the authority for hardware-accuracy admission."

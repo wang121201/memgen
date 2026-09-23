@@ -36,7 +36,12 @@ def main():
     life.need(isinstance(argv, list) and argv and all(isinstance(x, str) for x in argv), 'Explicit argument vector required')
     life.need(Path(argv[0]).is_absolute(), 'Absolute executable path required')
     seconds = spec.get('seconds', 7200)
-    life.need(type(seconds) is int and 1 <= seconds <= 86400, 'Bounded runtime required')
+    life.need(type(seconds) is int and (seconds == 0 or 1 <= seconds <= 86400),
+              'Bounded runtime required, or 0 for no wall-clock deadline')
+    # 0 means run to completion. The replay entry documents that it has no
+    # wall-clock deadline, so the controller must not silently impose one; a
+    # finite sentinel keeps every receipt strict JSON instead of "Infinity".
+    deadline = (1 << 53) if seconds == 0 else seconds
     pins = []
     for row in spec['sources']:
         got = life.pin(row['path'])
@@ -49,7 +54,8 @@ def main():
                    lifecycle=life.pin(life.__file__), sources=pins, case_id=spec['case_id'],
                    tool=spec['tool'], input_kind=spec['input_kind'], argv=argv,
                    cpu=cpu, maximum_shared_cpu_pool=16, gpu=gpu,
-                   locks=[str(x) for x in locks], seconds=seconds)
+                   locks=[str(x) for x in locks], seconds=seconds,
+                   wall_clock_deadline='unbounded' if seconds == 0 else seconds)
     if not args.execute:
         print(json.dumps(receipt, indent=2)); return 0
     life.need(sys.platform == 'linux', 'Actual tests run on XMU Linux')
@@ -76,7 +82,7 @@ def main():
         receipt.update(status='RUNNING',started_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
                        controller_pid=os.getpid(),affinity=sorted(os.sched_getaffinity(0)))
         life.save(args.output/'job-start.json', receipt)
-        process = life.run_process(argv,args.output,env,seconds,held_fds=tuple(fd for _,fd in held),
+        process = life.run_process(argv,args.output,env,deadline,held_fds=tuple(fd for _,fd in held),
                                    rss_limit=spec.get('rss_limit_bytes',64<<30))
         after = resource.getrusage(resource.RUSAGE_CHILDREN)
         receipt.update(status=process['status'],process=process,

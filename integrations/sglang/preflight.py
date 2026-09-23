@@ -103,10 +103,11 @@ def check_gpu(report: Report, gpus: str) -> None:
     pool = sorted(set(re.findall(r'GPU-[0-9a-f-]{36}', (HERE / 'run_job.py').read_text())))
     if not pool:
         report.add('GPU', 'GPU_POOL', 'MISSING', 'no UUID found in run_job.py')
-    for uuid in pool:
+    for index, uuid in enumerate(pool):
         name = present.get(uuid, 'absent from nvidia-smi')
-        report.add('GPU', uuid, 'OK' if uuid in present else 'MISSING', name,
-                   required=gpus == 'pool')
+        # The index is what collect_case.py --gpu-index takes, so print it here.
+        report.add('GPU', f'[{index}] {uuid}', 'OK' if uuid in present else 'MISSING',
+                   f'{name}   --gpu-index {index}', required=gpus == 'pool')
     report.add('GPU', 'admitted devices', 'OK', f'{len(present)} visible; pool of {len(pool)}',
                required=False)
 

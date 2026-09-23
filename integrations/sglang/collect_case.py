@@ -12,6 +12,12 @@ lease itself and must not be run outside that controller.
     job 2  followthrough.py --stop-after memgen   -> packed profile, expansion,
                                                      cache counters
 
+The GPU is chosen by index into the admitted pool, the same numbering
+`preflight.py` prints, so no UUID has to be typed. The cache replay has no
+wall-clock deadline: `run_memgen.py` documents that, and neither this driver nor
+`followthrough.py` adds one. Only the GPU stages carry budgets, because they
+hold a leased device.
+
 Data flow, and what is deliberately never written to disk:
 
     SGLang run (GPU)  ->  sparse memory-SASS sample  ->  packed profile
@@ -56,6 +62,31 @@ def pin(path: Path) -> dict:
 def gpu_pool() -> set[str]:
     """Read the admitted UUIDs from the controller rather than restating them."""
     return set(re.findall(r'GPU-[0-9a-f-]{36}', (HERE / 'run_job.py').read_text()))
+
+
+def gpu_table() -> list[tuple[int, str, str]]:
+    """The admitted pool by index, with the hardware name when it can be read.
+
+    The numbering is the sorted pool, so index 0, 1 and 2 always name the same
+    devices and `preflight.py` prints the same table.
+    """
+    names: dict[str, str] = {}
+    try:
+        import subprocess
+        out = subprocess.run(['nvidia-smi', '--query-gpu=uuid,name', '--format=csv,noheader'],
+                             capture_output=True, text=True, check=True).stdout
+        names = {uuid.strip(): name.strip()
+                 for uuid, name in (line.rsplit(',', 1) for line in out.strip().splitlines())}
+    except Exception:  # noqa: BLE001  (a missing nvidia-smi must not break listing)
+        pass
+    return [(index, uuid, names.get(uuid, 'name unavailable'))
+            for index, uuid in enumerate(sorted(gpu_pool()))]
+
+
+def declared_cases() -> list[tuple[str, int, int]]:
+    """Every declared (model, prefill, decode), for --list-cases and error hints."""
+    spec = workload.spec()
+    return sorted(set().union(*workload.declared_cases(spec).values()))
 
 
 def source_pins(files, compact: bool) -> list[dict]:
@@ -103,7 +134,7 @@ def census_spec(case: str, work: Path, contract: dict, args) -> dict:
 def collect_spec(case: str, work: Path, args) -> dict:
     follow = work / 'runs' / f'{case}-collect' / 'followthrough'
     return dict(case_id=case, tool='memgen', input_kind='sample_and_cache',
-                cpu=args.cpu, gpu=args.gpu, seconds=args.sample_seconds + args.memgen_seconds,
+                cpu=args.cpu, gpu=args.gpu, seconds=args.job_seconds,
                 cache_directory=str(work / 'cache'),
                 argv=[args.python, '-B', str(ADAPTER / 'followthrough.py'),
                       '--journal', str(work / 'observers' / f'{case}-census' / args.journal_process),
@@ -113,8 +144,7 @@ def collect_spec(case: str, work: Path, args) -> dict:
                       '--output', str(follow),
                       '--stop-after', 'memgen',
                       '--python', args.python,
-                      '--sample-seconds', str(args.sample_seconds),
-                      '--memgen-seconds', str(args.memgen_seconds)],
+                      '--sample-seconds', str(args.sample_seconds)],
                 sources=source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
                                      'expand_profiles.py', 'run_memgen.py', 'profile_cache.py',
                                      'contract.json', 'matrix_workload.py'], compact=True))
@@ -147,40 +177,90 @@ def run_job(spec_path: Path, output: Path, dry: bool) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--case', required=True, help='declared case id, e.g. qwen25_1p5b-p32-d2')
-    parser.add_argument('--gpu', required=True, help='one UUID from the run_job.py pool')
-    parser.add_argument('--work', type=Path, required=True, help='fresh output directory')
-    parser.add_argument('--cpu', type=int, default=8, help='single CPU id from 0..15')
-    parser.add_argument('--python', default='/home/xmu/sgl/bin/python',
-                        help='interpreter that carries the SGLang stack')
+    what = parser.add_argument_group('what to collect')
+    what.add_argument('--model', help='declared model key, see --list-cases')
+    what.add_argument('--prefill-length', type=int, help='declared prefill length')
+    what.add_argument('--decode-steps', type=int, help='declared decode steps')
+    what.add_argument('--case', help='shorthand for the three above, e.g. qwen25_1p5b-p32-d2')
+    what.add_argument('--list-cases', action='store_true',
+                      help='print every declared case with its matrix and exit')
+    where = parser.add_argument_group('where to run')
+    where.add_argument('--work', type=Path, help='fresh output directory; must not exist')
+    where.add_argument('--gpu-index', type=int, default=0,
+                       help='index into the admitted GPU pool as printed by preflight.py (default 0)')
+    where.add_argument('--gpu', help='admitted GPU UUID; overrides --gpu-index')
+    where.add_argument('--cpu', type=int, default=8, help='one CPU id from 0..15 (default 8)')
+    where.add_argument('--python', default='/home/xmu/sgl/bin/python',
+                       help='interpreter that carries the SGLang stack')
+    budget = parser.add_argument_group('budgets in seconds; these bound the GPU stages only')
+    budget.add_argument('--census-seconds', type=int, default=1800)
+    budget.add_argument('--sample-seconds', type=int, default=7200)
+    budget.add_argument('--job-seconds', type=int, default=0,
+                        help='job 2 wall-clock ceiling; 0 means run to completion (default 0)')
     parser.add_argument('--observer', type=Path, help='prebuilt observer.so; built into --work if omitted')
-    parser.add_argument('--census-seconds', type=int, default=1800)
-    parser.add_argument('--sample-seconds', type=int, default=7200)
-    parser.add_argument('--memgen-seconds', type=int, default=21600)
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
 
-    match = re.fullmatch(r'(.+)-p(\d+)-d(\d+)', args.case)
-    if not match:
-        raise SystemExit('case must look like <model>-p<prefill>-d<decode>, got ' + args.case)
-    model, prefill, decode = match.group(1), int(match.group(2)), int(match.group(3))
-    contract = workload.contract(model, prefill, decode)
-    if contract['case_id'] != args.case:
-        raise SystemExit(f"case ids differ: {args.case} versus {contract['case_id']}")
-    if args.gpu not in gpu_pool():
-        raise SystemExit('GPU is not in the admitted pool of run_job.py: ' + args.gpu)
+    if args.list_cases:
+        print(f"{'case id':32} {'matrix':16} models  axes")
+        for name in sorted(declared_cases()):
+            value = workload.contract(*name)
+            print(f"{value['case_id']:32} {value['declared_matrix']:16} "
+                  f"{name[0]:16} prefill {name[1]}, decode {name[2]}")
+        return 0
+
+    if args.case:
+        if any(value is not None for value in (args.model, args.prefill_length, args.decode_steps)):
+            raise SystemExit('give either --case, or --model with --prefill-length and --decode-steps')
+        match = re.fullmatch(r'(.+)-p(\d+)-d(\d+)', args.case)
+        if not match:
+            raise SystemExit('--case must look like <model>-p<prefill>-d<decode>, got ' + args.case)
+        model, prefill, decode = match.group(1), int(match.group(2)), int(match.group(3))
+    else:
+        if None in (args.model, args.prefill_length, args.decode_steps):
+            raise SystemExit('give --model, --prefill-length and --decode-steps, or --case, '
+                             'or run --list-cases')
+        model, prefill, decode = args.model, args.prefill_length, args.decode_steps
+    try:
+        contract = workload.contract(model, prefill, decode)
+    except (ValueError, KeyError) as error:
+        raise SystemExit(f'{error}\nrun --list-cases to see every declared case')
+
+    table = gpu_table()
+    if args.gpu:
+        if args.gpu not in {uuid for _, uuid, _ in table}:
+            raise SystemExit('GPU is not in the admitted pool of run_job.py: ' + args.gpu)
+        index, gpu = next((i, u) for i, u, _ in table if u == args.gpu)
+    else:
+        if not 0 <= args.gpu_index < len(table):
+            raise SystemExit(f'--gpu-index must be 0..{len(table) - 1} for this pool')
+        index, gpu = table[args.gpu_index][0], table[args.gpu_index][1]
+    if not 0 <= args.cpu < 16:
+        raise SystemExit('--cpu must be 0..15')
+    if args.job_seconds != 0 and not 1 <= args.job_seconds <= 86400:
+        raise SystemExit('--job-seconds must be 0 (run to completion) or 1..86400')
+    if not args.work:
+        raise SystemExit('--work is required')
     if args.work.exists():
         raise SystemExit('refusing existing work directory: ' + str(args.work))
     if not args.dry_run and not Path(args.python).exists():
         raise SystemExit('interpreter not found: ' + args.python)
     args.journal_process = None
+    args.gpu = gpu
+    case = contract['case_id']
 
-    print(f"case     {args.case}  ({contract['declared_matrix']})")
-    print(f"gpu      {args.gpu}   cpu {args.cpu}")
-    print(f"work     {args.work}")
-    print(f"prompt   {contract['prefill_length']} tokens, decode {contract['decode_steps']} steps "
-          f"ids {contract['decode_input_ids']}")
-    print(f"model    {contract['model']}")
+    print(f"case       {contract['case_id']}  (matrix {contract['declared_matrix']})")
+    print(f"model      {contract['model']}")
+    print(f"workload   prefill {contract['prefill_length']} tokens, "
+          f"decode {contract['decode_steps']} steps, ids {contract['decode_input_ids']}")
+    print(f"gpu        index {index} of {len(table) - 1} -> it is {table[index][1]} "
+          f"({table[index][2]})")
+    for i, uuid, name in table:
+        print(f"             [{i}] {uuid}  {name}")
+    print(f"cpu        {args.cpu} of 0..15")
+    print(f"work       {args.work}")
+    print(f"budgets    census {args.census_seconds} s, sample {args.sample_seconds} s, "
+          f"replay {'to completion' if args.job_seconds == 0 else str(args.job_seconds) + ' s'}")
     print()
 
     args.work.mkdir(parents=True)
@@ -206,16 +286,16 @@ def main() -> int:
     print()
     print('== job 1: census under the metadata observer (GPU) ==')
     spec1 = args.work / 'census-spec.json'
-    spec1.write_text(json.dumps(census_spec(args.case, args.work, contract, args), indent=2) + '\n')
+    spec1.write_text(json.dumps(census_spec(case, args.work, contract, args), indent=2) + '\n')
     print('  spec ' + str(spec1))
-    if run_job(spec1, args.work / 'runs' / f'{args.case}-census', args.dry_run):
+    if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run):
         return 1
     if not args.dry_run:
-        observer_finish = only(args.work / 'observers' / f'{args.case}-census', 'process-*/finish.json')
-        host_finish = only(args.work / 'runs' / f'{args.case}-census' / 'host', 'process-*/finish.json')
+        observer_finish = only(args.work / 'observers' / f'{case}-census', 'process-*/finish.json')
+        host_finish = only(args.work / 'runs' / f'{case}-census' / 'host', 'process-*/finish.json')
         status_of(observer_finish, 'PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE')
         status_of(host_finish, 'PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE')
-        status_of(args.work / 'runs' / f'{args.case}-census' / 'job-finish.json', 'PASS_PROCESS_ONLY')
+        status_of(args.work / 'runs' / f'{case}-census' / 'job-finish.json', 'PASS_PROCESS_ONLY')
         if observer_finish.parent.name != host_finish.parent.name:
             raise SystemExit('observer and host did not close in one process')
         args.journal_process = observer_finish.parent.name
@@ -226,9 +306,9 @@ def main() -> int:
     spec2 = args.work / 'collect-spec.json'
     if args.journal_process is None:
         args.journal_process = 'process-<pid>'
-    spec2.write_text(json.dumps(collect_spec(args.case, args.work, args), indent=2) + '\n')
+    spec2.write_text(json.dumps(collect_spec(case, args.work, args), indent=2) + '\n')
     print('  spec ' + str(spec2))
-    if run_job(spec2, args.work / 'runs' / f'{args.case}-collect', args.dry_run):
+    if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run):
         return 1
 
     if args.dry_run:
@@ -238,16 +318,16 @@ def main() -> int:
         print('  real census process directory before job 2 is written.')
         return 0
 
-    follow = args.work / 'runs' / f'{args.case}-collect' / 'followthrough'
+    follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
     finish = json.loads((follow / 'finish.json').read_text())
     replay = follow / 'cache' / 'model' / 'kernel_summary.csv'
-    receipt = dict(schema='SG_CASE_COLLECTION_V1', case_id=args.case,
+    receipt = dict(schema='SG_CASE_COLLECTION_V1', case_id=case,
                    declared_matrix=contract['declared_matrix'],
                    status=finish['status'], stages=finish['stages'],
                    work=str(args.work), artifacts=dict(
-                       census_observer_finish=str(args.work / 'observers' / f'{args.case}-census'
+                       census_observer_finish=str(args.work / 'observers' / f'{case}-census'
                                                   / args.journal_process / 'finish.json'),
-                       census_host_finish=str(args.work / 'runs' / f'{args.case}-census' / 'host'
+                       census_host_finish=str(args.work / 'runs' / f'{case}-census' / 'host'
                                               / args.journal_process / 'finish.json'),
                        sample_plan=str(follow / 'plan' / 'sample-plan.json'),
                        packed_profiles=str(follow / 'sample' / 'profiles' / 'profiles.index.jsonl'),

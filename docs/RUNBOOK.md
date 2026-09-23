@@ -107,7 +107,7 @@ Resource model, taken from the recorded deployment:
 | CPU ids | `0..15` only | `run_job.py`, `CPU pool is 0..15` |
 | GPU ids | the three UUIDs in `run_job.py` `GPU_POOL` | `run_job.py`, `GPU2 and unknown GPU are excluded` |
 | Guarded RSS | 64 GiB by default | `run_job.py` `rss_limit_bytes` |
-| Stage budgets | census 1800 s, sample 7200 s, memgen 21600 s | per job `seconds` |
+| Stage budgets | census 1800 s, sample 7200 s; the replay runs to completion | per job `seconds` (`0` means no deadline) |
 
 `run_job.py` takes an exclusive lock per CPU id and per GPU id, sets CPU
 affinity and single-threaded library variables, and kills its child if the
@@ -127,16 +127,18 @@ and writes a collection receipt with the artifact map.
 ```bash
 # review the plan: writes both specs, runs nothing, uses no GPU
 python3 integrations/sglang/collect_case.py \
-  --case qwen25_1p5b-p32-d2 \
-  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
-  --work /absolute/fresh/qwen15b-p32d2-r1 --dry-run
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
+  --gpu-index 1 --work /absolute/fresh/qwen15b-p32d2-r1 --dry-run
 
 # collect
 python3 integrations/sglang/collect_case.py \
-  --case qwen25_1p5b-p32-d2 \
-  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
-  --work /absolute/fresh/qwen15b-p32d2-r1
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
+  --gpu-index 1 --work /absolute/fresh/qwen15b-p32d2-r1
 ```
+
+`--gpu-index` is the numbering `preflight.py` prints. `--case qwen25_1p5b-p32-d2`
+is accepted as a shorthand for the three case values, and `--list-cases` prints
+every declared case.
 
 It refuses a case outside the declared matrix, a GPU outside the admitted pool,
 an existing `--work` and a missing interpreter, so a typo fails before any GPU
@@ -162,7 +164,7 @@ WORK=/absolute/fresh/work-$CASE             # must not exist yet
 OBSERVER=/tmp/mg-observer/observer.so
 ENGINE=/tmp/mg-engine/hbserve
 PY=/home/xmu/sgl/bin/python                 # interpreter that carries SGLang
-GPU=GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13
+GPU=GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13   # any UUID from the preflight.py GPU table
 mkdir -p "$WORK"
 ```
 
@@ -296,7 +298,7 @@ python3 -B integrations/sglang/memgen-adapter/followthrough.py \
   --sources integrations/sglang/compact-sources \
   --output "$WORK/expand-memgen" \
   --stop-after memgen \
-  --python "$PY" --memgen-seconds 21600
+  --python "$PY"
 #    expect last stage receipt: PASS_THROUGH_MEMGEN
 ```
 
@@ -306,7 +308,7 @@ Or explicitly, with the engine you built in section 2:
 python3 integrations/sglang/memgen-adapter/profile_cache.py \
   --sample "$WORK/sample" \
   --bindings "$WORK/plan/layer-bindings.json" \
-  --output "$WORK/profile-cache" --seconds 21600
+  --output "$WORK/profile-cache"
 ```
 
 `profile_cache.py` runs `expand_profiles.py` then `run_memgen.py --expanded`.
@@ -343,7 +345,7 @@ python3 -B integrations/sglang/memgen-adapter/wait_then_sample.py \
   --controller        integrations/sglang/run_job.py \
   --output            "$WORK/sample-chain" \
   --cache-directory   "$WORK/cache" \
-  --wait-seconds 2400 --sample-seconds 7200 --memgen-seconds 21600
+  --wait-seconds 2400 --sample-seconds 7200
 ```
 
 It verifies `memgen-adapter/deployment-files.json` before waiting, pins every

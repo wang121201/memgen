@@ -267,9 +267,18 @@ a reviewed change.
 
 ## 6. Behaviours that surprise callers
 
-- `run_memgen.py --seconds` is accepted and ignored. There is no wall-clock
-  deadline on replay; cancel with SIGTERM/SIGINT/SIGHUP, which cleans up the
-  child.
+- The cache replay has **no wall-clock deadline**. `run_memgen.py --seconds` is
+  accepted and ignored, and the wrappers no longer impose one either:
+  `followthrough.py --memgen-seconds`, `profile_cache.py --seconds` and
+  `collect_case.py` keep those flags for compatibility and ignore them. Only the
+  two GPU stages are bounded, because they hold a leased device. Cancel with
+  SIGTERM/SIGINT/SIGHUP, which cleans up the child.
+- `run_job.py` accepts `seconds = 0` meaning no wall-clock deadline, which is
+  what `collect_case.py` passes for the job containing the replay. Positive
+  values keep the `1..86400` bound, and the receipt records
+  `wall_clock_deadline` as `unbounded` or the number.
+- `collect_case.py` chooses the GPU by index into the admitted pool, which is
+  the same numbering `preflight.py` prints, so no UUID has to be typed.
 - Every output directory must be fresh. `run_cpu_smoke.sh`, `test_cache_core.py`
   and `run_memgen.py` all refuse an existing path.
 - `release/config/RTX4000Ada.r4.config` requires `--r4-context`; the legacy

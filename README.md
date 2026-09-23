@@ -30,36 +30,73 @@ steps, Qwen2.5-1.5B-Instruct BF16 under SGLang 0.4.10, on an RTX 4000 Ada
 Generation GPU. `P32D2` is the basic admission point declared in
 `integrations/sglang/memgen-adapter/contract.json`.
 
+**1. Check the host once.** Details and meaning are in the next section.
+
 ```bash
-# once per host
-python3 integrations/sglang/preflight.py
-python3 integrations/sglang/bootstrap_vendor.py
-
-# review the plan: writes both job specs, runs nothing, uses no GPU
-python3 integrations/sglang/collect_case.py \
-  --case qwen25_1p5b-p32-d2 \
-  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
-  --work /tmp/qwen15b-p32d2-r1 --dry-run
-
-# collect
-python3 integrations/sglang/collect_case.py \
-  --case qwen25_1p5b-p32-d2 \
-  --gpu GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13 \
-  --work /tmp/qwen15b-p32d2-r1
+python3 integrations/sglang/preflight.py          # dependency paths, packages, GPU pool
+python3 integrations/sglang/bootstrap_vendor.py   # materialize pinned files if absent
 ```
 
-`--work` must not exist; a retry needs a new directory. `preflight.py` lists the
-three admitted GPU UUIDs. The command runs two jobs under the lease controller,
+**2. See what can be collected, then review the plan** without spending GPU
+time:
+
+```bash
+python3 integrations/sglang/collect_case.py --list-cases
+
+python3 integrations/sglang/collect_case.py \
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
+  --gpu-index 1 --work /tmp/qwen15b-p32d2-r1 --dry-run
+```
+
+**3. Collect it:**
+
+```bash
+python3 integrations/sglang/collect_case.py \
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
+  --gpu-index 1 --work /tmp/qwen15b-p32d2-r1
+```
+
+### Parameters
+
+| Parameter | Meaning |
+| --- | --- |
+| `--model`, `--prefill-length`, `--decode-steps` | the case to collect, as three independent values. Any declared combination works; `--list-cases` prints all 26 |
+| `--case` | shorthand for the three, e.g. `qwen25_1p5b-p32-d2` |
+| `--list-cases` | print every declared case with its matrix name, then exit |
+| `--work DIR` | fresh output directory. It must not exist; a retry needs a new one |
+| `--gpu-index N` | which admitted GPU, using the index `preflight.py` prints. Default 0 |
+| `--gpu UUID` | the same choice by UUID, for scripted callers |
+| `--cpu N` | one CPU id from the shared `0..15` pool. Default 8 |
+| `--python PATH` | interpreter that carries the SGLang stack |
+| `--census-seconds`, `--sample-seconds` | budgets for the two GPU stages |
+| `--job-seconds` | job 2 wall-clock ceiling. `0`, the default, runs to completion |
+| `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
+| `--dry-run` | write the two job specs and print the plan, execute nothing |
+
+The triple is validated against the declaration in
+`integrations/sglang/memgen-adapter/contract.json` before anything runs, so a
+combination that no declared matrix contains fails at once and tells you to run
+`--list-cases`. Changing the workload needs no other edit: those three values
+flow into the census host, the sample plan and the replay command. To rehearse
+the toolchain first, use `--prefill-length 128 --decode-steps 32`, the point the
+archived deployment actually drove through this chain.
+
+**The cache replay is not given a wall-clock deadline.** `run_memgen.py`
+documents that it has none, and `followthrough.py`, `profile_cache.py` and this
+driver no longer add one. Only the two GPU stages carry budgets, because they
+hold a leased device.
+
+It runs two jobs under the lease controller,
 which owns the CPU and GPU locks, the CPU affinity, the memory guard and
 `CUDA_VISIBLE_DEVICES`:
 
-| Job | Stage | Device | Recorded budget |
+| Job | Stage | Device | Budget |
 | --- | --- | --- | --- |
 | 1 | census: the SGLang run under the NVBit metadata observer | 1 GPU | 1800 s |
 | 2 | plan: select one decoder layer and the sample set | CPU | 300 s |
 | 2 | build: compile the sparse sampler from the real plan | CPU | 900 s |
 | 2 | sample: sparse memory-SASS sampling and profile fitting | 1 GPU | 7200 s |
-| 2 | expand and replay: address generation and the L1/L2 cache filter | CPU | 21600 s |
+| 2 | expand and replay: address generation and the L1/L2 cache filter | CPU | to completion |
 
 What you get, all under `--work`:
 
@@ -123,31 +160,35 @@ DRAM write errors are 0.91% and 14.55%. Decode-only write remains inaccurate,
 so this repository does not claim generally accurate NVIDIA write-back timing
 or dirty-release behavior.
 
-## Implementation-health checks (no GPU)
+## Check the host and the archive (no GPU)
 
-Two kinds of check exist here, and they answer different questions. The target
-run above needs the GPU host, the SGLang stack and NVBit. The checks below need
-only a CPU, so any reviewer of an archive change can run them anywhere and
-confirm that the frozen engine, the pinned deployment and the declared-case
-contract are intact. Rebuilding the archive and re-running the target data
-collection are separate operations with separate costs.
+Two different questions, two different command groups. Neither one collects
+workload data; that is the section above.
+
+**Is this machine ready to run the target?** `preflight.py` verifies the
+dependency paths, the pinned package versions and the admitted GPU pool, and
+prints the `--gpu-index` numbering that `collect_case.py` accepts.
+`bootstrap_vendor.py` materializes the six pinned controller files the archive
+does not carry. Both are read-only until told to write.
 
 ```bash
-python3 -B scripts/verify_archive.py                 # manifest and schema check, read-only
+python3 integrations/sglang/preflight.py                  # add --gpus none on a CPU-only host
+python3 integrations/sglang/bootstrap_vendor.py --check    # drop --check to materialize
+```
+
+**Is the frozen archive still intact after a change?** These need no GPU, no
+model and no NVBit, so any reviewer can run them anywhere.
+
+```bash
+python3 -B scripts/verify_archive.py                     # manifests, pins, forbidden artifacts
 bash scripts/run_cpu_smoke.sh /tmp/memgen-cpu-smoke-r1   # frozen engine, twice, equal output
-python3 -B tests/sglang/test_declared_cases.py       # declared case matrix and rejection rules
-python3 -B tests/sampling/test_profile_census.py     # sector-census differential tests
-python3 integrations/sglang/bootstrap_vendor.py --check
-python3 integrations/sglang/preflight.py             # add --gpus none on a CPU-only host
+python3 -B tests/sglang/test_declared_cases.py           # declared cases and rejection rules
+python3 -B tests/sampling/test_profile_census.py         # sector-census differential tests
 ```
 
 They need `mpic++`, a C++17 toolchain and the zstd/boost/OpenSSL libraries.
 `verify_archive.py` rejects bytecode caches, model files, NCU databases and any
 file over 10 MiB, so invoke the Python entry points with `-B` as shown.
-
-`preflight.py` reports every assumed path, the pinned package versions and the
-declared and documented workload matrices, including any divergence between
-them. The full inventory is in [environment](docs/ENVIRONMENT.md).
 
 A built NVBit tool has two distinct identities: the artifact hash of one build,
 which includes the build-id and nvcc's temporary file names, and a content hash
