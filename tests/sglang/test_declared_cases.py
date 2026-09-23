@@ -357,6 +357,79 @@ class GpuAdmissionWait(unittest.TestCase):
         self.assertLessEqual(self.driver.GPU_ADMISSION_RETRY_SECONDS, 60)
 
 
+class Resume(unittest.TestCase):
+    """--resume continues a run whose census closed, on the census's own receipts."""
+
+    CASE = 'qwen25_1p5b-p32-d2'
+    GPU = 'GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13'
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.work = self.tmp / 'work'
+        observer_root = self.work / 'observers' / f'{self.CASE}-census' / 'process-938490-918072691'
+        observer_root.mkdir(parents=True)
+        host_root = self.work / 'runs' / f'{self.CASE}-census' / 'host' / 'process-938490'
+        host_root.mkdir(parents=True)
+        (observer_root / 'finish.json').write_text(json.dumps(
+            dict(status='PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE', pid=938490,
+                 epoch_begin_count=6, epoch_end_count=6, active_epoch=0,
+                 metadata_bytes_before_finish=10347345, max_total_bytes=268435456,
+                 launch_before_count=2194)))
+        (host_root / 'finish.json').write_text(json.dumps(
+            dict(status='PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE',
+                 input_contract=dict(case_id=self.CASE))))
+        (self.work / 'runs' / f'{self.CASE}-census' / 'job-finish.json').write_text(json.dumps(
+            dict(status='PASS_PROCESS_ONLY', cpu=8, gpu=self.GPU, case_id=self.CASE)))
+
+    def driver_run(self, *args, work=None):
+        return subprocess.run([sys.executable, '-B', str(SGLANG / 'collect_case.py'),
+                               '--model', 'qwen25_1p5b', '--prefill-length', '32',
+                               '--decode-steps', '2', '--gpu', self.GPU,
+                               '--work', str(work or self.work), *args],
+                              capture_output=True, text=True)
+
+    def test_reused_census_reads_the_receipts(self):
+        journal, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        self.assertEqual(journal, 'process-938490-918072691')
+        self.assertEqual(observer['launch_before_count'], 2194)
+
+    def test_reused_census_still_applies_the_gate(self):
+        (self.work / 'runs' / f'{self.CASE}-census' / 'job-finish.json').write_text(json.dumps(
+            dict(status='PASS_PROCESS_ONLY', cpu=9, gpu=self.GPU, case_id=self.CASE)))
+        with self.assertRaises(SystemExit):
+            self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+
+    def test_previous_job_output_is_kept_not_deleted(self):
+        stale = self.work / 'runs' / f'{self.CASE}-collect'
+        (stale / 'followthrough').mkdir(parents=True)
+        (stale / 'followthrough' / 'evidence.json').write_text('{}')
+        moved = self.driver.stash_job_output(self.work, self.CASE)
+        self.assertFalse(stale.exists())
+        self.assertTrue((moved / 'followthrough' / 'evidence.json').is_file())
+        self.assertIn('.attempt-', moved.name)
+        self.assertIsNone(self.driver.stash_job_output(self.work, self.CASE))
+
+    def test_resume_needs_an_existing_work(self):
+        result = self.driver_run('--resume', work=self.tmp / 'absent')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('needs an existing --work', result.stdout + result.stderr)
+
+    def test_resume_and_dry_run_do_not_combine(self):
+        result = self.driver_run('--resume', '--dry-run')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('do not combine', result.stdout + result.stderr)
+
+    def test_an_existing_work_is_refused_without_resume(self):
+        result = self.driver_run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('refusing existing work directory', result.stdout + result.stderr)
+        self.assertIn('--resume', result.stdout + result.stderr)
+
+
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):
     """The wrappers must not kill a replay that run_memgen.py says is unbounded."""
 

@@ -109,7 +109,7 @@ def gpus(argv: list[str]) -> int:
 
 
 def _with_default_work(argv: list[str], prefix: str) -> list[str]:
-    if '--work' in _segments(argv):
+    if '--work' in _segments(argv) or _segments(argv) & {'-h', '--help'}:
         return argv
     work = timestamped(prefix)
     print(f'no --work given, using a fresh directory: {work}')
@@ -126,6 +126,10 @@ def plan(argv: list[str]) -> int:
 
 def collect(argv: list[str]) -> int:
     """Collect one declared case: census, sample, expand and replay."""
+    if '--resume' in _segments(argv) and '--work' not in _segments(argv):
+        print('`memgen collect --resume` continues an existing run, so it needs that '
+              'run\'s --work directory', file=sys.stderr)
+        return 2
     forwarded = _with_default_work(argv, 'collect')
     if '--dry-run' in forwarded:
         print('--dry-run passed to `memgen collect`; use `memgen plan` for that', file=sys.stderr)

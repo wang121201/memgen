@@ -130,6 +130,19 @@ Without `--work` the CLI creates a fresh timestamped directory under `out/`.
 Both verbs forward to `integrations/sglang/collect_case.py` and print the
 command they run.
 
+When a failure happens after the census, do not pay for the census again. Job 1
+is the only stage whose result cannot be recomputed on the CPU, so `--resume`
+re-verifies its receipts with the same gate and starts from job 2:
+
+```bash
+./memgen collect --resume --work /absolute/path/to/the/run \
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 --gpu-index 1
+```
+
+It refuses a `--work` whose census did not close, needs the same case, CPU and
+GPU as that census, and keeps any previous job 2 output as
+`runs/<case>-collect.attempt-<UTC>` instead of deleting it.
+
 `--gpu-index` is the numbering `preflight.py` prints. `--case qwen25_1p5b-p32-d2`
 is accepted as a shorthand for the three case values, and `--list-cases` prints
 every declared case.
@@ -147,6 +160,7 @@ every declared case.
 | `--census-seconds`, `--sample-seconds` | budgets for the two GPU stages |
 | `--job-seconds` | job 2 wall-clock ceiling. `0`, the default, runs to completion |
 | `--gpu-wait-seconds` | how long to wait for a device that is busy at fresh admission. Default 600, `0` fails at once |
+| `--resume` | reuse an existing `--work` whose census passed the gate and start from job 2 |
 | `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
 | `--dry-run` | write the two job specs and print the plan, execute nothing |
 

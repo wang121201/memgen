@@ -194,6 +194,56 @@ def gpu_admission_is_busy(text: str) -> bool:
     return 'selected GPU not idle at fresh locked admission' in text
 
 
+def reused_census(work: Path, case: str, cpu: int, gpu: str) -> tuple[str, dict]:
+    """Re-verify the census receipts an earlier run left in this `--work`.
+
+    `--resume` exists because job 1 is the only stage whose result cannot be
+    recomputed on the CPU: everything after it runs off the packed profile. Its
+    receipts are the proof that it happened, so they are re-verified by the same
+    gate rather than trusted because they are there.
+    """
+    observer_finish = only(observer_root(work, case), 'process-*/finish.json')
+    host_finish = only(work / 'runs' / f'{case}-census' / 'host', 'process-*/finish.json')
+    observer = verify_census(observer_finish, host_finish,
+                             work / 'runs' / f'{case}-census' / 'job-finish.json',
+                             case, cpu, gpu)
+    return observer_finish.parent.name, observer
+
+
+def stash_job_output(work: Path, case: str) -> Path | None:
+    """Move a previous job 2 directory aside instead of deleting its evidence."""
+    stale = work / 'runs' / f'{case}-collect'
+    if not stale.exists():
+        return None
+    stamp = time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
+    moved = stale.with_name(f'{stale.name}.attempt-{stamp}')
+    attempt = 1
+    while moved.exists():
+        attempt += 1
+        moved = stale.with_name(f'{stale.name}.attempt-{stamp}-{attempt}')
+    stale.rename(moved)
+    return moved
+
+
+def controller_reason(stderr_text: str, stderr_path: Path, output: Path) -> str:
+    """The one line worth printing when a controller run fails.
+
+    A traceback on stderr is the clearest signal, but a child that exits nonzero
+    leaves only the receipt, whose `process.error` names the failure.
+    """
+    lines = [line for line in stderr_text.splitlines()
+             if line.strip() and not line.startswith('# attempt ')]
+    if lines:
+        return lines[-1]
+    receipt = output / 'job-finish.json'
+    if receipt.is_file():
+        value = json.loads(receipt.read_text())
+        process = value.get('process') or {}
+        detail = process.get('error') or f"returncode {process.get('returncode')}"
+        return f"{value.get('status', 'FAIL')}: {detail}"
+    return f'controller failed; see {stderr_path}'
+
+
 def run_job(spec_path: Path, output: Path, dry: bool,
             wait_seconds: int = GPU_ADMISSION_WAIT_SECONDS) -> int:
     """Run one job under the lease controller, reporting it in one line.
@@ -230,8 +280,7 @@ def run_job(spec_path: Path, output: Path, dry: bool,
                   f"cpu {receipt['CPU_minutes']:.2f} min  ->  {output / 'job-finish.json'}")
             return 0
         if not gpu_admission_is_busy(message):
-            tail = [line for line in message.splitlines() if line.strip()]
-            print('  ' + (tail[-1] if tail else 'controller failed with no message'))
+            print('  ' + controller_reason(message, stderr, output))
             print('  controller output ' + str(stderr))
             return 1
         remaining = deadline - time.monotonic()
@@ -316,6 +365,9 @@ def main() -> int:
                         help='wait at most this long for a device that is busy at fresh locked '
                              'admission; 0 fails immediately (default 600)')
     parser.add_argument('--observer', type=Path, help='prebuilt observer.so; built into --work if omitted')
+    parser.add_argument('--resume', action='store_true',
+                        help='reuse an existing --work whose census passed the gate and start '
+                             'from job 2; job 1 is the only stage that costs GPU time twice')
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
 
@@ -372,8 +424,13 @@ def main() -> int:
         raise SystemExit('--gpu-wait-seconds must be 0..86400')
     if not args.work:
         raise SystemExit('--work is required')
-    if args.work.exists():
-        raise SystemExit('refusing existing work directory: ' + str(args.work))
+    if args.work.exists() and not args.resume:
+        raise SystemExit('refusing existing work directory: ' + str(args.work) +
+                         '\npass --resume to continue one whose census closed')
+    if args.resume and not args.work.exists():
+        raise SystemExit('--resume needs an existing --work: ' + str(args.work))
+    if args.resume and args.dry_run:
+        raise SystemExit('--resume and --dry-run do not combine; the specs already exist')
     # Canonical from here on: `SG_NVBIT_OUTPUT_ROOT` must equal its own realpath,
     # so a `--work` reached through a symlink would otherwise fail at observer
     # init. The receipt then names the real directory.
@@ -402,46 +459,64 @@ def main() -> int:
     print('           the replay has no wall-clock deadline at any layer')
     print()
 
-    args.work.mkdir(parents=True)
+    args.work.mkdir(parents=True, exist_ok=True)
     observer_root(args.work, case)
     if args.observer is None:
         args.observer = args.work / 'observer-build' / 'observer.so'
-        print('== build the metadata observer (no GPU) ==')
-        if args.dry_run:
-            print(f'  would build {args.observer} and pin its identity before job 1')
-        else:
-            import subprocess
-            build = subprocess.run([sys.executable, '-B', str(SOURCES / 'observer' / 'build.py'),
-                                    '--output', str(args.observer.parent)],
-                                   capture_output=True, text=True)
-            if build.returncode:
-                raise SystemExit('observer build failed:\n' + build.stdout + build.stderr)
-            identity = tool_identity.report(args.observer)
-            print(f"  artifact {identity['artifact_sha256'][:16]}  content {identity['content_sha256'][:16]}")
-            print('  identity is per build; see docs/ENVIRONMENT.md section 4.4')
-    args.observer = Path(args.observer).resolve()
-    if not args.dry_run and not args.observer.is_file():
-        raise SystemExit('observer not found: ' + str(args.observer))
 
     print()
-    print('== job 1: census under the metadata observer (GPU) ==')
-    spec1 = args.work / 'census-spec.json'
-    spec1.write_text(json.dumps(census_spec(case, args.work, contract, args), indent=2) + '\n')
-    print('  spec ' + str(spec1))
-    if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run,
-               args.gpu_wait_seconds):
-        return 1
-    if not args.dry_run:
-        observer_finish = only(observer_root(args.work, case), 'process-*/finish.json')
-        host_finish = only(args.work / 'runs' / f'{case}-census' / 'host', 'process-*/finish.json')
-        observer = verify_census(observer_finish, host_finish,
-                                 args.work / 'runs' / f'{case}-census' / 'job-finish.json',
-                                 case, args.cpu, args.gpu)
-        args.journal_process = observer_finish.parent.name
+    if args.resume:
+        print('== job 1: census reused from --work (--resume) ==')
+        args.journal_process, observer = reused_census(args.work, case, args.cpu, args.gpu)
         print(f"  closed {args.journal_process}: observer pid {observer['pid']}, "
               f"{observer['launch_before_count']} launches, "
               f"{observer['metadata_bytes_before_finish']} of "
               f"{observer['max_total_bytes']} metadata bytes")
+        stashed = stash_job_output(args.work, case)
+        if stashed is not None:
+            print(f'  previous job 2 output kept as runs/{stashed.name}')
+        print('  the census journal and host receipt are the inputs job 2 reads')
+    else:
+        if args.observer is None:
+            args.observer = args.work / 'observer-build' / 'observer.so'
+            print('== build the metadata observer (no GPU) ==')
+            if args.dry_run:
+                print(f'  would build {args.observer} and pin its identity before job 1')
+            else:
+                import subprocess
+                build = subprocess.run([sys.executable, '-B', str(SOURCES / 'observer' / 'build.py'),
+                                        '--output', str(args.observer.parent)],
+                                       capture_output=True, text=True)
+                if build.returncode:
+                    raise SystemExit('observer build failed:\n' + build.stdout + build.stderr)
+                identity = tool_identity.report(args.observer)
+                print(f"  artifact {identity['artifact_sha256'][:16]}  "
+                      f"content {identity['content_sha256'][:16]}")
+                print('  identity is per build; see docs/ENVIRONMENT.md section 4.4')
+        args.observer = Path(args.observer).resolve()
+        if not args.dry_run and not args.observer.is_file():
+            raise SystemExit('observer not found: ' + str(args.observer))
+
+        print()
+        print('== job 1: census under the metadata observer (GPU) ==')
+        spec1 = args.work / 'census-spec.json'
+        spec1.write_text(json.dumps(census_spec(case, args.work, contract, args), indent=2) + '\n')
+        print('  spec ' + str(spec1))
+        if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run,
+                   args.gpu_wait_seconds):
+            return 1
+        if not args.dry_run:
+            observer_finish = only(observer_root(args.work, case), 'process-*/finish.json')
+            host_finish = only(args.work / 'runs' / f'{case}-census' / 'host',
+                               'process-*/finish.json')
+            observer = verify_census(observer_finish, host_finish,
+                                     args.work / 'runs' / f'{case}-census' / 'job-finish.json',
+                                     case, args.cpu, args.gpu)
+            args.journal_process = observer_finish.parent.name
+            print(f"  closed {args.journal_process}: observer pid {observer['pid']}, "
+                  f"{observer['launch_before_count']} launches, "
+                  f"{observer['metadata_bytes_before_finish']} of "
+                  f"{observer['max_total_bytes']} metadata bytes")
 
     print()
     print('== job 2: sample, expand and cache replay ==')

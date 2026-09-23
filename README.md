@@ -78,7 +78,9 @@ nominates one, and existing results are never overwritten. The CLI prints the
 underlying command before running it, so the entry point teaches the pipeline
 instead of hiding it. Each stage reports itself in one line; the full receipts,
 including the controller's own output, stay in the run directory. A device that
-is busy at fresh admission is waited for rather than failing the run.
+is busy at fresh admission is waited for rather than failing the run, and a
+failure after the census can continue from it with `--resume` instead of paying
+for the census again.
 
 ### Where the traffic numbers are
 
