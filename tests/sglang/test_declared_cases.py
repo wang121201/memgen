@@ -60,6 +60,10 @@ class DeclaredCases(unittest.TestCase):
                          self.spec['basic_admission_cases'])
         self.assertEqual(self.declared['basic_admission'],
                          {('qwen25_1p5b', 32, 2), ('llama3_8b', 32, 2)})
+        self.assertEqual(len(self.declared['evidence_points']),
+                         self.spec['evidence_points_cases'])
+        self.assertEqual(self.declared['evidence_points'],
+                         {('qwen25_1p5b', 128, 2), ('qwen25_1p5b', 128, 16)})
 
     def test_matrices_do_not_overlap(self):
         self.assertEqual(self.declared['scale_series'] & self.declared['basic_admission'], set())

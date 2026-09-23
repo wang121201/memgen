@@ -62,18 +62,24 @@ require multi-GPU execution; they are not implied by a single-card result.
 ### 3.1 Declared cases versus target matrices
 
 The admission point and the scale series above are the *target* matrices. The
-adapter declares two matrices of its own in
+adapter declares three matrices of its own in
 `integrations/sglang/memgen-adapter/contract.json`:
 
 | Declared matrix | Prefills | Decodes | Models | Cases |
 | --- | --- | --- | --- | --- |
 | scale series (`prefills` / `decodes`) | 128, 256, 512, 1024 | 32, 64, 128 | 2 | 24 |
 | basic admission (`basic_admission`) | 32 | 2 | 2 | 2 |
+| evidence points (`evidence_points`) | 128 | 2, 16 | 1 | 2 |
 
 The scale series keeps the identity it had before the basic admission point was
 declared, so the 24-case results are unaffected. The basic admission point is
 declared in a separate block precisely so that producing `P32D2` can never be
-read as extending the scale series.
+read as extending the scale series. `evidence_points` exists for the two points
+that have independent three-repeat NCU references, `P128D2` and `P128D16`, which
+the declared axes could not express: reproducing accepted evidence is what the
+declaration is for. Declaring a point makes it selectable and reproducible; it
+admits nothing, and `hardware_accuracy_accepted` stays false until the gates in
+this document are met.
 
 Consequences:
 

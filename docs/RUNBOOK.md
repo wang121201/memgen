@@ -149,7 +149,7 @@ every declared case.
 
 | Parameter | Meaning |
 | --- | --- |
-| `--model`, `--prefill-length`, `--decode-steps` | the case to collect, as three independent values. Any declared combination works; `--list-cases` prints all 26 |
+| `--model`, `--prefill-length`, `--decode-steps` | the case to collect, as three independent values. Any declared combination works; `--list-cases` prints all 28 |
 | `--case` | shorthand for the three |
 | `--list-cases` | print every declared case with its matrix name, then exit |
 | `--work DIR` | fresh output directory. It must not exist; a retry needs a new one |
