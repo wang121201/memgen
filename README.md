@@ -73,6 +73,27 @@ fresh caller-selected directory:
 scripts/run_cpu_smoke.sh /tmp/memgen-cpu-smoke-r1
 ```
 
+The CPU tier needs only `mpic++`, a C++17 toolchain and the zstd/boost/OpenSSL
+libraries. The SGLang sampling and NCU tier needs more, and the pinned
+controller files it imports are not carried in this archive. Check the host and
+materialize them before starting that tier:
+
+```bash
+python3 integrations/sglang/preflight.py
+python3 integrations/sglang/bootstrap_vendor.py
+```
+
+`preflight.py` reports every assumed path, the pinned package versions and the
+declared and documented workload matrices, including any divergence between
+them. The full inventory and the change record are in
+[environment](docs/ENVIRONMENT.md).
+
+The declared-case contract is portable and checked without a GPU:
+
+```bash
+python3 -B tests/sglang/test_declared_cases.py
+```
+
 The corresponding bounded commands for the three research branches and their
 latest deterministic evidence identities are recorded in
 [`validation/branch_smoke_status.csv`](validation/branch_smoke_status.csv).
@@ -90,11 +111,13 @@ or retaining a full raw memory trace.
 - `release/`: frozen cache engine source, configuration, small fixtures and
   its original validation receipts; prebuilt binaries are excluded.
 - `integrations/sglang/`: SGLang sampling, packed-profile and HBServe adapter
-  sources used by the current full-inference workflow.
+  sources used by the current full-inference workflow, plus the host preflight
+  and pinned-file materialization entry points.
 - `validation/`: machine-readable historical and current SGLang comparison
   tables.
 - `evidence/`: small, address-free canonical reports and receipts.
-- `docs/`: provenance, metric definitions and reproduction boundaries.
+- `docs/`: provenance, metric definitions, environment prerequisites and
+  reproduction boundaries.
 
 No repository-wide license is assigned by this archival change. Source-level
 origin and licensing observations are recorded in

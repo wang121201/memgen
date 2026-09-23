@@ -59,6 +59,45 @@ product of prefill lengths `128, 256, 512, 1024` and decode lengths
 models at P32D2. The 70B and 35B models remain future scale targets and may
 require multi-GPU execution; they are not implied by a single-card result.
 
+### 3.1 Declared cases versus target matrices
+
+The admission point and the scale series above are the *target* matrices. The
+adapter declares two matrices of its own in
+`integrations/sglang/memgen-adapter/contract.json`:
+
+| Declared matrix | Prefills | Decodes | Models | Cases |
+| --- | --- | --- | --- | --- |
+| scale series (`prefills` / `decodes`) | 128, 256, 512, 1024 | 32, 64, 128 | 2 | 24 |
+| basic admission (`basic_admission`) | 32 | 2 | 2 | 2 |
+
+The scale series keeps the identity it had before the basic admission point was
+declared, so the 24-case results are unaffected. The basic admission point is
+declared in a separate block precisely so that producing `P32D2` can never be
+read as extending the scale series.
+
+Consequences:
+
+- `P32D2` for Qwen2.5-1.5B and Meta-Llama-3-8B is producible from this
+  snapshot: `memgen-adapter/matrix_workload.py` derives the permitted axes and
+  accepted `(model, prefill, decode)` triples from `contract.json` instead of a
+  hard-coded tuple, and `sample_pipeline.py` reuses that derivation. Pairs that
+  no declared matrix contains, such as `P32D128` or `P128D2`, are rejected.
+- **Producing a point is not an admission decision and not an accuracy result.**
+  Each point still needs its own independent sample, packed profile and
+  three-run NCU reference. The P32D2 rows remain `BLOCKED` in
+  `validation/p32d2_branch_status.csv` until that evidence exists, and
+  `P128D2` evidence may not be renamed.
+- decode steps `4, 8` and `16` remain undeclared. Only `D32` comes from the
+  scale series, and `D2` only from the admission point.
+- The three files that carry the declaration and the two vendored copies are
+  hash-pinned by `integrations/sglang/memgen-adapter/deployment-files.json` and
+  by `integrations/sglang/package.json`. Any further change to them must update
+  those pins and the record in `integrations/sglang/revisions.json`, which is
+  what `bootstrap_vendor.py` and `preflight.py` verify.
+
+Run `python3 integrations/sglang/preflight.py` to print the declared and
+documented matrices side by side.
+
 ## 4. Hardware and cache identity
 
 The hardware reference is an NVIDIA RTX 4000 Ada Generation GPU with 48

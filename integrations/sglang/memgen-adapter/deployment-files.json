@@ -18,13 +18,13 @@
     },
     {
       "name": "matrix_workload.py",
-      "bytes": 3730,
-      "sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6"
+      "bytes": 5009,
+      "sha256": "3d0a5fbf21295a61cacd564ffc993f28ad8eab9c473f2a931b0f4208a36c8c94"
     },
     {
       "name": "contract.json",
-      "bytes": 4250,
-      "sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a"
+      "bytes": 4682,
+      "sha256": "735139a490fe71a472560ea28402acf3b180997419f23d17088c50dc05e37281"
     },
     {
       "name": "make_sample_plan.py",
@@ -33,8 +33,8 @@
     },
     {
       "name": "sample_pipeline.py",
-      "bytes": 8431,
-      "sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d"
+      "bytes": 8714,
+      "sha256": "49e63794e259df6ed9571b2332703cb591e7581a5418ac4c0067342bb9b2b836"
     },
     {
       "name": "expand_profiles.py",

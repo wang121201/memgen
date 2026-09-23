@@ -17,6 +17,10 @@ import sys
 import time
 
 HERE=Path(__file__).resolve().parent
+sys.path.insert(0,str(HERE))
+# Single source of truth for the declared cases. Duplicating the choices here is
+# what previously prevented a declared point from reaching host.py.
+import matrix_workload as workload
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -34,11 +38,13 @@ def main():
     p.add_argument('--plan',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--python',default='/home/xmu/sgl/bin/python')
-    p.add_argument('--model',choices=('qwen25_1p5b','llama3_8b'),required=True)
-    p.add_argument('--prefill-length',type=int,choices=(128,256,512,1024),required=True)
-    p.add_argument('--decode-steps',type=int,choices=(32,64,128),required=True)
+    workload.add_arguments(p)
     p.add_argument('--seconds',type=int,default=3600)
     a=p.parse_args()
+    # Reject an undeclared (model, prefill, decode) triple here, in the parent.
+    # Per-axis argparse choices alone cannot see a pair such as P32D128, and
+    # without this the failure would only surface in the host child.
+    workload.contract(a.model,a.prefill_length,a.decode_steps)
     if not 60<=a.seconds<=21600:raise ValueError('Explicit bounded runtime required')
     if not os.environ.get('CUDA_VISIBLE_DEVICES'):raise ValueError('GPU must be assigned by outer lease controller')
     a.output.mkdir(parents=True,exist_ok=False)

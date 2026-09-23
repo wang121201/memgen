@@ -5,6 +5,25 @@ HBServe is the full-inference address generator. Memgen is the functional L1
 off-chip graphics-memory traffic. `P<n>D<m>` denotes `n` prefill tokens and `m`
 decode steps in a batch-one inference.
 
+## 0. Prepare the environment
+
+Nothing below this section works until the machine-local dependencies exist.
+Check them, and materialize the pinned controller files the archive does not
+carry:
+
+```bash
+python3 integrations/sglang/preflight.py
+python3 integrations/sglang/bootstrap_vendor.py --check
+python3 integrations/sglang/bootstrap_vendor.py
+```
+
+`preflight.py` reports every assumed path, the three workload matrices and the
+pinned package versions. `bootstrap_vendor.py` copies the six files pinned in
+`integrations/sglang/package.json` from their recorded origins and verifies
+them byte-for-byte. Both are read-only until asked to write, and neither runs a
+GPU. The full inventory, the recorded `nvcc` commands and the matrix gap are in
+[environment](ENVIRONMENT.md).
+
 ## 1. Verify the archive
 
 Run the read-only manifest/schema check:
@@ -56,6 +75,17 @@ The current integration source is under `integrations/sglang/`:
 These scripts retain their frozen path contracts and should first be exercised
 with their included manifests. Portability cleanup must be a reviewed change,
 not an unrecorded edit to the archived snapshot.
+
+The adapter declares two matrices in `memgen-adapter/contract.json`: the
+24-case scale series (`128, 256, 512, 1024` prefill tokens by `32, 64, 128`
+decode steps by two models) and the 2-case basic admission point (`P32D2` for
+both models). The permitted axes and accepted `(model, prefill, decode)`
+triples are derived from that file, so an undeclared pair such as `P32D128` or
+`P128D2` is rejected. Decode steps `4, 8` and `16` are not declared at all.
+
+Producing a declared point is not an admission decision. Every point still
+needs its own independent sample, packed profile and three-run NCU reference;
+see [environment](ENVIRONMENT.md) section 5.
 
 ## 4. NCU comparison
 

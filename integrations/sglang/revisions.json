@@ -1,0 +1,49 @@
+{
+  "schema": "SG_DEPLOYMENT_REVISIONS_V1",
+  "note": "Files this archive deliberately revised after materializing the pinned deployment. Every entry explains one difference from the historical pin in package.json. An entry is a reviewed change record, never a way to silence unexplained drift: a file that differs from both its historical pin and this list stays DRIFT.",
+  "historical_manifest": "package.json",
+  "revisions": [
+    {
+      "name": "contract.json",
+      "paths": [
+        "memgen-adapter/contract.json",
+        "metadata-host/vendor/contract.json"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a",
+      "historical_bytes": 4250,
+      "current_sha256": "735139a490fe71a472560ea28402acf3b180997419f23d17088c50dc05e37281",
+      "current_bytes": 4682,
+      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block. The scale series prefills and decodes arrays are unchanged, so the 24 scale cases keep their identity. The schema string was bumped to SGLANG_FULL_INFERENCE_V2 so a receipt cannot silently mix the old and new contract.",
+      "record": "docs/ENVIRONMENT.md section 5"
+    },
+    {
+      "name": "matrix_workload.py",
+      "paths": [
+        "memgen-adapter/matrix_workload.py",
+        "metadata-host/vendor/matrix_workload.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6",
+      "historical_bytes": 3730,
+      "current_sha256": "3d0a5fbf21295a61cacd564ffc993f28ad8eab9c473f2a931b0f4208a36c8c94",
+      "current_bytes": 5009,
+      "reason": "Derive the case axes and the accepted (model, prefill, decode) triples from contract.json instead of a hard-coded tuple, so a declared point can actually be selected, and reject undeclared pairs such as P32D128 or P128D2. The accepted case now records its declared_matrix name.",
+      "record": "docs/ENVIRONMENT.md section 5"
+    },
+    {
+      "name": "sample_pipeline.py",
+      "paths": [
+        "memgen-adapter/sample_pipeline.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d",
+      "historical_bytes": 8431,
+      "current_sha256": "49e63794e259df6ed9571b2332703cb591e7581a5418ac4c0067342bb9b2b836",
+      "current_bytes": 8714,
+      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child.",
+      "record": "docs/ENVIRONMENT.md section 5"
+    }
+  ],
+  "claim_boundary": "Producing a declared point is not an accuracy result and not an admission decision. validation/p32d2_branch_status.csv remains the authority for hardware-accuracy admission."
+}
