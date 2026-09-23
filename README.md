@@ -102,6 +102,9 @@ that is stable across rebuilds of the same source. Compare them with:
 python3 integrations/sglang/tool_identity.py /absolute/fresh/observer-build/observer.so
 ```
 
+To launch a real workload stage by stage, or to run the full verification
+suite, follow [the runbook](docs/RUNBOOK.md).
+
 The corresponding bounded commands for the three research branches and their
 latest deterministic evidence identities are recorded in
 [`validation/branch_smoke_status.csv`](validation/branch_smoke_status.csv).
@@ -124,8 +127,8 @@ or retaining a full raw memory trace.
 - `validation/`: machine-readable historical and current SGLang comparison
   tables.
 - `evidence/`: small, address-free canonical reports and receipts.
-- `docs/`: provenance, metric definitions, environment prerequisites and
-  reproduction boundaries.
+- `docs/`: provenance, metric definitions, environment prerequisites, the
+  reproduction boundaries and the operator runbook.
 
 No repository-wide license is assigned by this archival change. Source-level
 origin and licensing observations are recorded in
