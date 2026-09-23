@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Thin wrapper so `./memgen <command>` works from any directory.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec env PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}" python3 -B -m memgen_cli "$@"

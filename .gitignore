@@ -20,3 +20,4 @@ dist/
 *.safetensors
 *.pt
 *.pth
+out/

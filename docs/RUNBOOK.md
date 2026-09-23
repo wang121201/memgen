@@ -21,64 +21,58 @@ substitute for these pin-integrity checks.
 
 ```bash
 cd <repository root>
-
-# 1. archive contract, derived-core identity, forbidden-artifact scan
-python3 -B scripts/verify_archive.py
-#    expect: PASS_ARCHIVE_CONTRACT ... and PASS_CURRENT_CACHE_CORE_IDENTITY
-
-# 2. frozen engine smoke: two runs, cache observation off and on, equal output
-rm -rf /tmp/mg-smoke && bash scripts/run_cpu_smoke.sh /tmp/mg-smoke
-#    expect: PASS_FROZEN_CPU_SMOKE, about 17 s
-
-# 3. optional r4/cache-core regression, CLOCK reference and rejection cases
-rm -rf /tmp/mg-core && python3 -B scripts/test_cache_core.py --output /tmp/mg-core
-#    expect: /tmp/mg-core/validation.json status PASS_CACHE_CORE_SOFTWARE_REGRESSION
-
-# 4. census counting differential tests
-python3 -B tests/sampling/test_profile_census.py
-#    expect: OK (5 tests)
-
-# 5. declared-case contract, rejection rules, mirror identity, pin structure
-python3 -B tests/sglang/test_declared_cases.py
-#    expect: OK (13 tests)
-
-# 6. the six files pinned in package.json, verified against their origins
-python3 integrations/sglang/bootstrap_vendor.py --check
-#    expect: PASS_VENDOR_PINS_SATISFIED
-
-# 7. host prerequisites, pinned package versions, declared vs documented matrices
-python3 integrations/sglang/preflight.py
-#    expect: PASS_HOST_PREREQUISITES
-#    add --gpus none to skip the GPU checks on a CPU-only host
-
-# 8. nothing may leave bytecode behind
-find . -path ./.git -prune -o -name '__pycache__' -print
-#    expect: no output
+./memgen check      # host dependencies, pinned packages, archive pins
+./memgen test       # entry point, declared cases, driver, pin structure, census counting
+./memgen smoke      # frozen engine replayed twice, output must be identical
 ```
 
-`verify_archive.py` fails if a bytecode cache, a model file, an NCU database or
-any file over 10 MiB is present, so always invoke the Python entry points with
-`-B` as shown. `preflight.py` sets `sys.dont_write_bytecode` itself.
+Expected: `PASS host and archive checks`, `PASS portable regression tests` and
+`PASS_FROZEN_CPU_SMOKE`, each exiting 0. `./memgen check --gpus none` skips the
+GPU checks on a CPU-only host, and `--quiet` prints only the final statuses.
 
-If step 6 reports `PRESENT_REVISED`, that is a recorded, reviewed revision; the
-reason is in `integrations/sglang/revisions.json`. `PRESENT_DRIFT` or `DRIFT`
-is a failure and must be investigated, never silenced.
+Under the hood these run `integrations/sglang/preflight.py`,
+`integrations/sglang/bootstrap_vendor.py --check`, `scripts/verify_archive.py`,
+`tests/cli/test_cli.py`, `tests/sglang/test_declared_cases.py` and
+`tests/sampling/test_profile_census.py`, plus `scripts/run_cpu_smoke.sh` with
+`mpic++`. The CLI prints each command it runs, so any of them can be invoked
+directly when a failure needs detail.
+
+`verify_archive.py` fails if a bytecode cache, a model file, an NCU database or
+any file over 10 MiB is present, so invoke the Python entry points with `-B`.
+Every tool here sets `sys.dont_write_bytecode` itself.
+
+If `check` reports `PRESENT_REVISED`, that is a recorded, reviewed revision; the
+reason is in `integrations/sglang/revisions.json`. `PRESENT_DRIFT` or `DRIFT` is
+a failure and must be investigated, never silenced.
+
+Optional, and only for the r4 core:
+
+```bash
+./memgen check --r4     # cache-core regression into a fresh out/cache-core-<UTC>
+```
 
 ---
 
 ## 2. Prerequisites for the target run
 
-```bash
-python3 integrations/sglang/preflight.py            # all required checks OK
-python3 integrations/sglang/bootstrap_vendor.py     # materialize pinned files if absent
+`./memgen check` covers the host and the pinned files. It is the last step that
+is not part of a collection, so run it before anything else:
 
-# build the frozen CPU engine (used by the replay stage)
+```bash
+./memgen check
+./memgen gpus                                      # admitted GPUs by index
+```
+
+The observer is built automatically by `memgen collect`. The frozen CPU engine
+is only needed for `memgen replay`; build it with:
+
+```bash
 rm -rf /tmp/mg-engine && mkdir -p /tmp/mg-engine
 mpic++ -std=c++17 -O2 -ffunction-sections -fdata-sections -Wl,--gc-sections \
   release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp \
   -l:libzstd.so.1 -lz -lboost_mpi -lboost_serialization -lcrypto -pthread \
   -o /tmp/mg-engine/hbserve
-
+```
 # build the metadata observer (no GPU needed, about 5 s)
 rm -rf /tmp/mg-observer
 python3 integrations/sglang/compact-sources/observer/build.py --output /tmp/mg-observer
@@ -113,15 +107,19 @@ and writes a collection receipt with the artifact map.
 
 ```bash
 # review the plan: writes both specs, runs nothing, uses no GPU
-python3 integrations/sglang/collect_case.py \
+./memgen plan \
   --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
-  --gpu-index 1 --work /absolute/fresh/qwen15b-p32d2-r1 --dry-run
+  --gpu-index 1 --work /absolute/fresh/qwen15b-p32d2-r1
 
 # collect
-python3 integrations/sglang/collect_case.py \
+./memgen collect \
   --model qwen25_1p5b --prefill-length 32 --decode-steps 2 \
   --gpu-index 1 --work /absolute/fresh/qwen15b-p32d2-r1
 ```
+
+Without `--work` the CLI creates a fresh timestamped directory under `out/`.
+Both verbs forward to `integrations/sglang/collect_case.py` and print the
+command they run.
 
 `--gpu-index` is the numbering `preflight.py` prints. `--case qwen25_1p5b-p32-d2`
 is accepted as a shorthand for the three case values, and `--list-cases` prints

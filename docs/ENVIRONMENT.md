@@ -11,8 +11,8 @@ and cost different things:
 
 | Tier | Needs | Commands |
 | --- | --- | --- |
-| CPU-only implementation health | `mpic++`, a C++17 toolchain, `libzstd`, `boost_mpi`, `libcrypto`, `python3` | `scripts/verify_archive.py`, `scripts/run_cpu_smoke.sh`, `scripts/test_cache_core.py` |
-| SGLang sampling and NCU reference | NVIDIA GPU + driver, CUDA 12.8 (`nvcc`, `ncu`), NVBit, SGLang/PyTorch stack, the model checkpoints | `integrations/sglang/preflight.py`, then the stages in [the runbook](RUNBOOK.md) |
+| CPU-only implementation health | `mpic++`, a C++17 toolchain, `libzstd`, `boost_mpi`, `libcrypto`, `python3` | `./memgen check`, `./memgen test`, `./memgen smoke` |
+| SGLang sampling and NCU reference | NVIDIA GPU + driver, CUDA 12.8 (`nvcc`, `ncu`), NVBit, SGLang/PyTorch stack, the model checkpoints | `./memgen check`, then `./memgen collect` |
 
 Nothing in either tier establishes hardware accuracy. The tiers only decide
 whether a command can run at all.

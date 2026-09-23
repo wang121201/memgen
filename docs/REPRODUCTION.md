@@ -11,15 +11,19 @@ matrices in
 [the branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md). This file is the
 checklist a run must satisfy before its numbers may be called a result.
 
+Every command below is a `./memgen <verb>` invocation, run from the repository
+root. The runbook lists the script that each verb drives, for when a failure
+needs the raw output.
+
 ## 1. Before collecting
 
-- `preflight.py` reports no required failure, and
-  `bootstrap_vendor.py --check` reports `PASS_VENDOR_PINS_SATISFIED`.
-- `scripts/verify_archive.py`, `scripts/run_cpu_smoke.sh` and both test modules
-  pass. Implementation health is a precondition, never evidence.
-- The point you intend to claim is declared: `collect_case.py --list-cases`.
-  Decode steps `4`, `8` and `16` are not declared at all, and a prefix of a
-  longer run is a diagnostic, never a substituted workload.
+- `./memgen check` reports no required failure and exits 0. It combines
+  `preflight.py`, `bootstrap_vendor.py --check` and `verify_archive.py`.
+- `./memgen test` and `./memgen smoke` pass. Implementation health is a
+  precondition, never evidence.
+- The point you intend to claim is declared: `./memgen cases`. Decode steps `4`,
+  `8` and `16` are not declared at all, and a prefix of a longer run is a
+  diagnostic, never a substituted workload.
 
 ## 2. Freeze before measuring
 
