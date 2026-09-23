@@ -76,7 +76,9 @@ BF16 under SGLang 0.4.10. `P32D2` is the basic admission point declared in
 Every run writes a fresh timestamped directory under `out/` unless `--work`
 nominates one, and existing results are never overwritten. The CLI prints the
 underlying command before running it, so the entry point teaches the pipeline
-instead of hiding it.
+instead of hiding it. Each stage reports itself in one line; the full receipts,
+including the controller's own output, stay in the run directory. A device that
+is busy at fresh admission is waited for rather than failing the run.
 
 ### Where the traffic numbers are
 

@@ -111,6 +111,9 @@ def current_capabilities() -> dict[str, Any]:
             'cpu_ids': '0..15 shared pool, one per job',
             'gpu_pool': _gpu_pool(),
             'gpu_selection': 'by index into the admitted pool, as `memgen gpus` prints',
+            'gpu_admission': 'exclusive, and only when the device is idle: no compute apps, '
+                             'under 512 MiB used, utilization 0. collect waits up to '
+                             '--gpu-wait-seconds for a busy device instead of failing',
             'guarded_rss_bytes': 64 << 30,
         },
         'commands': {

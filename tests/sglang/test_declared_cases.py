@@ -322,6 +322,41 @@ class CensusClosure(unittest.TestCase):
             self.verify(host=dict(self.host, input_contract=dict(case_id='llama3_8b-p32-d2')))
 
 
+class GpuAdmissionWait(unittest.TestCase):
+    """A device that was just released still reads as busy for a moment."""
+
+    BUSY = ('parent_controller.ResourceBusy: selected GPU not idle at fresh locked '
+            'admission: {"utc": "2026-09-23T16:58:55Z", "uuid": '
+            '"GPU-69cebdc2-40c1-603a-aa3d-991cd3fbac13", '
+            '"used_memory_MiB": 15.0, "utilization_percent": 38.0, '
+            '"active_compute_apps": []}')
+
+    def setUp(self):
+        sys.path.insert(0, str(SGLANG))
+        import collect_case
+        self.driver = collect_case
+
+    def test_the_real_refusal_is_recognised(self):
+        self.assertTrue(self.driver.gpu_admission_is_busy(self.BUSY))
+        self.assertTrue(self.driver.gpu_admission_is_busy('... ResourceBusy: selected GPU not idle '
+                                                          'at fresh locked admission: {}'))
+
+    def test_other_failures_are_not_retried(self):
+        for text in ('', 'ValueError: child exited nonzero',
+                     'FileNotFoundError: [Errno 2] no such file',
+                     'the device is busy'):
+            self.assertFalse(self.driver.gpu_admission_is_busy(text))
+
+    def test_the_wait_budget_is_bounded_and_can_be_turned_off(self):
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--gpu-wait-seconds', type=int,
+                            default=self.driver.GPU_ADMISSION_WAIT_SECONDS)
+        self.assertEqual(parser.parse_args([]).gpu_wait_seconds, 600)
+        self.assertEqual(parser.parse_args(['--gpu-wait-seconds', '0']).gpu_wait_seconds, 0)
+        self.assertLessEqual(self.driver.GPU_ADMISSION_RETRY_SECONDS, 60)
+
+
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):
     """The wrappers must not kill a replay that run_memgen.py says is unbounded."""
 

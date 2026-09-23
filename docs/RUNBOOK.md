@@ -89,10 +89,19 @@ Resource model, taken from the recorded deployment:
 | GPU ids | the three UUIDs in `run_job.py` `GPU_POOL` | `run_job.py`, `GPU2 and unknown GPU are excluded` |
 | Guarded RSS | 64 GiB by default | `run_job.py` `rss_limit_bytes` |
 | Stage budgets | census 1800 s, sample 7200 s; the replay runs to completion | per job `seconds` (`0` means no deadline) |
+| Fresh admission | a GPU must be idle: no compute apps, under 512 MiB used, `utilization.gpu == 0` | `parent_controller.py` `gpu_admission`; the driver waits for it |
 
 `run_job.py` takes an exclusive lock per CPU id and per GPU id, sets CPU
 affinity and single-threaded library variables, and kills its child if the
 controller dies. Do not launch two jobs with the same `cpu`/`gpu`.
+
+Admission is checked once, and the utilization figure is an average the driver
+decays, so the second after another job releases the device can still read as
+busy on an idle GPU. `collect_case.py` therefore retries that one refusal for up
+to `--gpu-wait-seconds`, printing each wait; this is a wait, not a kill. Every
+controller run writes its output to `runs/<job>.controller.stdout` and
+`.stderr`, so the driver prints one line per stage instead of the controller's
+whole receipt, which stays in `runs/<job>/job-finish.json`.
 
 ---
 
@@ -137,6 +146,7 @@ every declared case.
 | `--python PATH` | interpreter that carries the SGLang stack |
 | `--census-seconds`, `--sample-seconds` | budgets for the two GPU stages |
 | `--job-seconds` | job 2 wall-clock ceiling. `0`, the default, runs to completion |
+| `--gpu-wait-seconds` | how long to wait for a device that is busy at fresh admission. Default 600, `0` fails at once |
 | `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
 | `--dry-run` | write the two job specs and print the plan, execute nothing |
 
@@ -164,6 +174,7 @@ Artifacts, all under `--work`:
 | `.../cache/model/kernel_summary.csv` | per-kernel cache, hit and DRAM counters |
 | `.../cache/model/cache_observation.json` | occupancy, writeback, residual checks |
 | `collect-receipt.json` | case identity, stage receipts and the artifact map |
+| `runs/<job>.controller.stdout`, `.stderr` | the controller's own output, kept out of the terminal |
 
 It refuses a case outside the declared matrix, a GPU outside the admitted pool,
 an existing `--work` and a missing interpreter, so a typo fails before any GPU

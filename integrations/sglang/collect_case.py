@@ -39,7 +39,13 @@ import json
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
+
+# A GPU that has just been released still reports a decayed utilization average,
+# so the second after another job ends can read as busy on an idle device.
+GPU_ADMISSION_WAIT_SECONDS = 600
+GPU_ADMISSION_RETRY_SECONDS = 20
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -177,14 +183,75 @@ def status_of(path: Path, expected: str) -> dict:
     return value
 
 
-def run_job(spec_path: Path, output: Path, dry: bool) -> int:
+def gpu_admission_is_busy(text: str) -> bool:
+    """True when the controller refused a fresh locked admission.
+
+    The vendor criterion is `utilization_percent != 0` on an otherwise idle
+    device, and that figure is an average the driver decays, so a busy reading
+    right after another job ends is worth a bounded wait rather than throwing
+    away a finished census.
+    """
+    return 'selected GPU not idle at fresh locked admission' in text
+
+
+def run_job(spec_path: Path, output: Path, dry: bool,
+            wait_seconds: int = GPU_ADMISSION_WAIT_SECONDS) -> int:
+    """Run one job under the lease controller, reporting it in one line.
+
+    The controller writes the whole receipt, including the observed process
+    identities, to `<output>/job-finish.json`, so echoing it here would only bury
+    the terminal. Its output is kept beside that receipt instead.
+    """
     argv = [sys.executable, '-B', str(HERE / 'run_job.py'),
-            '--spec', str(spec_path), '--output', str(output)]
-    print('  ' + ' '.join(argv))
+            '--spec', str(spec_path), '--output', str(output), '--execute']
     if dry:
+        print('  ' + ' '.join(argv[:-1]))
         return 0
     import subprocess
-    return subprocess.call(argv + ['--execute'])
+    log_dir = output.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout = log_dir / f'{output.name}.controller.stdout'
+    stderr = log_dir / f'{output.name}.controller.stderr'
+    deadline = time.monotonic() + wait_seconds
+    attempt = 0
+    while True:
+        attempt += 1
+        with stdout.open('a') as out, stderr.open('a') as err:
+            for handle in (out, err):
+                # Flush now: the child writes straight to these descriptors, so a
+                # buffered header would land after the output it explains.
+                handle.write(f"# attempt {attempt}: {' '.join(argv)}\n")
+                handle.flush()
+            code = subprocess.call(argv, stdout=out, stderr=err)
+        message = stderr.read_text()
+        if code == 0:
+            receipt = json.loads((output / 'job-finish.json').read_text())
+            print(f"  {receipt['status']}  wall {receipt['wall_minutes']:.2f} min  "
+                  f"cpu {receipt['CPU_minutes']:.2f} min  ->  {output / 'job-finish.json'}")
+            return 0
+        if not gpu_admission_is_busy(message):
+            tail = [line for line in message.splitlines() if line.strip()]
+            print('  ' + (tail[-1] if tail else 'controller failed with no message'))
+            print('  controller output ' + str(stderr))
+            return 1
+        remaining = deadline - time.monotonic()
+        if output.exists():
+            print('  the device is busy and this job already wrote its output directory; '
+                  'nothing was retried')
+            return 1
+        if wait_seconds == 0:
+            print('  the device is busy at fresh admission and --gpu-wait-seconds is 0')
+            print('  controller output ' + str(stderr))
+            return 1
+        if remaining <= 0:
+            print(f'  the device stayed busy for the whole {wait_seconds} s wait budget; '
+                  'raise --gpu-wait-seconds or free the GPU')
+            print('  controller output ' + str(stderr))
+            return 1
+        pause = min(GPU_ADMISSION_RETRY_SECONDS, remaining)
+        print(f'  device busy at fresh admission, so this stage is waiting: {pause:.0f} s '
+              f'of a {remaining:.0f} s budget left (a wait, not a kill)')
+        time.sleep(pause)
 
 
 def verify_census(observer_finish: Path, host_finish: Path, job_finish: Path, case: str,
@@ -245,6 +312,9 @@ def main() -> int:
                         help='sampling ceiling; sample_pipeline.py requires 60..21600 of its own')
     budget.add_argument('--job-seconds', type=int, default=0,
                         help='job 2 wall-clock ceiling; 0 means run to completion (default 0)')
+    budget.add_argument('--gpu-wait-seconds', type=int, default=GPU_ADMISSION_WAIT_SECONDS,
+                        help='wait at most this long for a device that is busy at fresh locked '
+                             'admission; 0 fails immediately (default 600)')
     parser.add_argument('--observer', type=Path, help='prebuilt observer.so; built into --work if omitted')
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
@@ -298,6 +368,8 @@ def main() -> int:
                          'bounded runtime and cannot be asked to run unbounded')
     if args.job_seconds != 0 and not 1 <= args.job_seconds <= 86400:
         raise SystemExit('--job-seconds must be 0 (run to completion) or 1..86400')
+    if not 0 <= args.gpu_wait_seconds <= 86400:
+        raise SystemExit('--gpu-wait-seconds must be 0..86400')
     if not args.work:
         raise SystemExit('--work is required')
     if args.work.exists():
@@ -356,7 +428,8 @@ def main() -> int:
     spec1 = args.work / 'census-spec.json'
     spec1.write_text(json.dumps(census_spec(case, args.work, contract, args), indent=2) + '\n')
     print('  spec ' + str(spec1))
-    if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run):
+    if run_job(spec1, args.work / 'runs' / f'{case}-census', args.dry_run,
+               args.gpu_wait_seconds):
         return 1
     if not args.dry_run:
         observer_finish = only(observer_root(args.work, case), 'process-*/finish.json')
@@ -377,7 +450,8 @@ def main() -> int:
         args.journal_process = 'process-<pid>'
     spec2.write_text(json.dumps(collect_spec(case, args.work, args), indent=2) + '\n')
     print('  spec ' + str(spec2))
-    if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run):
+    if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,
+               args.gpu_wait_seconds):
         return 1
 
     if args.dry_run:
