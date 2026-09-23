@@ -557,6 +557,14 @@ class PartialDiagnostic(unittest.TestCase):
         self.assertEqual(counters['dram_store_bytes'], 128)
         self.assertEqual(counters['l2_writeback_dirty_sectors'], 2)
 
+    def test_a_stop_the_chain_decided_is_a_result_not_a_failure(self):
+        self.assertTrue(self.driver.stopped_at_the_gate(self.follow))
+        (self.follow / 'finish.json').write_text(json.dumps(
+            dict(status='FAIL_DEPENDENCY', error='ValueError: stage failed')))
+        self.assertFalse(self.driver.stopped_at_the_gate(self.follow))
+        (self.follow / 'finish.json').unlink()
+        self.assertFalse(self.driver.stopped_at_the_gate(self.follow))
+
     def test_the_engine_is_built_from_the_archived_source(self):
         self.assertTrue(self.driver.ENGINE_SOURCE.is_file())
         self.assertIn('release/source/tools/', str(self.driver.ENGINE_SOURCE))

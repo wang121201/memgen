@@ -263,6 +263,17 @@ def controller_reason(stderr_text: str, stderr_path: Path, output: Path) -> str:
     return f'controller failed; see {stderr_path}'
 
 
+def stopped_at_the_gate(follow: Path) -> bool:
+    """True when job 2 wrote a finish.json that names a stop of its own.
+
+    `followthrough.py` exits 2 for a stop it decided, such as an expansion that
+    does not cover the full model, and that is a result with a coverage to report
+    rather than a failed stage.
+    """
+    finish = follow / 'finish.json'
+    return finish.is_file() and json.loads(finish.read_text())['status'].startswith('STOP_')
+
+
 def run_job(spec_path: Path, output: Path, dry: bool,
             wait_seconds: int = GPU_ADMISSION_WAIT_SECONDS) -> int:
     """Run one job under the lease controller, reporting it in one line.
@@ -286,13 +297,19 @@ def run_job(spec_path: Path, output: Path, dry: bool,
     while True:
         attempt += 1
         with stdout.open('a') as out, stderr.open('a') as err:
+            # Flush now: the child writes straight to these descriptors, so a
+            # buffered header would land after the output it explains.
+            handle_text = f"# attempt {attempt}: {' '.join(argv)}\n"
             for handle in (out, err):
-                # Flush now: the child writes straight to these descriptors, so a
-                # buffered header would land after the output it explains.
-                handle.write(f"# attempt {attempt}: {' '.join(argv)}\n")
+                handle.write(handle_text)
                 handle.flush()
+            # Only this attempt's output decides the verdict: a previous attempt's
+            # busy message stays in the file and must not be read as this one's.
+            offset = stderr.stat().st_size
             code = subprocess.call(argv, stdout=out, stderr=err)
-        message = stderr.read_text()
+        with stderr.open() as handle:
+            handle.seek(offset)
+            message = handle.read()
         if code == 0:
             receipt = json.loads((output / 'job-finish.json').read_text())
             print(f"  {receipt['status']}  wall {receipt['wall_minutes']:.2f} min  "
@@ -655,7 +672,11 @@ def main() -> int:
         print('  spec ' + str(spec2))
         if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,
                    args.gpu_wait_seconds):
-            return 1
+            # A stop the chain decided is reported with its coverage below; only a
+            # job that left no finish.json is a hard failure here.
+            if not stopped_at_the_gate(follow):
+                return 1
+            print('  job 2 stopped at its own gate; the receipt records the coverage')
         follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
 
     if args.dry_run:
