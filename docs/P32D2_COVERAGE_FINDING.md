@@ -82,25 +82,54 @@ seven training CTAs*, *y or z extent > 1*.
 
 A 32-token prefill with 2 decode steps gives exactly those kernels very few
 CTAs. The sampler refuses to lower them, and the expansion then cannot cover the
-launches that would reuse them. The same code path closed for P128D2, P128D16
-and P128D32, where the prompt is four times longer and the grids are wider. So
-this is a property of the workload point, not a defect in this run:
+launches that would reuse them. The two points that do have independently
+accepted hardware evidence, P128D2 and P128D16, required a complete expansion to
+produce their numbers, and their prompt is four times longer. So this is a
+property of the workload point, not a defect in this run:
 
 - the refusals are deliberate, and each names the condition it needed;
 - the blocking classes are the small-grid and phase-global kernels, which a
   32-token workload cannot supply in quantity;
 - no configuration in the current chain can turn refusals into profiles.
 
+What was **not** established here: whether a longer prompt is sufficient on its
+own, since P128D32 was only driven as far as the sample in the archived
+deployment and its expansion was not available to inspect. Section 6 keeps that
+as an experiment, not a conclusion.
+
 ## 5. What the covered part measures
 
 `--partial` replays the 1360 covered launches with
 `run_memgen.py --allow-partial-diagnostic`. The counters are real cache-model
 output over 66% of the launches and **are not the case traffic**: the missing
-700 are not modelled and are not zero, so the totals are a lower bound and the
-hit ratios are computed on a smaller access set. The receipt labels this: the
-collect receipt carries `partial_diagnostic` with `target_launches`,
-`packed_launches`, `unsupported_launches` and the counter values it read, and
-the exit code stays 2 because the model is still not covered.
+700 are not modelled and are not zero.
+
+Measured, 2026-09-24, over the 1360 covered launches
+(`partial-cache-<UTC>/model/kernel_summary.csv`, 1360 rows, summed; hit rates are
+ratios of sums, not means of per-kernel rates):
+
+| Quantity | Value |
+| --- | --- |
+| L1 requests / hits / hit rate | 876,507,418 / 150,343,188 / 0.171525 |
+| L2 requests / hits / hit rate | 732,232,526 / 179,068,404 / 0.244551 |
+| DRAM read | 17,588,568,640 B (16.38 GiB) |
+| DRAM write | 135,537,920 B (129.3 MiB) |
+| L2 writeback dirty sectors | 4,235,560 |
+| generated memory instructions / lane addresses | 415,947,152 / 13,256,768,256 |
+
+How to read this table:
+
+- the DRAM totals are **lower bounds**, because 700 launches of the run are not
+  modelled at all;
+- the hit rates are ratios over the launches that were modelled, so they are not
+  the point's hit rate and must not be compared with a full-model number;
+- the replay receipt says `PASS_PARTIAL_MODEL_CACHE_DIAGNOSTIC` with
+  `complete_full_model: false`, `unsupported_launches: 700` and
+  `hardware_accuracy_accepted: false`.
+
+The receipt labels this: the collect receipt carries `partial_diagnostic` with
+`target_launches`, `packed_launches`, `unsupported_launches` and the counter
+values it read, and the exit code stays 2 because the model is still not covered.
 
 Counter values for this run are recorded in section 8 of the run receipt at
 `out/collect-20260923T165342Z/collect-receipt.json` under `partial_diagnostic`.
