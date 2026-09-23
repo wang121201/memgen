@@ -12,7 +12,7 @@ and cost different things:
 | Tier | Needs | Commands |
 | --- | --- | --- |
 | CPU-only implementation health | `mpic++`, a C++17 toolchain, `libzstd`, `boost_mpi`, `libcrypto`, `python3` | `scripts/verify_archive.py`, `scripts/run_cpu_smoke.sh`, `scripts/test_cache_core.py` |
-| SGLang sampling and NCU reference | NVIDIA GPU + driver, CUDA 12.8 (`nvcc`, `ncu`), NVBit, SGLang/PyTorch stack, the model checkpoints | `integrations/sglang/preflight.py` and the chain in [reproduction](REPRODUCTION.md) |
+| SGLang sampling and NCU reference | NVIDIA GPU + driver, CUDA 12.8 (`nvcc`, `ncu`), NVBit, SGLang/PyTorch stack, the model checkpoints | `integrations/sglang/preflight.py`, then the stages in [the runbook](RUNBOOK.md) |
 
 Nothing in either tier establishes hardware accuracy. The tiers only decide
 whether a command can run at all.
@@ -206,55 +206,18 @@ The command exits 1 when the two contents differ.
 The same treatment applies to `sampler.so`, which uses the same nvcc flow. Its
 identity has not been measured here because its build needs a real sample plan.
 
-## 5. Declared workload matrices
+## 5. Revision record
 
-The adapter declares two matrices in `memgen-adapter/contract.json`. They are
-derived, not duplicated: `matrix_workload.add_arguments` and
-`matrix_workload.contract` read the permitted axes and the accepted
-`(model, prefill, decode)` triples from that file, and `sample_pipeline.py`
-reuses the same derivation instead of repeating hard-coded choices.
-
-| Declared matrix | Prefills | Decodes | Models | Cases | Status |
-| --- | --- | --- | --- | --- | --- |
-| scale series (`prefills` / `decodes`) | 128, 256, 512, 1024 | 32, 64, 128 | 2 | 24 | buildable |
-| basic admission (`basic_admission`) | 32 | 2 | 2 | 2 | buildable |
-
-The scale series keeps the identity it had before the admission point existed,
-so the archived 24-case results are unaffected. The admission point is declared
-in its own block so that producing `P32D2` can never be read as extending the
-scale series. The contract `schema` string was bumped to
-`SGLANG_FULL_INFERENCE_V2` so a receipt cannot silently mix the two.
-
-The documentation names three matrices, which are not the same set:
-
-| Documented matrix | Decodes | Divergence |
-| --- | --- | --- |
-| basic admission point `P32D2` | 2 | declared and buildable |
-| scale series | 2, 4, 8, 16, 32 | `D=32` declared; `D=2` only via the admission point; `D=4`, `D=8`, `D=16` undeclared |
-
-Undeclared pairs are rejected rather than silently accepted:
-
-```text
-ACCEPT ('qwen25_1p5b', 32, 2)    -> matrix=basic_admission
-ACCEPT ('qwen25_1p5b', 128, 32)  -> matrix=scale_series
-REJECT ('qwen25_1p5b', 32, 128)  -> Case outside the declared matrix
-REJECT ('qwen25_1p5b', 128, 2)   -> Case outside the declared matrix
-```
-
-**Producing a declared point is not an admission decision and not an accuracy
-result.** Every point still needs its own independent sample, packed profile and
-three-run NCU reference. The P32D2 rows stay `BLOCKED` in
-`validation/p32d2_branch_status.csv` until that evidence exists.
-
-`python3 integrations/sglang/preflight.py` prints both sets and the exact
-divergence, and flags the documented sentences it reads with
-`[DOC TRACE NOT FOUND]` if the prose moves.
-
-### 5.1 Revision record
+Which workload points the adapter declares, and how that set relates to the
+documented target matrices, is normative in
+[branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md) section 3.1.
+`python3 integrations/sglang/preflight.py` prints the declared and documented
+sets side by side, flags any divergence, and reports `[DOC TRACE NOT FOUND]` if
+the prose it reads has moved.
 
 `integrations/sglang/revisions.json` explains each deliberate difference from a
-historical pin, naming every copy of a revised file, the before/after SHA-256
-and the reason. The verification rules are:
+historical pin, naming every copy of a revised file, the before and after
+SHA-256 and the reason. The verification rules are:
 
 - a file matching its historical pin reports `PRESENT_IDENTICAL`;
 - a file matching a revision record reports `PRESENT_REVISED`;

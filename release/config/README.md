@@ -78,4 +78,4 @@ schema 1 文件对硬件策略具有唯一优先级；旧 `BackendOptions` 中�
 通用验证入口为 `python3 scripts/test_cache_core.py --output FRESH_OUTPUT_DIRECTORY`。它执行旧配置回归、独立 CLOCK 参考对照、五档显式配置等价、参数敏感性、非法输入拒绝、地址边界和失败取消测试。仅使用合成输入，不运行 GPU，也不赋予硬件准确度验收资格。
 
 
-可复用 Python 回放入口是 `integrations/sglang/memgen-adapter/run_memgen.py`，支持显式指定二进制、配置、profile 索引、启动/布局文件和上下文；命令见 `docs/REPRODUCTION.md`。该入口不合成真实分配信息。C++ 在首次读取每个已验证内容散列的 profile 时检查已知跨层重绑定标记；启用 r4 上下文时拒绝这类输入，不增加第二次全量 profile 扫描。未带这些标记的输入仍须由上游证明来源，不能因为通过检查就宣称硬件原生覆盖完整。
+可复用 Python 回放入口是 `integrations/sglang/memgen-adapter/run_memgen.py`，支持显式指定二进制、配置、profile 索引、启动/布局文件和上下文；命令见 `docs/RUNBOOK.md` 第 3.3 节。该入口不合成真实分配信息。C++ 在首次读取每个已验证内容散列的 profile 时检查已知跨层重绑定标记；启用 r4 上下文时拒绝这类输入，不增加第二次全量 profile 扫描。未带这些标记的输入仍须由上游证明来源，不能因为通过检查就宣称硬件原生覆盖完整。

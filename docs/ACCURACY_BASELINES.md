@@ -54,8 +54,15 @@ hit-rate oracle, so no SGLang L1/L2 accuracy value is fabricated. P128D4 and
 P128D8 prefix sums are diagnostics from P128D16, not independent workload
 acceptance. P32D2 is also absent under this exact model/framework contract.
 
-The stable acceptance rule is workload-scoped: report whole, prefill and
-decode separately; require absolute read and write error below 10% for every
-accepted range; preserve input/source hashes and three-run NCU medians; and do
-not promote internal conservation to hardware accuracy.
+The admission gate itself is normative in
+[branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md) section 6, and the
+per-range reporting rules are in
+[acceptance procedure](REPRODUCTION.md) section 3. Two different gates are
+stated in this repository and they have not been reconciled: the contract says
+DRAM write absolute relative error at most **20%**, while
+[the L2 strategy report](../evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md)
+uses **strictly below 10%** for every measured range. The difference decides
+rows: P128D16 whole-request write error is `+14.55%`, which passes a 20% gate and
+fails a 10% gate. Until an owner picks one, quote the number with the gate that
+produced it.
 

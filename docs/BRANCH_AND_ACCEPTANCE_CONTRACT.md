@@ -152,6 +152,17 @@ All of the following are also mandatory:
 6. HBFSim timing classified as diagnostic until the same-range GDDR timing,
    address mapping and compute sideband are calibrated.
 
+### 6.1 Unreconciled write gate
+
+This section states 20%. `evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md`
+states strictly below 10% for every measured range, and
+[accuracy baselines](ACCURACY_BASELINES.md) carried the same 10% rule before it
+was reduced to a pointer here. The two have not been reconciled and both are
+still in the archive, so every result must be quoted together with the gate that
+produced it. The difference decides rows: the P128D16 whole-request write error
+is `+14.55%`, which passes 20% and fails 10%. This note records the conflict; it
+does not choose a number.
+
 ## 7. Current P32D2 evidence boundary
 
 - Meta-Llama-3-8B P32D2 has three NCU range repeats for whole, Prefill,
@@ -181,13 +192,14 @@ The P32D2 model rows remain `BLOCKED` in
 `validation/p32d2_branch_status.csv`. A smoke `PASS` must never be reported as
 Qwen2.5-1.5B or Meta-Llama-3-8B traffic, latency or bandwidth acceptance.
 
-## Explicit r4 software on main
+## 9. Explicit r4 software on main
 
-The 32 KiB (32 * 1024 bytes) L1 geometry above describes the legacy configuration.
-The optional r4 (fourth cache candidate) configuration uses a shared-memory
-capacity table, defined in `release/config/README.md`. It can be selected on main
-without accepting its hardware calibration. Main's default legacy policy is
-unchanged; experimental L2 writes, finite miss-status holding registers (MSHRs),
-private sampling certificates and matrix controllers are not promoted by this
-core extraction. Current source identity is recorded separately from the frozen
-import in `release/current-core-manifest.json`.
+The L1 geometry in section 4 describes the legacy configuration. The optional r4
+(fourth cache candidate) configuration uses a shared-memory capacity table and
+can be selected on `main` without accepting its hardware calibration; see
+[release configuration](../release/config/README.md) and
+[environment](ENVIRONMENT.md) section 5 for the revision record. The legacy
+default policy is unchanged, and experimental L2 writes, finite MSHRs, private
+sampling certificates and matrix controllers are not promoted by this core
+extraction. The current source identity is recorded in
+`release/current-core-manifest.json`, separately from the frozen import.

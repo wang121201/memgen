@@ -1,36 +1,23 @@
 # Runbook: manual launch and full verification
 
 This is the operator document. It gives the exact commands, the expected
-receipts and the claim boundary for each step. Read
-[environment](ENVIRONMENT.md) first for the dependency inventory, and
-[branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md) for what a result is
-allowed to claim.
+receipts and the claim boundary for each step. The document map is in the
+[README](../README.md); read [environment](ENVIRONMENT.md) first for the
+dependency inventory and [branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md)
+for what a result is allowed to claim.
 
-| Document | Answers |
-| --- | --- |
-| [`README.md`](../README.md) | What the repository is, and the one-line checks |
-| [`ENVIRONMENT.md`](ENVIRONMENT.md) | Which host dependencies exist, how to check them, how to build the tools |
-| [`REPRODUCTION.md`](REPRODUCTION.md) | The acceptance procedure and its evidence rules |
-| This runbook | How to actually launch each stage, by hand |
-
-Nothing in this runbook is an accuracy claim. Producing an artifact is not an
-admission decision; see section 5.
+Nothing here is an accuracy claim. Producing an artifact is not an admission
+decision; see section 5.
 
 ---
 
-## 1. Step 0: implementation health, no GPU
+## 1. Implementation health, no GPU
 
 No GPU, no model, no NVBit. Run this after any change to the repository. Each
-command writes only to a fresh directory you name.
-
-The split from section 3 exists because the two kinds of check cost different
-things and answer different questions. This section is cheap, needs nothing
-beyond a C++17 toolchain, and can therefore be run by anyone reviewing an
-archive change to confirm that the frozen engine, the pinned deployment and the
-declared-case contract are intact. Section 3 needs the GPU host, the SGLang
-stack and NVBit, and is what actually collects the target data. Do not treat a
-passing Step 0 as evidence about a workload, and do not treat section 3 as a
-substitute for the pin-integrity checks.
+command writes only to a fresh directory you name. A pass here says the frozen
+engine, the pinned deployment and the declared-case contract are intact; it says
+nothing about a workload. Section 3 is what collects the data, and it is not a
+substitute for these pin-integrity checks.
 
 ```bash
 cd <repository root>
@@ -139,6 +126,46 @@ python3 integrations/sglang/collect_case.py \
 `--gpu-index` is the numbering `preflight.py` prints. `--case qwen25_1p5b-p32-d2`
 is accepted as a shorthand for the three case values, and `--list-cases` prints
 every declared case.
+
+| Parameter | Meaning |
+| --- | --- |
+| `--model`, `--prefill-length`, `--decode-steps` | the case to collect, as three independent values. Any declared combination works; `--list-cases` prints all 26 |
+| `--case` | shorthand for the three |
+| `--list-cases` | print every declared case with its matrix name, then exit |
+| `--work DIR` | fresh output directory. It must not exist; a retry needs a new one |
+| `--gpu-index N` | which admitted GPU, by the index `preflight.py` prints. Default 0 |
+| `--gpu UUID` | the same choice by UUID, for scripted callers |
+| `--cpu N` | one CPU id from the shared `0..15` pool. Default 8 |
+| `--python PATH` | interpreter that carries the SGLang stack |
+| `--census-seconds`, `--sample-seconds` | budgets for the two GPU stages |
+| `--job-seconds` | job 2 wall-clock ceiling. `0`, the default, runs to completion |
+| `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
+| `--dry-run` | write the two job specs and print the plan, execute nothing |
+
+The triple is checked against `memgen-adapter/contract.json` before anything
+runs, so an undeclared combination fails at once and points at `--list-cases`.
+Changing model, prefill length or decode steps needs no other edit. To rehearse
+the toolchain first, use `--prefill-length 128 --decode-steps 32`, the point the
+archived deployment actually drove through this chain.
+
+**No stage imposes a wall-clock deadline on the cache replay.** `run_memgen.py`
+documents that it has none, and `followthrough.py`, `profile_cache.py` and this
+driver no longer add one. Only the two GPU stages carry budgets, because they
+hold a leased device.
+
+Artifacts, all under `--work`:
+
+| Artifact | Meaning |
+| --- | --- |
+| `observers/<case>-census/process-*/launch-journal.jsonl` | every kernel launch, ordered |
+| `observers/<case>-census/process-*/finish.json` | `PASS_METADATA_OBSERVER_CLOSED_NOT_TRACE` |
+| `runs/<case>-census/host/process-*/finish.json` | measured phases and tensor metadata |
+| `runs/<case>-collect/followthrough/plan/sample-plan.json` | which layer and CTAs are sampled |
+| `.../sample/profiles/profiles.index.jsonl` | the packed, workload-specific profile |
+| `.../expanded/manifest.json` | `complete_full_model` and unsupported-launch counts |
+| `.../cache/model/kernel_summary.csv` | per-kernel cache, hit and DRAM counters |
+| `.../cache/model/cache_observation.json` | occupancy, writeback, residual checks |
+| `collect-receipt.json` | case identity, stage receipts and the artifact map |
 
 It refuses a case outside the declared matrix, a GPU outside the admitted pool,
 an existing `--work` and a missing interpreter, so a typo fails before any GPU
@@ -352,6 +379,31 @@ It verifies `memgen-adapter/deployment-files.json` before waiting, pins every
 input, and refuses to continue if a pinned file changes while it waits. Its
 final status is `PASS_DECLARED_PROFILE_CACHE_MODEL_NOT_NATIVE_ACCURACY`, which
 names its own limit.
+
+### 3.3 Explicit r4 replay
+
+The r4 L1 model needs its own hardware configuration and a matching native
+address context, which the wrapper does not invent; what must be supplied is in
+[the acceptance procedure](REPRODUCTION.md) section 4.
+
+```bash
+python3 -B scripts/test_cache_core.py --output /absolute/fresh/core-tests
+python3 -B scripts/test_replay_entry.py \
+  --binary /absolute/fresh/core-tests/legacy/build/hbserve \
+  --output /absolute/fresh/replay-tests
+
+python3 integrations/sglang/memgen-adapter/run_memgen.py \
+  --binary /absolute/fresh/core-tests/legacy/build/hbserve \
+  --profile-index /absolute/admitted/profiles.index.jsonl \
+  --app-config /absolute/admitted/app.config \
+  --issue-config /absolute/admitted/issue.config \
+  --hw-config release/config/RTX4000Ada.r4.config \
+  --r4-context /absolute/admitted/r4-context.json \
+  --output /absolute/fresh/replay
+```
+
+`PASS_PROFILE_STREAM_CACHE_REPLAY` means the supplied stream closed, not NCU
+agreement.
 
 ---
 
