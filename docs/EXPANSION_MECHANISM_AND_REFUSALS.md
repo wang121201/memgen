@@ -141,12 +141,18 @@ replay) or modeled with `mode: numeric_modeled`, a named evidence string, and a
 | point | targets | exact | modeled | modeled by cause | modeled traffic | share of traffic |
 | --- | --- | --- | --- | --- | --- | --- |
 | qwen25_1p5b P32D2 | 2060 | 1360 | 700 (34.0 %) | 350 missing template, 350 ambiguous delta | 1.23 GiB | 2.2 % |
-| qwen25_1p5b P128D2 | 2172 | 1162 | 1010 (46.5 %) | 686 missing template, 324 ambiguous delta | 3.76 GiB | 7.1 % |
+| qwen25_1p5b P128D2 | 2172 | 1162 | 1010 (46.5 %) | 686 missing template, 324 ambiguous delta | 10.47 GiB | 17.5 % |
 
 The estimate is dominated by the classes that carry real traffic: on P32D2,
 71 % of the modeled volume is one cutlass WMMA GEMM class and 21 % a `gemvx`
-class; on P128D2 the top four are ampere/cutlass GEMMs. The largest of them uses
-the *fitted census* basis, i.e. measured per-CTA bytes, not an estimate.
+class, both on the *fitted census* basis, i.e. measured per-CTA bytes. On P128D2
+87 % of the modeled volume is one ampere GEMM class, and that class is sized by
+the *refusal lane census* basis — its own measured lanes at its own 16 B per lane
+issue width. The `gemvx` class behind it (5.0 %) uses the fitted census; the two
+GEMMs after that (2.5 % each) still rest on the run median, and
+`modeled_volume_basis` says so. P128D2's share is more than twice the 7.1 % this
+table carried before the width correction, because that one GEMM class was being
+sized as if it issued 4 B per lane.
 
 A modeled launch is built in `integrations/sglang/memgen-adapter/model_uncovered.py`
 from evidence the exact path cannot use, in this order:
@@ -162,17 +168,31 @@ from evidence the exact path cannot use, in this order:
      is used. The census is a **whole-grid** total (`mem_insts == entries ×
      grid_size`, verified on multi-CTA classes), so it is divided by the grid it
      was measured on;
+   * otherwise, when the run kept the lane census of the class's *own* refused
+     records, that is used: the projection buckets a refused record by issue width
+     in bytes per lane and by the lanes it saw, so the class's bytes per record is
+     a measurement rather than a median over other classes. It is carried to the
+     class's classified records while the refusal covers at least half of them
+     (`OBSERVED_REFUSAL_COVERAGE_MIN`), and the basis is reported as
+     `observed_refusal_width_records_per_cta` with the width, the share and any
+     directionless opcode named. Below that share the refusal describes a residue
+     whose opcode mix differs from the bulk — a kernel refused for ten atomic lanes
+     still has its loads — so the run median stays;
    * otherwise `consumer.json`'s per-class `selected_records` is divided by the
      CTA count the sampler *actually* selected for that class — the whole grid
      when `selected_all_grid_ctas` is true, else `|fit_ctas| + |holdout_ctas|`.
      That divisor is per class and measured: 104 of 176 P32D2 classes selected
      their whole grid, the rest 1–10 CTAs;
-   * the per-instruction byte figure is the run's phase median
+   * for that last basis the per-instruction byte figure is the run's phase median
      (`bytes_per_record_by_phase`, 128 B on both points), and its measured range
      (4–512 B per instruction) is recorded as `bytes_per_record_range`. That range
-     is the honest uncertainty of this estimator: a class whose real accesses are
-     16 B per lane is under-modeled by up to 4×, one that is byte-wide is
-     over-modeled;
+     is the honest uncertainty of the estimator that remains: a class whose real
+     accesses are 16 B per lane is under-modeled by up to 4×, one that is
+     byte-wide is over-modeled. Where the refusal census exists, this is now a
+     measurement instead — at P128D2 it moves the largest missing-template class
+     from 128 to 491.5 bytes per recorded instruction (width 16, coverage 0.95),
+     and the manifest's `modeled_volume_basis` says what share of the modeled
+     traffic each basis sized;
 3. **the walk** is affine over the object and never leaves it: a private per-CTA
    tile when the object can hold the whole grid's tiles, otherwise HBServe's
    `shared_template_arena`, where every CTA re-reads the same representative
