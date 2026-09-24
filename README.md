@@ -116,9 +116,15 @@ These are diagnostics: the receipt states `raw_trace_persisted: false` and
 
 If the expansion does not cover the full model, no counters are produced at
 all and the run stops at `STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC`.
-`./memgen collect --partial` then replays what is covered and labels it: the
-counters are a lower bound, not the case traffic. Why a workload fails to close
-is in [the P32D2 coverage finding](docs/P32D2_COVERAGE_FINDING.md).
+There are two ways forward. `./memgen collect --partial` replays what is covered
+and labels it: the counters are a lower bound, not the case traffic. Or
+`./memgen collect --model-uncovered modeled` completes the model by giving each
+class that has no admitted template an explicit `numeric_modeled` launch built
+from that launch's own allocation context and its class's own sampled volume,
+and the receipt records the modeled share beside the counters. Why a workload
+fails to close is in [the P32D2 coverage finding](docs/P32D2_COVERAGE_FINDING.md),
+and what a modeled class may and may not claim is in
+[the expansion finding](docs/EXPANSION_MECHANISM_AND_REFUSALS.md).
 
 It runs two jobs under the lease controller, which owns the CPU and GPU locks,
 the CPU affinity, the memory guard and `CUDA_VISIBLE_DEVICES`: job 1 is the

@@ -162,6 +162,7 @@ every declared case.
 | `--gpu-wait-seconds` | how long to wait for a device that is busy at fresh admission. Default 600, `0` fails at once |
 | `--resume` | reuse an existing `--work` whose census passed the gate and start from job 2 |
 | `--partial` | when the expansion does not cover the full model, replay the covered part and label the counters partial |
+| `--model-uncovered {refuse,modeled}` | `refuse` (default) stops when a class has no admitted template; `modeled` completes the model with an explicit `numeric_modeled` class and records the modeled share (`exact_launches`, `modeled_launches`, `modeled_fraction`, `modeled_by_cause`) in the receipt |
 | `--engine PATH` | frozen CPU engine for `--partial`; built from `release/source/tools/` into `--work` by default |
 | `--observer PATH` | reuse a built observer; otherwise one is built into `--work` |
 | `--dry-run` | write the two job specs and print the plan, execute nothing |
@@ -228,6 +229,30 @@ missing launches are not modelled and are not zero. Read them from
 `partial-cache-<UTC>/model/kernel_summary.csv` and never quote them as the
 case's traffic. Why a given workload cannot close is in
 [the P32D2 coverage finding](P32D2_COVERAGE_FINDING.md).
+
+**Or complete the model, with the modeled share recorded.** `--model-uncovered
+modeled` is the HBServe posture: a class with no admitted template stops being a
+refusal and becomes an explicit `numeric_modeled` launch — real addresses from
+that launch's own allocation context, a volume per CTA from the class's own
+sample, and an affine object walk that never leaves the object. The expansion
+then reports `complete_full_model: true` with `fully_exact: false`, and both the
+stage finish and the collection receipt carry `exact_launches`,
+`modeled_launches`, `modeled_fraction`, `modeled_by_cause` and the per-phase
+calibration, so a full-model counter can always be read together with what
+fraction of it was modelled:
+
+```bash
+./memgen collect --model-uncovered modeled --work /absolute/path/to/run \
+  --model qwen25_1p5b --prefill-length 32 --decode-steps 2 --gpu-index 1
+```
+
+Measured on the two collected runs: P32D2 closes at 2060/2060 launches (1360
+exact + 700 modeled, 34.0 % of launches = 2.2 % of bytes) and P128D2 at 2172/2172
+(1162 + 1010, 46.5 % of launches = 7.1 % of bytes). The estimate is dominated by
+the cutlass/ampere GEMM classes that carry the traffic, the largest of them on
+the measured census basis. What a modeled row may not claim — and the two ways a
+modeled issue could silently be the wrong size — is in
+[the expansion finding](EXPANSION_MECHANISM_AND_REFUSALS.md) section 5.
 
 **Budgets are hard limits, not estimates.** A stage that exceeds its budget is
 killed: the census job and the whole of job 2 are bounded by `run_job.py`

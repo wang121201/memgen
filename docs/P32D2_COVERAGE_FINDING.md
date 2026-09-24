@@ -149,17 +149,27 @@ Ordered by cost, with what each one buys:
 
 1. **Accept P32D2 as partial.** Zero cost. Quote nothing as the P32D2 traffic;
    use the partial counters only to see shape, not totals.
-2. **Measure a point whose grids are wide enough.** `P128D32` is declared in the
+2. **Model the uncovered classes instead of refusing them.** Zero new GPU time:
+   `./memgen collect --resume --model-uncovered modeled` completes this same run
+   at 2060/2060 launches (1360 exact + 700 modeled), with the modeled share
+   stated beside every counter — 34.0 % of launches, 2.2 % of bytes, dominated by
+   the cutlass/ampere GEMM classes that carry the traffic. See
+   [the expansion finding](EXPANSION_MECHANISM_AND_REFUSALS.md) section 5.
+3. **Measure a point whose grids are wide enough.** `P128D32` is declared in the
    `scale_series` matrix and is the point the archived deployment drove through
    this chain, so it is the cheapest declared point that can plausibly close. It
    costs a full census and a larger sample.
-3. **Improve the fitter for small grids.** This is where a fix would live:
+4. **Improve the fitter for small grids.** This is where a fix would live:
    the fallback chain in the sampler's address-rule fitting, and the
    `Ambiguous observed tensor binding` resolution in `expand_profiles.py`. Both
    are upstream sampler work, not driver work, and both need the refusal
    conditions to stay honest.
-4. **Do not** lower the refusals to make the numbers appear. A zero-filled or
+5. **Do not** lower the refusals to make the numbers appear. A zero-filled or
    guessed region is indistinguishable from measured traffic in a summary table.
+   Modeling option 2 is not that: it replaces a refusal with a launch whose
+   addresses come from the launch's own allocation ledger and whose volume comes
+   from its class's own sample, and it is labelled as modeled everywhere it can
+   be read.
 
 ## 7. A separate gap this run exposed
 
