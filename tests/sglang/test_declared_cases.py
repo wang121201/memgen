@@ -203,12 +203,28 @@ class CollectionDriver(unittest.TestCase):
     def test_collect_job_has_no_wall_clock_ceiling(self):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
-                                  python=sys.executable, sample_seconds=7200)
+                                  python=sys.executable, sample_seconds=7200,
+                                  model_uncovered='refuse')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'work', args,
                                        'process-0001-000000002', 'process-0001')
         self.assertEqual(spec['seconds'], 0)
         self.assertNotIn('--seconds', spec['argv'])
         self.assertNotIn('--memgen-seconds', spec['argv'])
+        given = dict(zip(spec['argv'], spec['argv'][1:]))
+        self.assertEqual(given['--model-uncovered'], 'refuse')
+
+    def test_modeled_completion_is_forwarded_to_the_expansion(self):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
+                                  python=sys.executable, sample_seconds=7200,
+                                  model_uncovered='modeled')
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'modelled-work', args,
+                                       'process-0001-000000002', 'process-0001')
+        given = dict(zip(spec['argv'], spec['argv'][1:]))
+        self.assertEqual(given['--model-uncovered'], 'modeled')
+        pinned = {Path(row['path']).name for row in spec['sources']}
+        self.assertIn('model_uncovered.py', pinned)
+        self.assertIn('expand_profiles.py', pinned)
 
     def test_census_job_stays_bounded(self):
         import argparse
@@ -261,7 +277,8 @@ class ObserverOutputRoot(unittest.TestCase):
     def test_collect_spec_reads_the_same_root(self):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
-                                  python=sys.executable, sample_seconds=7200)
+                                  python=sys.executable, sample_seconds=7200,
+                                  model_uncovered='refuse')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.work, args,
                                        'process-938490-918072691', 'process-938490')
         journal = Path(spec['argv'][spec['argv'].index('--journal') + 1])
@@ -446,7 +463,7 @@ class Resume(unittest.TestCase):
         finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
         journal, host = self.driver.census_process_names(observer, finish)
         args = argparse.Namespace(cpu=8, gpu=self.GPU, job_seconds=0, python=sys.executable,
-                                  sample_seconds=7200)
+                                  sample_seconds=7200, model_uncovered='refuse')
         spec = self.driver.collect_spec(self.CASE, self.work, args, journal, host)
         given = dict(zip(spec['argv'], spec['argv'][1:]))
         self.assertTrue(Path(given['--journal']).is_dir())

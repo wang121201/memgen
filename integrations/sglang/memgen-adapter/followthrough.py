@@ -18,6 +18,8 @@ def main():
  p.add_argument('--sources',type=Path,required=True,help='compact-sources-r1 directory')
  p.add_argument('--output',type=Path,required=True)
  p.add_argument('--stop-after',choices=('plan','build','sample','expand','memgen'),default='memgen')
+ p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
+  help='modeled lets a class with no admitted template complete the full model with an explicit numeric_modeled label')
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
  p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600,
   help='accepted for compatibility; the replay has no wall-clock deadline')
@@ -54,9 +56,13 @@ def main():
     '--seconds',str(a.sample_seconds),'--python',a.python],a.sample_seconds+120)
   if not done:
    done=run('expand',[a.python,'-B',str(HERE/'expand_profiles.py'),'--sample-output',str(a.output/'sample'),
-    '--layer-bindings',str(a.output/'plan/layer-bindings.json'),'--output',str(a.output/'expanded')],1800)
+    '--layer-bindings',str(a.output/'plan/layer-bindings.json'),'--output',str(a.output/'expanded'),
+    '--model-uncovered',a.model_uncovered],1800)
   if not done:
    manifest=json.loads((a.output/'expanded/manifest.json').read_text())
+   result.update(modeled_completion=manifest['modeled_completion'],exact_launches=manifest['exact_launches'],
+    modeled_launches=manifest['modeled_launches'],modeled_fraction=manifest['modeled_fraction'],
+    fully_exact=manifest['fully_exact'],modeled_by_cause=manifest['modeled_by_cause'])
    if not manifest['complete_full_model']:
     result.update(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC',unsupported_launches=manifest['unsupported_launches'])
    else:

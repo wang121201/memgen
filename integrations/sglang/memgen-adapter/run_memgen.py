@@ -124,7 +124,8 @@ def main():
     if manifest:
         result['expanded_manifest_sha256']=pins[str(a.expanded/'manifest.json')]
         for key in ['complete_declared_profile_stream','complete_full_model','unsupported_launches',
-                    'unknown_private_allocations','unknown_private_bytes']:result[key]=manifest[key]
+                    'unknown_private_allocations','unknown_private_bytes','modeled_completion','exact_launches',
+                    'modeled_launches','modeled_fraction','modeled_by_cause','fully_exact']:result[key]=manifest[key]
     def cancelled(signum,frame):raise InterruptedError('cancel signal '+str(signum))
     handlers={sig:signal.signal(sig,cancelled) for sig in (signal.SIGINT,signal.SIGTERM,signal.SIGHUP)}
     try:

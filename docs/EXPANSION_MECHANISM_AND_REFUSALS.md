@@ -113,7 +113,8 @@ above.
 
 ## 4. What closing would require
 
-For a point to reach `complete_full_model`, both must hold:
+For a point to reach `complete_full_model` under the default posture, both must
+hold:
 
 1. every sampled class fits, i.e. 0 of 176 (P32D2) or 0 of 180 (P128D2) refusals.
    That means extending the cascade for the families in section 1 — attention
@@ -127,3 +128,70 @@ the two findings
 ([P32D2](P32D2_COVERAGE_FINDING.md),
 [accepted point](EVIDENCE_POINT_REPRODUCIBILITY_FINDING.md)) say what that number
 is and is not.
+
+## 5. Modeled completion: the HBServe posture, opt-in
+
+`--model-uncovered modeled` completes the model without pretending the missing
+classes were fitted. It is the same posture HBServe takes in
+`hbserve/traces/_reference/full_model_trace_plan.py`, where a class with no
+numeric template is either `class_only` (symbolic, excluded from the numeric
+replay) or modeled with `mode: numeric_modeled`, a named evidence string, and a
+`not_claimed` list. Measured on the two existing runs:
+
+| point | targets | exact | modeled | modeled by cause | modeled traffic | share of traffic |
+| --- | --- | --- | --- | --- | --- | --- |
+| qwen25_1p5b P32D2 | 2060 | 1360 | 700 (34.0 %) | 350 missing template, 350 ambiguous delta | 1.23 GiB | 2.2 % |
+| qwen25_1p5b P128D2 | 2172 | 1162 | 1010 (46.5 %) | 686 missing template, 324 ambiguous delta | 3.76 GiB | 7.1 % |
+
+The estimate is dominated by the classes that carry real traffic: on P32D2,
+71 % of the modeled volume is one cutlass WMMA GEMM class and 21 % a `gemvx`
+class; on P128D2 the top four are ampere/cutlass GEMMs. The largest of them uses
+the *fitted census* basis, i.e. measured per-CTA bytes, not an estimate.
+
+A modeled launch is built in `integrations/sglang/memgen-adapter/model_uncovered.py`
+from evidence the exact path cannot use, in this order:
+
+1. **addresses** come from the launch's *own* allocation context — the same
+   `module_calls.json`/`tensor_metadata.json` ledger `Binder.mapping()` walks for
+   an exact rebind. A launch that binds no tensor object at all (the phase-global
+   reducers) falls back to the sampled host's largest storage root and says so
+   (`address_basis: representative_persistent_arena`);
+2. **volume per CTA** comes from the class's own sample, not from a guess:
+   * when the class has a fitted census (the ambiguous-rebind case, and any
+     missing class that another launch of the same class got fitted), the census
+     is used. The census is a **whole-grid** total (`mem_insts == entries ×
+     grid_size`, verified on multi-CTA classes), so it is divided by the grid it
+     was measured on;
+   * otherwise `consumer.json`'s per-class `selected_records` is divided by the
+     CTA count the sampler *actually* selected for that class — the whole grid
+     when `selected_all_grid_ctas` is true, else `|fit_ctas| + |holdout_ctas|`.
+     That divisor is per class and measured: 104 of 176 P32D2 classes selected
+     their whole grid, the rest 1–10 CTAs;
+   * the per-instruction byte figure is the run's phase median
+     (`bytes_per_record_by_phase`, 128 B on both points), and its measured range
+     (4–512 B per instruction) is recorded as `bytes_per_record_range`. That range
+     is the honest uncertainty of this estimator: a class whose real accesses are
+     16 B per lane is under-modeled by up to 4×, one that is byte-wide is
+     over-modeled;
+3. **the walk** is affine over the object and never leaves it: a private per-CTA
+   tile when the object can hold the whole grid's tiles, otherwise HBServe's
+   `shared_template_arena`, where every CTA re-reads the same representative
+   lines. Access width narrows (.128 → .8) and the lane mask shrinks so that no
+   modeled issue reads past its own allocation, which is why a 20-byte object can
+   still be modeled.
+
+What a modeled row may not claim is enforced, not documented: the status is
+`PASS_MODELED_UNCOVERED_CLASS`, `modeling.mode` is always `numeric_modeled`,
+`exact_cross_layer_identity_claimed` is false, `model.target_addresses_hardware_observed`
+is false so the r4 original-allocation guard refuses such a row without a release
+re-pin, and the manifest carries `fully_exact: false`, `modeled_launches`,
+`modeled_fraction`, `modeled_by_cause`, `modeled_policies`, the per-phase
+calibration and HBServe's `not_claimed` list. `complete_full_model` then means
+"every target launch has a profile", which is why the receipt and the replay carry
+the modeled share beside every counter.
+
+Two bugs this measurement caught, both of which had inflated the modeled share to
+34 % / 49 % of traffic before being fixed: a bare `LDG.E` opcode is inferred as
+four bytes per lane by the engine, which silently quartered every 16-byte modeled
+issue; and the census/record figures were treated as per-CTA when they are
+per-launch totals.

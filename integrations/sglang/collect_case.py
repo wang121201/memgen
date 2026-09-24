@@ -182,9 +182,10 @@ def collect_spec(case: str, work: Path, args, journal: str, host: str) -> dict:
                       '--output', str(follow),
                       '--stop-after', 'memgen',
                       '--python', args.python,
+                      '--model-uncovered', args.model_uncovered,
                       '--sample-seconds', str(args.sample_seconds)],
                 sources=source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
-                                     'expand_profiles.py', 'run_memgen.py', 'profile_cache.py',
+                                     'expand_profiles.py', 'model_uncovered.py', 'run_memgen.py', 'profile_cache.py',
                                      'contract.json', 'matrix_workload.py'], compact=True))
 
 
@@ -502,6 +503,9 @@ def main() -> int:
                              'does cover and label the counters partial')
     parser.add_argument('--engine', type=Path,
                         help='frozen CPU engine for --partial; built into --work by default')
+    parser.add_argument('--model-uncovered', choices=('refuse', 'modeled'), default='refuse',
+                        help='refuse stops when a class has no admitted template (default); '
+                             'modeled completes the full model with an explicit numeric_modeled label')
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
 
@@ -690,14 +694,23 @@ def main() -> int:
     follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
     finish = json.loads((follow / 'finish.json').read_text())
     replay = follow / 'cache' / 'model' / 'kernel_summary.csv'
+    expansion = json.loads((follow / 'expanded' / 'manifest.json').read_text())
+    # Recorded, not gated: an expansion written before modeled completion existed
+    # simply has no coverage fields, and status stays the authority below.
+    coverage = {k: expansion.get(k) for k in ('target_launches', 'packed_launches', 'unsupported_launches',
+                                             'exact_launches', 'modeled_launches', 'modeled_fraction',
+                                             'modeled_by_cause', 'fully_exact', 'modeled_completion',
+                                             'exact_cross_layer_identity_claimed')}
     partial = None
     if finish['status'] == 'STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC':
-        manifest = json.loads((follow / 'expanded' / 'manifest.json').read_text())
+        manifest = expansion
         if not args.partial:
             print()
             print(f"  the expansion covers {manifest['packed_launches']} of "
                   f"{manifest['target_launches']} launches, so no counters were produced.")
             print('  `--partial` replays the covered part and labels the result partial.')
+            print('  `--model-uncovered modeled` completes the model instead, with the '
+                  'modeled share recorded in the receipt.')
         else:
             partial = run_partial_replay(case, args, follow)
             if partial is None:
@@ -705,6 +718,7 @@ def main() -> int:
     receipt = dict(schema='SG_CASE_COLLECTION_V1', case_id=case,
                    declared_matrix=contract['declared_matrix'],
                    status=finish['status'], stages=finish['stages'],
+                   expansion_coverage=coverage,
                    work=str(args.work), artifacts=dict(
                        census_observer_finish=str(observer_root(args.work, case)
                                                   / journal / 'finish.json'),
@@ -726,6 +740,11 @@ def main() -> int:
     print()
     print(json.dumps({k: receipt[k] for k in ('case_id', 'declared_matrix', 'status',
                                               'hardware_accuracy_accepted')}, indent=2))
+    print(f"  launches                 {coverage['exact_launches']} exact + "
+          f"{coverage['modeled_launches']} modeled of {coverage['target_launches']} "
+          f"({coverage['modeled_fraction']:.1%} modeled)" if coverage['modeled_fraction'] is not None else
+          f"  launches                 {coverage['packed_launches']} packed of "
+          f"{coverage['target_launches']} (this expansion declares no modeled completion)")
     for name, value in receipt['artifacts'].items():
         print(f"  {name:24} {value if value else 'not produced'}")
     print(f"  receipt                  {args.work / 'collect-receipt.json'}")

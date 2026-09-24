@@ -65,10 +65,10 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91",
       "historical_bytes": 4336,
-      "current_sha256": "1b745325eaeabd66564a11aab6be28f6d019cb68e399f307cf622eb29a9fe1a4",
-      "current_bytes": 4363,
-      "reason": "Run the memgen stage without a wall-clock timeout. It previously killed the child at memgen-seconds + 60, which contradicted run_memgen.py's documented no-deadline behaviour. --memgen-seconds is now accepted for compatibility and ignored, and --seconds is no longer forwarded to run_memgen.py.",
-      "record": "docs/ENVIRONMENT.md section 6"
+      "current_sha256": "c665f8f4f2f0af4c7e399573c6398208f343feab9997657987317cccc6cff119",
+      "current_bytes": 4903,
+      "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"
     },
     {
       "name": "profile_cache.py",
@@ -82,6 +82,32 @@
       "current_bytes": 2525,
       "reason": "Same no-deadline fix for the cache stage, which killed the child at seconds + 60. --seconds is accepted and ignored.",
       "record": "docs/ENVIRONMENT.md section 6"
+    },
+    {
+      "name": "expand_profiles.py",
+      "paths": [
+        "memgen-adapter/expand_profiles.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "2f19e3804f28a001e21cd33544ac7fd949b9a1ce3f9bbc063a66d38cad5089e3",
+      "historical_bytes": 19155,
+      "current_sha256": "5720c11dc0224b07b0bac3a09433ccb5ec3b119d23f80692b181b8322cddbd8a",
+      "current_bytes": 24606,
+      "reason": "Add --model-uncovered modeled, which completes a class with no admitted template as an explicit numeric_modeled object-volume profile (memgen-adapter/model_uncovered.py) instead of refusing its launches. The default stays refuse: a missing profile is still never a zero-traffic kernel. Modeled rows are counted separately (exact_launches, modeled_launches, modeled_fraction, modeled_by_cause), carry status PASS_MODELED_UNCOVERED_CLASS with model.target_addresses_hardware_observed false so the r4 original-allocation guard can still refuse them without a release re-pin, and the manifest now states fully_exact, exact_cross_layer_identity_claimed false and the HBServe-style not_claimed list.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"
+    },
+    {
+      "name": "run_memgen.py",
+      "paths": [
+        "memgen-adapter/run_memgen.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "e7b893b99de321f063cb42f95498c0a9fa71daa3e880f1cef3d576506ef3cf4c",
+      "historical_bytes": 10630,
+      "current_sha256": "077d7b5cd3df92c5263540eb99a0e523b4c10cea94c8a62741fb5c21569c55f3",
+      "current_bytes": 10760,
+      "reason": "Carry the expansion coverage fields (modeled_completion, exact_launches, modeled_launches, modeled_fraction, modeled_by_cause, fully_exact) from the expanded manifest into the replay receipt, so a result that used modeled completion cannot be read as a fully exact stream.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"
     }
   ],
   "claim_boundary": "Producing a declared point is not an accuracy result and not an admission decision. validation/p32d2_branch_status.csv remains the authority for hardware-accuracy admission."

@@ -159,6 +159,7 @@ def test(argv: list[str]) -> int:
     parser.parse_args(argv)
     modules = [TESTS / 'cli/test_cli.py',
                TESTS / 'sglang/test_declared_cases.py',
+               TESTS / 'sglang/test_modeled_expansion.py',
                TESTS / 'sampling/test_profile_census.py']
     failures = []
     for module in modules:

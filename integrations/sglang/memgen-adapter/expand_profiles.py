@@ -2,7 +2,11 @@
 """Bind admitted sampled profiles across layers and prepare one MemGen stream.
 
 Only compact address rules are translated. A missing profile stays unsupported,
-never a zero-traffic kernel. Private addresses without tensor metadata retain
+never a zero-traffic kernel, unless --model-uncovered modeled is given: then the
+refused class receives an explicit numeric_modeled profile built from the target
+launch allocation context (integrations/sglang/memgen-adapter/model_uncovered.py),
+its launches are counted separately, and the manifest states that the stream is
+not fully exact. Private addresses without tensor metadata retain
 their relative offsets in an explicit target-scoped synthetic allocation.
 """
 import argparse
@@ -14,6 +18,8 @@ import json
 import math
 from pathlib import Path
 import re
+
+import model_uncovered
 
 
 def need(ok,msg):
@@ -236,13 +242,81 @@ class Binder:
         return value,dict(status='PASS_MODELED_LAYER_PROFILE_BINDING',rules=dict(counts),private_allocations=details,normalized_legacy_flat_cta_rules=normalized)
 
 
+MODEL_CAUSE = (('Source profile', 'missing_template_profile'),
+               ('Ambiguous observed tensor binding', 'ambiguous_address_binding'),
+               ('Target kernel regime changed', 'template_regime_mismatch'))
+
+
+def model_cause(message):
+    for prefix, label in MODEL_CAUSE:
+        if message.startswith(prefix):
+            return label
+    return 'other_exact_path_refusal'
+
+
+def class_shape(launch):
+    """Identity of a kernel class: binary, grid, and block. Phase-independent."""
+    return model_uncovered.class_shape(launch)
+
+
+def evidence_index(fitting, consumer):
+    """Per-class evidence: the sampled record count with its CTA count, plus the
+    fitted per-CTA census when the class was admitted."""
+    return model_uncovered.class_evidence(consumer, fitting['kernels'], fitting['packed_profiles'])
+
+
+def exact_binding(binder, launches, profiles, tk, sk):
+    need(tk in launches and sk in profiles, 'Source profile missing/unsupported')
+    source = profiles[sk]['source']['launch']
+    target = dict(launches[tk], epoch_launch_ordinal=tk[1])
+    for field in ('function_name', 'code_sha256', 'grid', 'block'):
+        need(source[field] == target[field], 'Target kernel regime changed ' + field)
+    value, receipt = binder.rebind(profiles[sk], source, target)
+    return value, receipt, target
+
+
+def storage_arena(binder):
+    """Largest persistent allocation of the sampled host, used only as a labeled
+    representative arena for a launch that binds no tensor object of its own."""
+    roots=[(int(r['base_address']),int(r['base_address'])+int(r['storage_nbytes']))
+           for r in binder.meta.get('storage_roots',[]) if int(r.get('storage_nbytes',0))>0]
+    return [max(roots,key=lambda span:span[1]-span[0])] if roots else []
+
+
+def modeled_binding(binder, launches, tk, sk, cause, calibration, evidence_by_shape):
+    """No template is admitted for this class: model it from its own objects."""
+    need(tk in launches, 'Modeled target absent from the launch census')
+    target = dict(launches[tk], epoch_launch_ordinal=tk[1])
+    shape = class_shape(target)
+    evidence = evidence_by_shape.get(shape)
+    need(evidence is not None, 'Modeled class %s absent from the fitting census' % (shape,))
+    kernel = dict(name=target['function_name'], grid_dims=[int(x) for x in target['grid']],
+                  grid_size=int(math.prod(target['grid'])), block_size=int(math.prod(target['block'])),
+                  phase=target['phase'], id=0)
+    profile, summary = model_uncovered.build_profile(
+        kernel, target, binder.contexts(target['call_id']), calibration, cause,
+        evidence, census=evidence.get('census'), arena=storage_arena(binder))
+    return model_uncovered.validate(profile), summary, target
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--sample-output',type=Path,required=True)
     p.add_argument('--layer-bindings',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
+        help='refuse keeps a class with no admitted template unpacked; modeled gives it '
+             'a numeric_modeled object-volume profile from the target allocation context')
     a=p.parse_args();sample=a.sample_output
     finish=json.loads((sample/'finish.json').read_text());need(finish['status']=='PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING','Sample pipeline incomplete')
+    modeling=a.model_uncovered=='modeled'
+    calibration=None;evidence_by_shape={}
+    if modeling:
+        fitting=json.loads((sample/'profiles/receipt.json').read_text())
+        need(fitting['status'].startswith('PASS_'),'Fitting receipt is not a passing run')
+        consumer=json.loads((sample/'consumer.json').read_text())
+        calibration=model_uncovered.calibrate(fitting['kernels'],fitting['packed_profiles'])
+        evidence_by_shape=evidence_index(fitting,consumer)
     host=list((sample/'host').glob('process-*/finish.json'));need(len(host)==1,'Exactly one sampled host')
     hostdir=host[0].parent;h=json.loads(host[0].read_text())
     binding=json.loads(a.layer_bindings.read_text());need(h['input_contract']==binding['input_contract'],'Census/sample input contract differs')
@@ -259,25 +333,40 @@ def main():
     accepted=[];unsupported=[];offset=0;app_rows=[];sm_rows=defaultdict(list)
     with pack.open('xb') as out,index.open('x') as ix:
         for row in binding['bindings']:
-            tk,sk=tuple(row['target_key']),tuple(row['template_key'])
+            tk,sk=tuple(row['target_key']),tuple(row['template_key']);mode='exact';summary=None
             try:
-                need(tk in launches and sk in profiles,'Source profile missing/unsupported')
-                source=profiles[sk]['source']['launch'];target=dict(launches[tk],epoch_launch_ordinal=tk[1])
-                for field in ('function_name','code_sha256','grid','block'):
-                    need(source[field]==target[field],'Target kernel regime changed '+field)
-                v,receipt=binder.rebind(profiles[sk],source,target)
-                kid=len(accepted)+1;phase=('warmup/' if row['role']=='warmup' else '')+row['phase']
-                v['kernel'].update(id=kid,phase=phase);v['status']='PASS_MODELED_LAYER_PROFILE_BINDING'
-                v['model'].update(cache_entry='ONE_CONTINUOUS_WARMUP_THEN_MEASUREMENT_STREAM',complete_model=False)
-                v['model']['target_launch_key']='epoch-%d-launch-%d'%tk
-                raw=canonical(v);out.write(raw)
-                ix.write(json.dumps(dict(kernel_id=kid,path=str(pack),offset=offset,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=v['status']))+'\n');offset+=len(raw)
-                k=v['kernel'];g=k['grid_dims']
-                fields=dict(kernel_name=k['name'],llama_phase=phase,grid_dim_x=g[0],grid_dim_y=g[1],grid_dim_z=g[2],grid_size=k['grid_size'],block_size=k['block_size'])
-                app_rows.extend('-kernel_%d_%s %s\n'%(kid,n,vv) for n,vv in fields.items())
-                for cta in range(k['grid_size']):sm_rows[cta%48].append('(%d,%d,%x)'%(kid,cta,(cta//48)*1000000))
-                accepted.append(dict(kernel_id=kid,target_key=tk,template_key=sk,phase=phase,role=row['role'],binding=receipt))
-            except (ValueError,KeyError) as e:unsupported.append(dict(target_key=tk,template_key=sk,phase=row['phase'],role=row['role'],reason=str(e)))
+                v,receipt,target=exact_binding(binder,launches,profiles,tk,sk)
+            except (ValueError,KeyError) as e:
+                if not modeling:
+                    unsupported.append(dict(target_key=tk,template_key=sk,phase=row['phase'],role=row['role'],reason=str(e)))
+                    continue
+                try:
+                    v,summary,target=modeled_binding(binder,launches,tk,sk,model_cause(str(e)),calibration,evidence_by_shape)
+                    mode='numeric_modeled'
+                except (ValueError,KeyError) as inner:
+                    unsupported.append(dict(target_key=tk,template_key=sk,phase=row['phase'],role=row['role'],
+                        reason='%s | modeled completion refused: %s'%(e,inner)))
+                    continue
+            kid=len(accepted)+1;phase=('warmup/' if row['role']=='warmup' else '')+row['phase']
+            v['kernel'].update(id=kid,phase=phase)
+            v['status']='PASS_MODELED_LAYER_PROFILE_BINDING' if mode=='exact' else v['status']
+            v['model'].update(cache_entry='ONE_CONTINUOUS_WARMUP_THEN_MEASUREMENT_STREAM',complete_model=False)
+            v['model']['target_launch_key']='epoch-%d-launch-%d'%tk
+            if mode!='exact':
+                # Keep the r4 original-allocation guard able to refuse modeled rows
+                # without a release re-pin: it already rejects any profile that
+                # reports unobserved target addresses.
+                v['model']['target_addresses_hardware_observed']=False
+                v['model']['modeling_mode']='numeric_modeled'
+            raw=canonical(v);out.write(raw)
+            ix.write(json.dumps(dict(kernel_id=kid,path=str(pack),offset=offset,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=v['status']))+'\n');offset+=len(raw)
+            k=v['kernel'];g=k['grid_dims']
+            fields=dict(kernel_name=k['name'],llama_phase=phase,grid_dim_x=g[0],grid_dim_y=g[1],grid_dim_z=g[2],grid_size=k['grid_size'],block_size=k['block_size'])
+            app_rows.extend('-kernel_%d_%s %s\n'%(kid,n,vv) for n,vv in fields.items())
+            for cta in range(k['grid_size']):sm_rows[cta%48].append('(%d,%d,%x)'%(kid,cta,(cta//48)*1000000))
+            entry=dict(kernel_id=kid,target_key=tk,template_key=sk,phase=phase,role=row['role'],binding=receipt,mode=mode)
+            if summary is not None:entry['modeling']=summary
+            accepted.append(entry)
     app.write_text(''.join(app_rows));issue.write_text(''.join('-trace_issued_sm_id_%d %s\n'%(sm,' '.join(values)) for sm,values in sorted(sm_rows.items())))
     # Only persistent classes have a sound global address-range interpretation.
     # Reused module I/O addresses are recorded in binding receipts, not promoted
@@ -289,9 +378,19 @@ def main():
             if lo<hi:ranges.append((lo,hi,kind))
     (a.output/'semantic.ranges').write_text(''.join('RANGE 0x%x 0x%x kind=%s\n'%r for r in sorted(set(ranges))))
     complete=not unsupported
+    modeled_rows=[row for row in accepted if row['mode']!='exact']
+    causes=Counter(row['modeling']['cause'] for row in modeled_rows)
+    policies=Counter(policy for row in modeled_rows for policy in row['modeling']['policies'])
+    modeled_ctas=sum(int(math.prod(launches[tuple(row['target_key'])]['grid'])) for row in modeled_rows)
     manifest=dict(schema='SGLANG_SAMPLED_LAYER_PACKED_EXPANSION_V1',status='PASS_COMPLETE_MODELED_PROFILE_EXPANSION' if complete else 'PARTIAL_PROFILE_EXPANSION_UNSUPPORTED_RETAINED',
         input_contract=h['input_contract'],sample_finish_sha256=sha(sample/'finish.json'),bindings_sha256=sha(a.layer_bindings),
         target_launches=len(binding['bindings']),packed_launches=len(accepted),unsupported_launches=len(unsupported),
+        exact_launches=len(accepted)-len(modeled_rows),modeled_launches=len(modeled_rows),
+        modeled_fraction=(len(modeled_rows)/len(accepted) if accepted else 0.0),modeled_ctas=modeled_ctas,
+        modeled_by_cause=dict(causes),modeled_policies=dict(policies),
+        modeled_completion=a.model_uncovered,fully_exact=(complete and not modeled_rows),
+        exact_cross_layer_identity_claimed=False,not_claimed=list(model_uncovered.NOT_CLAIMED),
+        modeled_calibration=calibration,
         complete_declared_profile_stream=complete,complete_full_model=complete,full_native_address_coverage=False,
         hardware_accuracy_accepted=False,postcache_counts_multiplied=False,
         scheduling='CTA round robin across 48 SMs; fixed per-SM CTA time spacing, modeled not measured',
@@ -303,7 +402,8 @@ def main():
         qualification='Profile-expanded estimate with modeled CTA placement and unknown private objects; not full native address accuracy',
         accepted=accepted,unsupported=unsupported)
     (a.output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
-    print(json.dumps({k:manifest[k] for k in ('status','target_launches','packed_launches','unsupported_launches','unknown_private_allocations')}))
+    print(json.dumps({k:manifest[k] for k in ('status','target_launches','packed_launches','unsupported_launches',
+        'exact_launches','modeled_launches','modeled_fraction','modeled_by_cause','unknown_private_allocations')}))
 
 
 if __name__=='__main__':main()
