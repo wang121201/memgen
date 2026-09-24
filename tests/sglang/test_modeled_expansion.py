@@ -82,6 +82,107 @@ class Evidence(unittest.TestCase):
     def test_record_count_without_a_classification_is_the_sample(self):
         self.assertEqual(model_uncovered.classified_records(dict(selected_records=11)), 11)
 
+
+class ObservedProjectionCensus(unittest.TestCase):
+    """The lane counts and widths a refused class's own records were bucketed with."""
+
+    def bucket(self, **overrides):
+        item = dict(opcode='LDG.E.128', width=16, is_load=True, is_store=False,
+                    records=1200, active_lanes=38400, effective_guard_lanes=38400,
+                    source_mask_records=1200, source_read_lanes=36864)
+        item.update(overrides)
+        return dict(projection_classification=dict(classified_records=1264,
+                                                   rejection_classes=[item]))
+
+    def measured(self, **overrides):
+        observed = model_uncovered.observed_lane_census(self.bucket(**overrides))
+        self.assertIsNotNone(observed)
+        return observed
+
+    def test_a_refused_load_keeps_its_own_width_and_lanes(self):
+        observed = self.measured()
+        self.assertEqual((observed['read'], observed['write']), (36864 * 16, 0))
+        self.assertEqual((observed['widths'], observed['records']), ([16], 1200))
+
+    def test_a_run_without_source_masks_falls_back_to_the_active_lanes(self):
+        self.assertEqual(self.measured(source_mask_records=0, source_read_lanes=0)['read'],
+                         38400 * 16)
+
+    def test_a_store_is_sized_by_its_active_lanes(self):
+        observed = self.measured(opcode='STG.E.64', width=8, is_load=False, is_store=True,
+                                 active_lanes=64, source_read_lanes=0, source_mask_records=0)
+        self.assertEqual((observed['read'], observed['write']), (0, 64 * 8))
+
+    def test_a_directionless_atomic_is_carried_as_a_write_and_named(self):
+        observed = self.measured(opcode='ATOMG.E.ADD.STRONG.GPU', width=4, is_load=True,
+                                 is_store=True, active_lanes=10, source_read_lanes=0,
+                                 source_mask_records=0)
+        self.assertEqual((observed['read'], observed['write']), (0, 40))
+        self.assertEqual(observed['directionless_opcodes'], ['ATOMG.E.ADD.STRONG.GPU'])
+
+    def test_a_class_the_projection_accepted_has_no_measured_census(self):
+        self.assertIsNone(model_uncovered.observed_lane_census(
+            dict(projection_classification=dict(classified_records=40, rejection_classes=[]))))
+
+    def test_a_bucket_that_covered_no_record_is_not_a_measurement(self):
+        self.assertIsNone(model_uncovered.observed_lane_census(self.bucket(records=0)))
+
+    def test_class_evidence_carries_the_observed_census(self):
+        consumer = dict(kernels=[dict(source_launch_key='a', selected_records=240,
+                                      selected_all_grid_ctas=False,
+                                      fit_ctas=list(range(10)), holdout_ctas=[])])
+        kernels = [dict(self.bucket(), source_launch_key='a', code_sha256='x',
+                        grid=[32, 1, 1], block=[128, 1, 1], phase='Prefill',
+                        selected_records=240)]
+        index = model_uncovered.class_evidence(consumer, kernels, [])
+        self.assertEqual(index[model_uncovered.class_shape(kernels[0])]['observed']['widths'], [16])
+
+    def test_the_measured_width_is_carried_to_the_class_and_split_by_its_share(self):
+        observed = self.measured()
+        index = dict(evidence(records=1264, ctas=10, grid=280), observed=observed)
+        volume = model_uncovered.per_cta_volume(CALIB, index, phase='Prefill')
+        self.assertEqual(volume['basis'], 'observed_refusal_width_records_per_cta')
+        self.assertAlmostEqual(volume['bytes_per_record'], 36864 * 16 / 1200)
+        self.assertAlmostEqual(volume['read'], 1264 / 10 * (36864 * 16 / 1200))
+        self.assertEqual(volume['write'], 0.0)
+        self.assertAlmostEqual(volume['observed_coverage'], 1200 / 1264)
+
+    def test_the_measured_width_is_almost_four_times_the_run_median(self):
+        index = dict(evidence(records=1264, ctas=10, grid=280), observed=self.measured())
+        measured = model_uncovered.per_cta_volume(CALIB, index, phase='Prefill')
+        assumed = model_uncovered.per_cta_volume(CALIB, evidence(records=1264, ctas=10, grid=280),
+                                                 phase='Prefill')
+        self.assertEqual(assumed['basis'], 'run_calibrated_records_per_cta')
+        self.assertAlmostEqual(assumed['read'], 1264 / 10 * 128)
+        self.assertAlmostEqual(measured['read'] / assumed['read'], 3.84, places=2)
+
+    def test_a_refusal_that_covers_a_residue_keeps_the_run_median(self):
+        # Ten atomic lanes must not resize a class whose remaining records are loads.
+        observed = self.measured(opcode='ATOMG.E.ADD.STRONG.GPU', width=4, is_load=True,
+                                 is_store=True, records=10, active_lanes=10,
+                                 source_read_lanes=0, source_mask_records=0)
+        index = dict(evidence(records=644, ctas=10, grid=19), observed=observed)
+        volume = model_uncovered.per_cta_volume(CALIB, index, phase='Prefill')
+        self.assertEqual(volume['basis'], 'run_calibrated_records_per_cta')
+        self.assertAlmostEqual(volume['read'], 644 / 10 * 128 * CALIB['read_share'])
+
+    def test_the_class_own_census_still_wins_over_the_refusal_census(self):
+        census = dict(native_read_lane_bytes=4096, native_write_lane_bytes=1024)
+        index = dict(evidence(records=64, ctas=8, grid=8, census=census),
+                     observed=self.measured())
+        volume = model_uncovered.per_cta_volume(CALIB, index, phase='Prefill')
+        self.assertEqual(volume['basis'], 'template_census_whole_grid_divided_by_grid')
+        self.assertEqual((volume['read'], volume['write']), (512, 128))
+
+    def test_every_basis_name_the_module_uses_is_declared(self):
+        measured = (model_uncovered.TEMPLATE_CENSUS_BASIS, model_uncovered.OBSERVED_CENSUS_BASIS)
+        self.assertEqual(model_uncovered.MEASURED_BASES, measured)
+        self.assertNotIn(model_uncovered.CALIBRATED_BASIS, measured)
+
+
+class VolumeSourceAndCalibration(unittest.TestCase):
+    """Which source sizes a volume, and what the run-wide calibration carries."""
+
     def test_a_template_census_is_a_whole_grid_total_and_is_divided_by_its_grid(self):
         census = dict(native_read_lane_bytes=4096, native_write_lane_bytes=1024)
         volume = model_uncovered.per_cta_volume(CALIB, evidence(grid=8, ctas=8),
