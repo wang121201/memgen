@@ -14,9 +14,15 @@ the exact path cannot use:
 * addresses come from the launch's *own* allocation context (the same
   ``module_calls``/``tensor_metadata`` ledger the exact rebind walks), never from
   an invented offset table;
-* the per-CTA byte volume is calibrated from the classes that *were* fitted in
-  the same run (records per sampled CTA, bytes per record, read share), so it is
-  measured evidence rather than a guess;
+* the per-CTA byte volume comes from the strongest measured source the run has for
+  that class, in this order: the class's own whole-grid census when the fitter did
+  admit a template elsewhere in the run
+  (``template_census_whole_grid_divided_by_grid``); otherwise the lane counts and
+  issue width of its *own* refused records in the projection receipt, carried to
+  the class's classified records while they cover most of them
+  (``observed_refusal_width_records_per_cta``, see :func:`observed_lane_census`);
+  otherwise the run median of bytes per recorded instruction
+  (``run_calibrated_records_per_cta``, the one estimate this module makes);
 * the walk is affine over the object: a private per-CTA tile when the object can
   hold the whole grid's tiles, otherwise HBServe's ``shared_template_arena`` where
   every CTA re-reads the same representative lines.
@@ -39,6 +45,20 @@ MODELED_STATUS = 'PASS_MODELED_UNCOVERED_CLASS'
 # reads provenance from ``status`` (exact and layer-rebound rows share this too).
 SCHEMA = dict(name='hbserve.hyfiss_sampled_sass_profile', version=5)
 MAX_ISSUES_PER_CTA = 4096
+
+# Volume bases, strongest first.  Every one of them but the last is a measurement
+# of the class itself: the engine never has to be told which one was used, but the
+# manifest does, because only the last one carries a run-wide assumption.
+TEMPLATE_CENSUS_BASIS = 'template_census_whole_grid_divided_by_grid'
+OBSERVED_CENSUS_BASIS = 'observed_refusal_width_records_per_cta'
+CALIBRATED_BASIS = 'run_calibrated_records_per_cta'
+MEASURED_BASES = (TEMPLATE_CENSUS_BASIS, OBSERVED_CENSUS_BASIS)
+# A refusal census covers only the records the projection refused.  Its bytes per
+# record describe the class only while it covers most of the class's classified
+# records; below this share it describes a residue whose opcode mix differs from
+# the bulk (a kernel refused for ten atomic lanes still has its loads), and
+# extending it would replace one wrong width with another.
+OBSERVED_REFUSAL_COVERAGE_MIN = 0.5
 
 NOT_CLAIMED = [
     'instruction-level issue order inside a modeled class',
@@ -94,6 +114,58 @@ def classified_records(row):
     return min(classified, row.get('selected_records', classified))
 
 
+def observed_lane_census(row):
+    """Measured lane bytes of a class's own refused records, if the run kept them.
+
+    When the projection refuses a record it still buckets it, and the bucket keeps
+    the issue width in bytes per lane plus the lane counts it saw on the sampled
+    CTAs.  For a class the fitter never produced a template for, that is the only
+    place its real access width survives - and it is a measurement, not a median
+    over other classes, so it displaces the run-wide bytes-per-instruction figure
+    exactly where that figure is wrong by the width ratio (a 16 B/lane class is a
+    quarter of a run whose median instruction is 4 B/lane).
+
+    The buckets cover only the records the projection *refused*, so the caller has
+    to weigh them against the class's classified records: see
+    ``OBSERVED_REFUSAL_COVERAGE_MIN``.
+
+    Direction follows the opcode: a load-only class is sized by the lanes whose
+    *source* mask read (the projection tracks that only for read candidates), a
+    store-only class by its active lanes, and an opcode that is both - an atomic -
+    is carried as writes with that attribution named, because it has no direction
+    of its own to attribute.  Returns ``None`` when the run recorded no such
+    bucket for this class.
+    """
+    read_bytes = 0
+    write_bytes = 0
+    records = 0
+    widths = set()
+    directionless = []
+    for item in (row.get('projection_classification') or {}).get('rejection_classes') or []:
+        width = int(item.get('width') or 0)
+        active = int(item.get('active_lanes') or 0)
+        seen = int(item.get('records') or 0)
+        if width <= 0 or active <= 0 or seen <= 0:
+            continue
+        widths.add(width)
+        records += seen
+        if item.get('is_load') and not item.get('is_store'):
+            # source_read_lanes is the guard-masked count and only exists for the
+            # buckets the projection tracked a source mask on; without that mask
+            # the active lanes are the best measured count, not zero.
+            tracked = int(item.get('source_mask_records') or 0) > 0
+            lanes = int(item.get('source_read_lanes') or 0) if tracked else active
+            read_bytes += min(lanes, active) * width
+        else:
+            write_bytes += active * width
+            if item.get('is_load'):
+                directionless.append(str(item.get('opcode')))
+    if not records or not widths:
+        return None
+    return dict(read=float(read_bytes), write=float(write_bytes), records=records,
+                widths=sorted(widths), directionless_opcodes=sorted(set(directionless)))
+
+
 def class_shape(launch):
     """Identity of a kernel class: binary, grid, and block. Phase-independent."""
     return (launch['code_sha256'], tuple(int(x) for x in launch['grid']),
@@ -133,6 +205,7 @@ def class_evidence(consumer, kernels, packed):
             selected_records=stats.get('selected_records'),
             grid_whole=bool(row.get('selected_all_grid_ctas')),
             source_launch_key=stats.get('source_launch_key'),
+            observed=observed_lane_census(stats),
             census=(fitted.get(stats.get('source_launch_key')) or {}).get('census'))
     return index
 
@@ -164,7 +237,7 @@ def calibrate(kernels, packed):
         read_bytes += read
         write_bytes += write
     need(every, 'No fitted class to calibrate a modeled volume from')
-    return dict(basis='run_calibrated_records_per_cta',
+    return dict(basis=CALIBRATED_BASIS,
                 bytes_per_record=median(every),
                 bytes_per_record_by_phase={phase: median(values)
                                            for phase, values in sorted(per_phase.items())},
@@ -197,9 +270,11 @@ def object_spans(views, direction):
 def per_cta_volume(calib, evidence, phase=None, census=None):
     """Read/write bytes one CTA of this class is modeled to move.
 
-    Both bases are per-CTA figures of the same class: the census is a whole-grid
-    total that is divided by the grid it was measured on, and the record count is
-    divided by the CTA count the sampler actually selected.
+    All three bases are per-CTA figures of the same class, strongest evidence
+    first: the census is a whole-grid total that is divided by the grid it was
+    measured on, the projection census is a lane-byte total that is divided by the
+    CTAs it was observed on, and the sample record count is divided by the CTA
+    count the sampler actually selected.
     """
     if census is not None or evidence.get('census'):
         census = census or evidence['census']
@@ -208,7 +283,27 @@ def per_cta_volume(calib, evidence, phase=None, census=None):
         need(grid >= 1, 'Census needs the grid it was measured on')
         return dict(read=census['native_read_lane_bytes'] / grid,
                     write=census['native_write_lane_bytes'] / grid,
-                    basis='template_census_whole_grid_divided_by_grid')
+                    basis=TEMPLATE_CENSUS_BASIS)
+    observed = evidence.get('observed')
+    if observed:
+        ctas = evidence.get('ctas')
+        classified = evidence.get('records') or 0
+        need(ctas, 'Observed refusal census needs the CTA count it covered')
+        need(classified, 'Observed refusal census needs the class record count')
+        coverage = observed['records'] / classified
+        total = observed['read'] + observed['write']
+        if coverage >= OBSERVED_REFUSAL_COVERAGE_MIN and total > 0:
+            # The class's own measured width, carried to the whole class because a
+            # width belongs to the code, not to the records the projection refused.
+            per_cta = classified / ctas * (total / observed['records'])
+            share = observed['read'] / total
+            return dict(read=per_cta * share, write=per_cta * (1 - share),
+                        basis=OBSERVED_CENSUS_BASIS,
+                        per_cta_records=classified / ctas,
+                        bytes_per_record=total / observed['records'],
+                        observed_widths=observed['widths'],
+                        observed_coverage=coverage,
+                        directionless_opcodes=observed['directionless_opcodes'])
     records = evidence.get('records')
     need(records, 'Modeled class needs its observed sampled record count')
     need(evidence.get('ctas'), 'Modeled class needs the CTA count it was observed on')
@@ -332,7 +427,10 @@ def build_profile(kernel, launch, views, calib, cause, evidence, census=None, ar
                                                observed_ctas=evidence.get('ctas'),
                                                observed_grid=evidence.get('grid'),
                                                whole_grid_selected=evidence.get('grid_whole'),
-                                               observed_phase=evidence.get('phase')),
+                                               observed_phase=evidence.get('phase'),
+                                               observed_widths=volume.get('observed_widths'),
+                                               observed_coverage=volume.get('observed_coverage'),
+                                               directionless_opcodes=volume.get('directionless_opcodes')),
                                  calibration=dict(calib)))
     summary = dict(cause=cause, mode='numeric_modeled', basis=volume['basis'],
                    issues_per_cta=len(entries),
@@ -340,6 +438,9 @@ def build_profile(kernel, launch, views, calib, cause, evidence, census=None, ar
                    address_basis=address_basis,
                    per_cta_records=volume.get('per_cta_records'),
                    bytes_per_record=volume.get('bytes_per_record'),
+                   observed_widths=volume.get('observed_widths'),
+                   observed_coverage=volume.get('observed_coverage'),
+                   directionless_opcodes=volume.get('directionless_opcodes'),
                    read_spans=len(read_spans), write_spans=len(write_spans),
                    modeled_read_bytes_per_cta=sum(row.get('modeled_bytes', 0) for row in policies
                                                   if row['direction'] == 'read'),

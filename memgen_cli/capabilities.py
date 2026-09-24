@@ -83,7 +83,12 @@ def current_capabilities() -> dict[str, Any]:
              'produces': 'full-inference profile stream and its manifest',
              'scope': 'a class with no admitted template refuses by default; '
                       '--model-uncovered modeled completes it as an explicit '
-                      'numeric_modeled launch and records the modeled share'},
+                      'numeric_modeled launch and records the modeled share. Each '
+                      'modeled volume names the evidence that sized it '
+                      '(modeled_volume_basis): the class\'s own fitted census, its '
+                      'own refused records\' measured lane width, or the run median '
+                      'bytes per recorded instruction, which is the only estimate '
+                      'and is reported as modeled_estimated_share'},
             {'name': 'replay', 'device': 'cpu', 'command': 'run_memgen.py',
              'budget_seconds': None, 'budget': 'no wall-clock deadline at any layer',
              'produces': 'kernel_summary.csv and cache counters',

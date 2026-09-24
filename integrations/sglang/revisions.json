@@ -91,10 +91,23 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "2f19e3804f28a001e21cd33544ac7fd949b9a1ce3f9bbc063a66d38cad5089e3",
       "historical_bytes": 19155,
-      "current_sha256": "5720c11dc0224b07b0bac3a09433ccb5ec3b119d23f80692b181b8322cddbd8a",
-      "current_bytes": 24606,
-      "reason": "Add --model-uncovered modeled, which completes a class with no admitted template as an explicit numeric_modeled object-volume profile (memgen-adapter/model_uncovered.py) instead of refusing its launches. The default stays refuse: a missing profile is still never a zero-traffic kernel. Modeled rows are counted separately (exact_launches, modeled_launches, modeled_fraction, modeled_by_cause), carry status PASS_MODELED_UNCOVERED_CLASS with model.target_addresses_hardware_observed false so the r4 original-allocation guard can still refuse them without a release re-pin, and the manifest now states fully_exact, exact_cross_layer_identity_claimed false and the HBServe-style not_claimed list.",
-      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"
+      "current_sha256": "94c1673f23e85b4b5721496a0f0f974ca4ff7026b768886f0ca7961c898ccdba",
+      "current_bytes": 25932,
+      "reason": "Add --model-uncovered modeled, which completes a class with no admitted template as an explicit numeric_modeled object-volume profile (memgen-adapter/model_uncovered.py) instead of refusing its launches. The default stays refuse: a missing profile is still never a zero-traffic kernel. Modeled rows are counted separately (exact_launches, modeled_launches, modeled_fraction, modeled_by_cause), carry status PASS_MODELED_UNCOVERED_CLASS with model.target_addresses_hardware_observed false so the r4 original-allocation guard can still refuse them without a release re-pin, and the manifest now states fully_exact, exact_cross_layer_identity_claimed false and the HBServe-style not_claimed list. Later revision: also publish which evidence sized the modeled traffic (modeled_volume_basis with per-basis launch counts and per-CTA bytes, modeled_measured_bytes_per_cta, modeled_estimated_bytes_per_cta, modeled_estimated_share), so the share resting on the single run-wide bytes-per-instruction estimate is a recorded number and not something a reader has to re-derive.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section; evidence/sglang/FULL_MODEL_ESTIMATE_MODELED.md section 3"
+    },
+    {
+      "name": "model_uncovered.py",
+      "paths": [
+        "memgen-adapter/model_uncovered.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "d032808821b28d6603abf8f9687c9aa6702693dd6d8f603e8ce0647fb87643d2",
+      "historical_bytes": 18124,
+      "current_sha256": "c7ff31e0fe887287da0942e06fcdd92603d10025d547ddc49c0d0d620c828733",
+      "current_bytes": 23968,
+      "reason": "Prefer a measured width over the run-wide median when the run kept one. observed_lane_census() reads the refused records' own issue width in bytes per lane and the lane counts the projection censused them with, and per_cta_volume() carries that bytes-per-record figure to the class's classified records while the refusal covers at least OBSERVED_REFUSAL_COVERAGE_MIN of them; the basis is reported as observed_refusal_width_records_per_cta. Below that share the refusal describes a residue whose opcode mix differs from the bulk (a kernel refused for ten atomic lanes still has its loads), so the run median stays. Measured at P128D2 this moves ampere_bf16_s1688gemm_bf16_128x64_sliced1x2_ldg8_f2f_tn from 161792 to 621281 bytes per CTA, 3.84x, and the estimated share of modeled volume from 74.61% to 30.85%; P32D2 is unchanged because no class there clears the coverage floor. No claim about modeled rows changes: modeling.mode stays numeric_modeled, exact_cross_layer_identity_claimed stays false, and not_claimed is untouched.",
+      "record": "evidence/sglang/FULL_MODEL_ESTIMATE_MODELED.md section 3"
     },
     {
       "name": "run_memgen.py",

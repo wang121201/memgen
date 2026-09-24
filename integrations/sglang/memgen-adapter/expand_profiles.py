@@ -381,6 +381,19 @@ def main():
     modeled_rows=[row for row in accepted if row['mode']!='exact']
     causes=Counter(row['modeling']['cause'] for row in modeled_rows)
     policies=Counter(policy for row in modeled_rows for policy in row['modeling']['policies'])
+    # Which evidence sized the modeled traffic, and how much of it rests on the one
+    # run-wide estimate. A reader must be able to see the measured share without
+    # re-deriving it, and a class with a measured width must not look like a class
+    # that only had the run median.
+    basis_names=sorted({row['modeling']['basis'] for row in modeled_rows})
+    volume_by_basis={b:dict(launches=sum(1 for row in modeled_rows if row['modeling']['basis']==b),
+                            per_cta_bytes=int(sum((row['modeling'].get('requested_read_bytes_per_cta') or 0)
+                                                  +(row['modeling'].get('requested_write_bytes_per_cta') or 0)
+                                                  for row in modeled_rows if row['modeling']['basis']==b)))
+                     for b in basis_names}
+    measured_bytes=sum(v['per_cta_bytes'] for b,v in volume_by_basis.items()
+                       if b in model_uncovered.MEASURED_BASES)
+    modeled_bytes=sum(v['per_cta_bytes'] for v in volume_by_basis.values())
     modeled_ctas=sum(int(math.prod(launches[tuple(row['target_key'])]['grid'])) for row in modeled_rows)
     manifest=dict(schema='SGLANG_SAMPLED_LAYER_PACKED_EXPANSION_V1',status='PASS_COMPLETE_MODELED_PROFILE_EXPANSION' if complete else 'PARTIAL_PROFILE_EXPANSION_UNSUPPORTED_RETAINED',
         input_contract=h['input_contract'],sample_finish_sha256=sha(sample/'finish.json'),bindings_sha256=sha(a.layer_bindings),
@@ -388,6 +401,10 @@ def main():
         exact_launches=len(accepted)-len(modeled_rows),modeled_launches=len(modeled_rows),
         modeled_fraction=(len(modeled_rows)/len(accepted) if accepted else 0.0),modeled_ctas=modeled_ctas,
         modeled_by_cause=dict(causes),modeled_policies=dict(policies),
+        modeled_volume_basis=volume_by_basis,
+        modeled_measured_bytes_per_cta=measured_bytes,
+        modeled_estimated_bytes_per_cta=modeled_bytes-measured_bytes,
+        modeled_estimated_share=(0.0 if modeled_bytes==0 else (modeled_bytes-measured_bytes)/modeled_bytes),
         modeled_completion=a.model_uncovered,fully_exact=(complete and not modeled_rows),
         exact_cross_layer_identity_claimed=False,not_claimed=list(model_uncovered.NOT_CLAIMED),
         modeled_calibration=calibration,
