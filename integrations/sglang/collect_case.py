@@ -56,8 +56,11 @@ ENGINE_SOURCE = ROOT / 'release/source/tools/hbserve_profile_stream_cache_semant
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ADAPTER))
+# One home for the projection-policy names: the adapter that applies them.
+sys.path.insert(0, str(SOURCES / 'upstream/template_adapter_r4'))
 import matrix_workload as workload  # noqa: E402
 import tool_identity  # noqa: E402
+from memory_projection import MODEL_POLICIES  # noqa: E402
 
 
 def pin(path: Path) -> dict:
@@ -184,6 +187,10 @@ def collect_spec(case: str, work: Path, args, journal: str, host: str) -> dict:
                       '--python', args.python,
                       '--model-uncovered', args.model_uncovered,
                       '--sample-seconds', str(args.sample_seconds)],
+                # The stage env is allow-listed, so the policy travels in the spec
+                # rather than in the ambient environment, and the written spec is
+                # then the record of which policy this run used.
+                environment={'SG_TEMPLATE_MODEL_POLICY': args.model_policy},
                 sources=source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
                                      'expand_profiles.py', 'model_uncovered.py', 'run_memgen.py', 'profile_cache.py',
                                      'contract.json', 'matrix_workload.py'], compact=True))
@@ -506,6 +513,10 @@ def main() -> int:
     parser.add_argument('--model-uncovered', choices=('refuse', 'modeled'), default='refuse',
                         help='refuse stops when a class has no admitted template (default); '
                              'modeled completes the full model with an explicit numeric_modeled label')
+    parser.add_argument('--model-policy', choices=MODEL_POLICIES, default='strict',
+                        help='which sampled memory records the projection admits; strict '
+                             '(default) refuses predicated global reads, the two ldg_source_predicate '
+                             'policies admit them instead of losing a weight-streaming class to a refusal')
     parser.add_argument('--dry-run', action='store_true', help='write the specs and print the plan')
     args = parser.parse_args()
 
@@ -711,6 +722,9 @@ def main() -> int:
             print('  `--partial` replays the covered part and labels the result partial.')
             print('  `--model-uncovered modeled` completes the model instead, with the '
                   'modeled share recorded in the receipt.')
+            print('  A refusal caused by the projection policy is not a missing sample: '
+                  '`--model-policy validated_ldg_source_predicate` admits the predicated '
+                  'global reads that strict refuses.')
         else:
             partial = run_partial_replay(case, args, follow)
             if partial is None:

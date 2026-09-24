@@ -58,9 +58,21 @@ def main():
     paths+=[a.upstream/'sglang_sample_to_packed.py',a.upstream/'full_source_postprocess.py']
     if (a.upstream/'profile_census.py').is_file():paths.append(a.upstream/'profile_census.py')
     before={str(x.resolve()):sha(x) for x in paths}
+    # The projection policy decides whether a predicated global read is admitted or
+    # refused. Refusing it is what turns a weight-streaming class into an unfitted
+    # class, so which policy ran is part of the result and not an implementation
+    # detail: it is validated against the adapter's own list here and passed as an
+    # explicit argument, so a typo can never fall back to the default silently and
+    # the run's own receipt records the value that was used.
+    sys.path.insert(0,str(a.upstream/'template_adapter_r4'))
+    from memory_projection import MODEL_POLICIES
+    policy=os.environ.get('SG_TEMPLATE_MODEL_POLICY','strict')
+    if policy not in MODEL_POLICIES:
+        raise ValueError('unknown SG_TEMPLATE_MODEL_POLICY %r; choose one of %s'%(policy,MODEL_POLICIES))
     env=dict(os.environ)
     for k in list(env):
         if k=='LD_PRELOAD' or k.startswith(('HYFISS_','SG_NVBIT_','SG_SAMPLE_')):env.pop(k)
+    env.pop('SG_TEMPLATE_MODEL_POLICY',None)
     env.update(OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1',
         PYTHONDONTWRITEBYTECODE='1',PYTHONNOUSERSITE='1',TOKENIZERS_PARALLELISM='false',
         HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',MAX_JOBS='1')
@@ -81,7 +93,7 @@ def main():
         return c
     try:
         post=spawn('profiles',[a.python,'-B',str(a.upstream/'full_source_postprocess.py'),'--output',str(a.output/'profiles'),
-            '--transport-receipt',str(a.output/'consumer.json')],child_env,stdin=projection_read)
+            '--transport-receipt',str(a.output/'consumer.json'),'--model-policy',policy],child_env,stdin=projection_read)
         os.close(projection_read);projection_read=None
         consumer=spawn('consumer',[a.python,'-B',str(a.upstream/'nvbit_sampler_r4/stream_consumer.py'),
             '--read-fd',str(raw_read),'--max-wire-bytes',str(plan['max_wire_bytes']),'--plan',str(a.plan),

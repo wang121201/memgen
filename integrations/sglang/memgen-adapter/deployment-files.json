@@ -33,8 +33,8 @@
     },
     {
       "name": "sample_pipeline.py",
-      "bytes": 8714,
-      "sha256": "49e63794e259df6ed9571b2332703cb591e7581a5418ac4c0067342bb9b2b836"
+      "bytes": 9574,
+      "sha256": "b7e864b06fe6beaa787b34c9d2e693f075168e83354ff2a4c388f6806418b818"
     },
     {
       "name": "expand_profiles.py",

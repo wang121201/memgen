@@ -2,9 +2,11 @@
 from pathlib import Path
 import argparse,hashlib,json,os,stat,sys,time,traceback
 import sglang_sample_to_packed as p
+# The adapter owns the policy list; this driver only chooses from it.
+from memory_projection import MODEL_POLICIES
 
 def main():
- a=argparse.ArgumentParser();a.add_argument('--output',type=Path,required=True);a.add_argument('--transport-receipt',type=Path,required=True);a=a.parse_args()
+ a=argparse.ArgumentParser();a.add_argument('--output',type=Path,required=True);a.add_argument('--transport-receipt',type=Path,required=True);a.add_argument('--model-policy',choices=MODEL_POLICIES,default='strict');a=a.parse_args()
  a.output.mkdir(parents=True);p.frozen_gate();rows=[];offset=0;profile_bytes=0
  pack=a.output/'profiles.pack';index=a.output/'profiles.index.jsonl'
  # Every row retains an actual launch identity. No copy from another layer,
@@ -32,7 +34,7 @@ def main():
  try:
   assert stat.S_ISFIFO(os.fstat(0).st_mode)
   from postprocess_samples import analyze
-  result=analyze(sys.stdin.buffer,a.transport_receipt,max_records=12000000,max_encoded_bytes=512<<20,max_kernel_records=1000000,max_decoded_bytes=24<<30,model_policy='strict',on_decoded_capture=decoded,compile_native_templates=False)
+  result=analyze(sys.stdin.buffer,a.transport_receipt,max_records=12000000,max_encoded_bytes=512<<20,max_kernel_records=1000000,max_decoded_bytes=24<<30,model_policy=a.model_policy,on_decoded_capture=decoded,compile_native_templates=False)
   assert result['replay_closed'] and result['transport_qualified']
   for row in rows:
    if row['status'].startswith('PROVISIONAL_'):row.update(status='PASS_PROFILE_EXACT_SAMPLES',replay_admitted=True)

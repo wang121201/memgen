@@ -77,7 +77,12 @@ def current_capabilities() -> dict[str, Any]:
              'budget_seconds': 900, 'budget': 'hard limit', 'produces': 'sampler.so'},
             {'name': 'sample', 'device': 'gpu', 'command': 'sample_pipeline.py',
              'budget_seconds': 7200, 'budget': 'hard limit, and 60..21600 inside the tool',
-             'produces': 'packed profile stream'},
+             'produces': 'packed profile stream',
+             'scope': '--model-policy chooses which sampled records the projection '
+                      'admits; strict (default) refuses a predicated global read, so a '
+                      'class that streams weights through one is refused instead of '
+                      'fitted. The value is recorded in the sample receipt as '
+                      'model_policy and in the job spec written by `memgen collect`'},
             {'name': 'expand', 'device': 'cpu', 'command': 'expand_profiles.py',
              'budget_seconds': None, 'budget': 'no limit',
              'produces': 'full-inference profile stream and its manifest',

@@ -39,10 +39,23 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d",
       "historical_bytes": 8431,
-      "current_sha256": "49e63794e259df6ed9571b2332703cb591e7581a5418ac4c0067342bb9b2b836",
-      "current_bytes": 8714,
-      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child.",
-      "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
+      "current_sha256": "b7e864b06fe6beaa787b34c9d2e693f075168e83354ff2a4c388f6806418b818",
+      "current_bytes": 9574,
+      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child. Later revision: read SG_TEMPLATE_MODEL_POLICY, validate it against the adapter's own MODEL_POLICIES list, drop it from the child environment and pass it to the fitter as an explicit --model-policy. The stage environment is allow-listed, so the value travels in the job spec written by collect_case.py and the receipt records model_policy; the default stays strict, which is the policy every archived sample was taken with.",
+      "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1; docs/EXPANSION_MECHANISM_AND_REFUSALS.md section 1"
+    },
+    {
+      "name": "full_source_postprocess.py",
+      "paths": [
+        "compact-sources/upstream/full_source_postprocess.py"
+      ],
+      "historical_manifest": "hyfiss/analysis/full-inference-matrix-20260919-r1/sampled-workflow-r1/compact-sources-r1/upstream/full_source_postprocess.py",
+      "historical_sha256": "b514f54d09a9d1db8a949b2bf2555e4cabedf7464189d139a2d199cde1b352d7",
+      "historical_bytes": 4301,
+      "current_sha256": "e1aca115260acd5c6467cce12b990d4af7b21ecee464a93e0d3d67f637485130",
+      "current_bytes": 4495,
+      "reason": "Take the projection policy from --model-policy instead of hard-coding strict, so a run can admit predicated global reads without forking the driver. The value is chosen from the adapter's own MODEL_POLICIES list, and the default keeps strict, so every archived sample stays reproducible. Refusing a predicated global read is what turns a weight-streaming class into an unfitted class, which is why this is a result-bearing parameter and not an implementation detail. The historical value is the imported snapshot file itself: this derivative is not covered by compact-sources/prepare.json, which records only the two cloned directories (observer, nvbit_sampler_r4/template_adapter_r4), and the import was byte-identical until this revision.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md section 1"
     },
     {
       "name": "run_job.py",
