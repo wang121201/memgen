@@ -233,11 +233,11 @@ class CollectionDriver(unittest.TestCase):
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
                                   python=sys.executable, sample_seconds=7200,
                                   model_uncovered='refuse',
-                                  model_policy='validated_ldg_source_predicate')
+                                  model_policy='estimate_ldg_source_predicate')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'policy-work', args,
                                        'process-0001-000000002', 'process-0001')
         self.assertEqual(spec['environment']['SG_TEMPLATE_MODEL_POLICY'],
-                         'validated_ldg_source_predicate')
+                         'estimate_ldg_source_predicate')
 
     def test_the_default_projection_policy_is_the_one_the_evidence_was_taken_with(self):
         import argparse
@@ -487,6 +487,57 @@ class Resume(unittest.TestCase):
         with self.assertRaises(SystemExit) as caught:
             self.driver.census_process_names(dict(observer, start_ticks=1), finish)
         self.assertIn('disagree', str(caught.exception))
+
+    def sample_receipt(self, follow=None, **fields):
+        follow = follow or self.work / 'runs' / f'{self.CASE}-collect' / 'followthrough'
+        (follow / 'sample' / 'profiles').mkdir(parents=True, exist_ok=True)
+        (follow / 'finish.json').write_text(json.dumps(dict(status='STOP_X')))
+        row = {'model_policy': 'strict'}
+        row.update(fields)
+        (follow / 'sample' / 'profiles' / 'receipt.json').write_text(json.dumps(row))
+        return follow
+
+    def test_the_policy_of_a_reused_job_is_read_back(self):
+        follow = self.sample_receipt(model_policy='estimate_ldg_source_predicate')
+        self.assertEqual(self.driver.reused_policy(follow),
+                         'estimate_ldg_source_predicate')
+
+    def test_a_sample_taken_before_the_flag_reads_as_strict(self):
+        follow = self.sample_receipt()
+        (follow / 'sample' / 'profiles' / 'receipt.json').write_text(
+            json.dumps(dict(classes=3)))
+        self.assertEqual(self.driver.reused_policy(follow), 'strict')
+
+    def test_a_failed_job_two_is_retried_rather_than_reused(self):
+        follow = self.sample_receipt(model_policy='strict')
+        (follow / 'finish.json').write_text(json.dumps(
+            dict(status='FAIL_DEPENDENCY', hardware_accuracy_accepted=False)))
+        self.assertIsNone(self.driver.decided_job_two(follow))
+
+    def test_a_decided_job_two_is_reused(self):
+        follow = self.sample_receipt(model_policy='strict')
+        self.assertEqual(self.driver.decided_job_two(follow)['status'], 'STOP_X')
+
+    def test_a_failure_is_not_reused_even_under_the_policy_it_ran_with(self):
+        follow = self.sample_receipt(model_policy='strict')
+        (follow / 'finish.json').write_text(json.dumps(dict(status='FAIL_PROCESS')))
+        done = self.driver_run('--resume', '--model-policy', 'strict')
+        self.assertIn('previous job 2 output kept as', done.stdout)
+        self.assertNotIn("reused from --work (--resume): FAIL", done.stdout)
+
+    def test_resuming_onto_another_policy_refuses_instead_of_reusing(self):
+        self.sample_receipt(model_policy='strict')
+        done = self.driver_run('--resume', '--model-policy',
+                               'estimate_ldg_source_predicate')
+        self.assertNotEqual(done.returncode, 0, done.stdout)
+        self.assertIn('was sampled with --model-policy strict', done.stderr)
+        self.assertIn('Move', done.stderr)
+
+    def test_resuming_onto_the_policy_it_was_sampled_with_reuses_it(self):
+        self.sample_receipt(model_policy='estimate_ldg_source_predicate')
+        done = self.driver_run('--resume', '--model-policy',
+                               'estimate_ldg_source_predicate')
+        self.assertIn('[--model-policy estimate_ldg_source_predicate]', done.stdout)
 
     def test_collect_spec_points_at_both_real_directories(self):
         import argparse

@@ -237,6 +237,42 @@ def reused_census(work: Path, case: str, cpu: int, gpu: str) -> tuple[Path, dict
     return observer_finish, observer
 
 
+def decided_job_two(follow: Path) -> dict | None:
+    """The outcome an earlier job 2 decided here, or None if it never decided.
+
+    A job that failed did not decide anything, so its directory is retried
+    rather than reused: the stages hold leases that a failure can leave behind,
+    and a status of FAIL names no coverage to report.
+    """
+    finish = follow / 'finish.json'
+    if not finish.is_file():
+        return None
+    try:
+        closed = json.loads(finish.read_text())
+    except ValueError:
+        return None
+    if not isinstance(closed, dict) or str(closed.get('status', '')).startswith('FAIL'):
+        return None
+    return closed
+
+
+def reused_policy(follow: Path) -> str:
+    """The projection policy the sample under `follow` was taken with.
+
+    The fitter hard-coded strict before `--model-policy` existed, so a receipt
+    that does not name a policy records one taken with strict. That is a reading
+    of the archive, not a default chosen here.
+    """
+    for receipt in sorted((follow / 'sample').rglob('receipt.json')):
+        try:
+            row = json.loads(receipt.read_text())
+        except (OSError, ValueError):
+            continue
+        if isinstance(row, dict) and 'model_policy' in row:
+            return row['model_policy']
+    return 'strict'
+
+
 def stash_job_output(work: Path, case: str) -> Path | None:
     """Move a previous job 2 directory aside instead of deleting its evidence."""
     stale = work / 'runs' / f'{case}-collect'
@@ -670,9 +706,18 @@ def main() -> int:
     print()
     print('== job 2: sample, expand and cache replay ==')
     follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
-    if args.resume and (follow / 'finish.json').is_file():
-        closed = json.loads((follow / 'finish.json').read_text())
-        print(f"  reused from --work (--resume): {closed['status']}")
+    closed = decided_job_two(follow) if args.resume else None
+    if closed is not None:
+        sampled = reused_policy(follow)
+        if sampled != args.model_policy:
+            raise SystemExit(
+                f'reused job 2 was sampled with --model-policy {sampled}, not '
+                f'{args.model_policy}: the policy decides which sampled records the '
+                'projection admits, and therefore what the reused expansion covers. '
+                f'Move {follow} aside to sample again, or ask for the policy it was '
+                'sampled with')
+        print(f"  reused from --work (--resume): {closed['status']}"
+              f'  [--model-policy {sampled}]')
         print(f"  expansion {follow / 'expanded' / 'manifest.json'}")
     else:
         if args.resume:
@@ -723,8 +768,13 @@ def main() -> int:
             print('  `--model-uncovered modeled` completes the model instead, with the '
                   'modeled share recorded in the receipt.')
             print('  A refusal caused by the projection policy is not a missing sample: '
-                  '`--model-policy validated_ldg_source_predicate` admits the predicated '
-                  'global reads that strict refuses.')
+                  '`--model-policy estimate_ldg_source_predicate` admits the predicated '
+                  'global reads that strict refuses, which is how a weight-streaming '
+                  'GEMM gets fitted instead of modeled. The `validated_` spelling of '
+                  'that policy additionally re-checks every admitted record against an '
+                  'independently audited source scope, and needs '
+                  '`source-qualification.json` from that audit beside the upstream '
+                  'sources; this tree does not carry it, so only `estimate_` runs here.')
         else:
             partial = run_partial_replay(case, args, follow)
             if partial is None:
