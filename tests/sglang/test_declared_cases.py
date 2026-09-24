@@ -552,6 +552,36 @@ class PartialDiagnostic(unittest.TestCase):
         self.assertIsNone(receipt['partial_diagnostic'])
         self.assertIs(receipt['hardware_accuracy_accepted'], False)
         self.assertIsNone(receipt['artifacts']['kernel_summary'])
+        self.assertEqual(receipt['expansion_coverage']['packed_launches'], 1360)
+        self.assertEqual(receipt['expansion_coverage']['unsupported_launches'], 700)
+
+    def test_a_manifest_without_modeled_fields_is_recorded_without_them(self):
+        self.resume()
+        receipt = json.loads((self.work / 'collect-receipt.json').read_text())
+        self.assertIsNone(receipt['expansion_coverage']['modeled_fraction'])
+        self.assertIsNone(receipt['expansion_coverage']['modeled_launches'])
+        self.assertIn('packed of', self.resume().stdout)
+
+    def test_a_modeled_expansion_is_recorded_with_its_share(self):
+        (self.follow / 'expanded' / 'manifest.json').write_text(json.dumps(
+            dict(complete_full_model=True, target_launches=2060, packed_launches=2060,
+                 unsupported_launches=0, exact_launches=1360, modeled_launches=700,
+                 modeled_fraction=0.33980582524271846,
+                 modeled_by_cause={'missing_template_profile': 350,
+                                   'ambiguous_address_binding': 350},
+                 modeled_completion='modeled', fully_exact=False,
+                 exact_cross_layer_identity_claimed=False)))
+        (self.follow / 'finish.json').write_text(json.dumps(
+            dict(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC', stages=[],
+                 unsupported_launches=0)))
+        result = self.resume()
+        receipt = json.loads((self.work / 'collect-receipt.json').read_text())
+        coverage = receipt['expansion_coverage']
+        self.assertEqual(coverage['exact_launches'], 1360)
+        self.assertEqual(coverage['modeled_launches'], 700)
+        self.assertEqual(coverage['modeled_by_cause']['ambiguous_address_binding'], 350)
+        self.assertIs(coverage['fully_exact'], False)
+        self.assertIn('1360 exact + 700 modeled of 2060 (34.0% modeled)', result.stdout)
 
     def test_the_declared_matrix_point_has_no_replay_to_reuse(self):
         self.assertFalse((self.follow / 'cache' / 'model' / 'kernel_summary.csv').exists())

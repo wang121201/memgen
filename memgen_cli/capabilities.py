@@ -80,7 +80,10 @@ def current_capabilities() -> dict[str, Any]:
              'produces': 'packed profile stream'},
             {'name': 'expand', 'device': 'cpu', 'command': 'expand_profiles.py',
              'budget_seconds': None, 'budget': 'no limit',
-             'produces': 'full-inference profile stream and its manifest'},
+             'produces': 'full-inference profile stream and its manifest',
+             'scope': 'a class with no admitted template refuses by default; '
+                      '--model-uncovered modeled completes it as an explicit '
+                      'numeric_modeled launch and records the modeled share'},
             {'name': 'replay', 'device': 'cpu', 'command': 'run_memgen.py',
              'budget_seconds': None, 'budget': 'no wall-clock deadline at any layer',
              'produces': 'kernel_summary.csv and cache counters',
