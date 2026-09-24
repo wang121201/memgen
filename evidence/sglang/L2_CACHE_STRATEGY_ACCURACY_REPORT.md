@@ -74,13 +74,13 @@ D16 的三组参数没有使用 D16 计数重新选择，最终回执也记录 `
 
 | 请求点 | 同一 1.5B/SGLang/BF16 条件下的独立证据 | 可给出的结论 |
 |---|---:|---|
-| P32D2 basic | **缺失** | 不能用旧 Llama-3.2-1B 或 llama.cpp/Q8 数据代替 |
+| P32D2 basic | **部分** | 现已有同栈的完整模型估算(1360 精确 + 700 建模,建模占流量 2.2%,见 [全模型估算](FULL_MODEL_ESTIMATE_MODELED.md)),但**仍无 NCU oracle**,不能作精度验收 |
 | P128D2 | **完整** | 独立 profile、HBServe、Memgen、三次 NCU；可正式报告 |
 | P128D4 | **缺失** | 只有 P128D16 前 4 步的组合诊断，不能验收 |
 | P128D8 | **缺失** | 只有 P128D16 前 8 步的组合诊断，不能验收 |
 | P128D16 | **完整** | 独立 profile、HBServe、三策略 Memgen、三次 NCU；可正式报告 |
 
-因此，严格意义上的 requested matrix 是 **2/5 independently complete**。旧 `m1Bp32d2` 对象是 Llama-3.2-1B BF16，并且当时没有可用 NCU hardware oracle；它既不是 Qwen2.5-1.5B，也不能作为本报告的 P32D2 basic。
+因此，严格意义上的 requested matrix 是 **2/5 independently complete**。旧 `m1Bp32d2` 对象是 Llama-3.2-1B BF16，并且当时没有可用 NCU hardware oracle；它既不是 Qwen2.5-1.5B，也不能作为本报告的 P32D2 basic。P32D2 的完整模型估算填补的是"同栈、同框架的完整模型数字"这一格,不填补 NCU 那一格:第 1 节的精度结论与本节验收口径都不因它改变。
 
 ## 4. 独立完整 workload 的 NCU 对比
 
@@ -299,7 +299,7 @@ P128D16 最终状态为 `COMPLETE_FULL_P128D16_COMPARISON_NOT_ACCEPTANCE`，运�
 | Memgen DRAM write 是否准确且随 Decode 稳定 | **否**；D2 whole 接近但 Decode 已失败，D16 whole 14.55%、Decode 648.63% |
 | phase11 是否比普通 LRU 更好 | **否**；读相近，写略差或等价 |
 | q16 是否可作为替代 | **否**；write 少约 90% |
-| 当前是否完成 P32D2、P128D2/D4/D8/D16 严格矩阵 | **否，2/5 独立完成**；D4/D8 仅有前缀诊断，P32D2 无同栈数据 |
+| 当前是否完成 P32D2、P128D2/D4/D8/D16 严格矩阵 | **否，2/5 独立完成**；D4/D8 仅有前缀诊断，P32D2 有同栈完整模型估算（建模占流量 2.2%）但无 NCU 参考，故不计入独立完成 |
 | 当前是否可以证明任意规模误差上限 | **否**；现有是经验校准与迁移反例，不是可证明的普适上界 |
 
 最准确的一句话是：**HBServe + Memgen 已经是一个在两个 P128 点上聚合读流量很准、但 Decode 写回服务不可靠且尚未证明跨 context 泛化的离线 traffic 模型。**

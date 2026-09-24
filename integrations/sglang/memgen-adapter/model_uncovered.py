@@ -29,12 +29,11 @@ manifest keeps the ``NOT_CLAIMED`` list.
 import math
 
 LANES = 32
-LANE_BYTES = 16
-ENTRY_BYTES = LANES * LANE_BYTES
 WIDTHS = (16, 8, 4, 2, 1)
-MASK = '0xffffffff'
-READ_OPCODE = 'LDG.E.128'
-WRITE_OPCODE = 'STG.E.128'
+# Widest possible issue. Only the issue budget is expressed in these bytes; each
+# span then sizes its own issue by access_geometry(), so a span narrower than
+# this does not over-read.
+ISSUE_BYTES_ENVELOPE = LANES * WIDTHS[0]
 MODELED_STATUS = 'PASS_MODELED_UNCOVERED_CLASS'
 # Format identity, not provenance: the engine validates schema.name/version and
 # reads provenance from ``status`` (exact and layer-rebound rows share this too).
@@ -301,7 +300,7 @@ def build_profile(kernel, launch, views, calib, cause, evidence, census=None, ar
                                      ('write', write_spans, volume['write'])):
         if not spans or wanted <= 0:
             continue
-        issues = int(math.ceil(wanted / ENTRY_BYTES))
+        issues = int(math.ceil(wanted / ISSUE_BYTES_ENVELOPE))
         if issues > MAX_ISSUES_PER_CTA:
             issues = MAX_ISSUES_PER_CTA
             capped = True
