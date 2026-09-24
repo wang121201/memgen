@@ -204,7 +204,7 @@ class CollectionDriver(unittest.TestCase):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
                                   python=sys.executable, sample_seconds=7200,
-                                  model_uncovered='refuse')
+                                  model_uncovered='refuse', model_policy='strict')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'work', args,
                                        'process-0001-000000002', 'process-0001')
         self.assertEqual(spec['seconds'], 0)
@@ -217,7 +217,7 @@ class CollectionDriver(unittest.TestCase):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
                                   python=sys.executable, sample_seconds=7200,
-                                  model_uncovered='modeled')
+                                  model_uncovered='modeled', model_policy='strict')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'modelled-work', args,
                                        'process-0001-000000002', 'process-0001')
         given = dict(zip(spec['argv'], spec['argv'][1:]))
@@ -225,6 +225,36 @@ class CollectionDriver(unittest.TestCase):
         pinned = {Path(row['path']).name for row in spec['sources']}
         self.assertIn('model_uncovered.py', pinned)
         self.assertIn('expand_profiles.py', pinned)
+
+    def test_the_projection_policy_travels_in_the_job_spec_environment(self):
+        # The stage env is allow-listed, so an ambient variable cannot reach the
+        # sampler: the policy has to be in the spec, and the spec is the record.
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
+                                  python=sys.executable, sample_seconds=7200,
+                                  model_uncovered='refuse',
+                                  model_policy='validated_ldg_source_predicate')
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'policy-work', args,
+                                       'process-0001-000000002', 'process-0001')
+        self.assertEqual(spec['environment']['SG_TEMPLATE_MODEL_POLICY'],
+                         'validated_ldg_source_predicate')
+
+    def test_the_default_projection_policy_is_the_one_the_evidence_was_taken_with(self):
+        import argparse
+        args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
+                                  python=sys.executable, sample_seconds=7200,
+                                  model_uncovered='refuse', model_policy='strict')
+        spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.tmp / 'default-policy', args,
+                                       'process-0001-000000002', 'process-0001')
+        self.assertEqual(spec['environment']['SG_TEMPLATE_MODEL_POLICY'], 'strict')
+        self.assertIn('sample_pipeline.py', {Path(r['path']).name for r in spec['sources']})
+
+    def test_the_policy_choices_are_the_adapters_own_list(self):
+        adapter = SGLANG / 'compact-sources/upstream/template_adapter_r4'
+        sys.path.insert(0, str(adapter))
+        from memory_projection import MODEL_POLICIES
+        self.assertEqual(self.driver.MODEL_POLICIES, MODEL_POLICIES)
+        self.assertIn('strict', MODEL_POLICIES)
 
     def test_census_job_stays_bounded(self):
         import argparse
@@ -278,7 +308,7 @@ class ObserverOutputRoot(unittest.TestCase):
         import argparse
         args = argparse.Namespace(cpu=8, gpu='GPU-admitted-placeholder', job_seconds=0,
                                   python=sys.executable, sample_seconds=7200,
-                                  model_uncovered='refuse')
+                                  model_uncovered='refuse', model_policy='strict')
         spec = self.driver.collect_spec('qwen25_1p5b-p32-d2', self.work, args,
                                        'process-938490-918072691', 'process-938490')
         journal = Path(spec['argv'][spec['argv'].index('--journal') + 1])
@@ -463,7 +493,8 @@ class Resume(unittest.TestCase):
         finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
         journal, host = self.driver.census_process_names(observer, finish)
         args = argparse.Namespace(cpu=8, gpu=self.GPU, job_seconds=0, python=sys.executable,
-                                  sample_seconds=7200, model_uncovered='refuse')
+                                  sample_seconds=7200, model_uncovered='refuse',
+                                  model_policy='strict')
         spec = self.driver.collect_spec(self.CASE, self.work, args, journal, host)
         given = dict(zip(spec['argv'], spec['argv'][1:]))
         self.assertTrue(Path(given['--journal']).is_dir())
