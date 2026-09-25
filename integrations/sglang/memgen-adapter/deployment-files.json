@@ -48,8 +48,8 @@
     },
     {
       "name": "run_memgen.py",
-      "bytes": 10760,
-      "sha256": "077d7b5cd3df92c5263540eb99a0e523b4c10cea94c8a62741fb5c21569c55f3"
+      "bytes": 12011,
+      "sha256": "a5b66189500e0398e1aed234458a31d0ae009085fdcb56bd4f0158fdbee07dba"
     },
     {
       "name": "followthrough.py",
@@ -58,13 +58,13 @@
     },
     {
       "name": "profile_cache.py",
-      "bytes": 2841,
-      "sha256": "68b34591211ef3c440f5f71cab5f391bb92efaf130e01308eb203bd7e57fec89"
+      "bytes": 3459,
+      "sha256": "6f8691cca84b55f7ec36afbb2d3013c78189b5bec74e9adc3fee6df51b074200"
     },
     {
       "name": "wait_then_sample.py",
-      "bytes": 6808,
-      "sha256": "0dae5af22a49e1d345e1bc0b6d0ffd4e43a4d0e40d2e3070ac2d250681d3c27e"
+      "bytes": 7180,
+      "sha256": "c4e0c00bffb8447d76db8e2479fc52eeb638cfcca32980f7f5498c979850e944"
     },
     {
       "name": "prepare_compact_sources.py",

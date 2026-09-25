@@ -32,6 +32,10 @@ def main():
  p.add_argument('--controller',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
  p.add_argument('--cache-directory',type=Path,required=True)
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
+ p.add_argument('--engine',type=Path,
+  help='frozen engine the cache stage replays through; forwarded to profile_cache.py, which '
+       'builds it from release/source/tools/ when that stage runs. Without it the cache stage '
+       'is refused instead of quietly using a binary this repository did not build.')
  p.add_argument('--wait-seconds',type=int,default=2400)
  p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600)
  a=p.parse_args()
@@ -87,7 +91,9 @@ def main():
    if x.is_file() and x.name in ('profiles.pack','profiles.index.jsonl','module_calls.json','tensor_metadata.json','launch-journal.jsonl','finish.json')]
   job_run('cache',[a.python,'-B',str(HERE/'profile_cache.py'),'--sample',str(flow/'sample'),
    '--bindings',str(flow/'plan/layer-bindings.json'),'--output',str(a.output/'profile-cache'),
-   '--seconds',str(a.memgen_seconds)],None,a.memgen_seconds+2000,extra)
+   '--seconds',str(a.memgen_seconds)]
+   + (['--engine',str(a.engine)] if a.engine else []),
+   None,a.memgen_seconds+2000,extra)
   result['status']='PASS_DECLARED_PROFILE_CACHE_MODEL_NOT_NATIVE_ACCURACY'
  except BaseException as e:result.update(status='STOP_DEPENDENCY_FAILED',error=type(e).__name__+': '+str(e))
  result['wall_minutes']=(time.monotonic()-start)/60;save(a.output/'finish.json',result);print(json.dumps(result))

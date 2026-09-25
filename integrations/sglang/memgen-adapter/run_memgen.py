@@ -5,6 +5,11 @@ Legacy --expanded input retains its cross-layer synthetic-address boundary.
 Direct --profile-index input accepts caller-supplied app/issue files and, for
 r4, the original allocation/shared-memory context. It does not construct or
 certify that context. No wall-clock deadline is imposed by this replay entry.
+
+The engine is named with --binary and is not defaulted: this repository ships no
+prebuilt binary, so a default would silently replay through whatever binary
+happened to sit on the host. collect_case.py and profile_cache.py build it from
+release/source/tools/ and pass it, and scripts/run_cpu_smoke.sh shows the command.
 """
 import argparse
 import ctypes
@@ -18,8 +23,11 @@ import subprocess
 import time
 
 ROOT=Path(__file__).resolve().parents[3]
-# Retained only for old callers which do not supply --binary.
-F=Path('/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1')
+# The engine must be built from this repository's own source and named with
+# --binary. A machine-local binary used to be the default here, which made the
+# same command mean different things on different hosts and made a replay
+# unreproducible from this tree.
+ENGINE_SOURCE=ROOT/'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp'
 
 def child_guard(parent):
     # The Linux replay is one process with worker threads. An unexpected
@@ -59,12 +67,21 @@ def main():
     p.add_argument('--issue-config',type=Path)
     p.add_argument('--r4-context',type=Path)
     p.add_argument('--semantic-file',type=Path)
-    p.add_argument('--binary',type=Path,default=F/'bin/hbserve')
+    p.add_argument('--binary',type=Path,
+                   help='frozen engine to replay through. Required: build it from '
+                        'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp, as '
+                        'scripts/run_cpu_smoke.sh shows or followthrough.py build_engine does.'
+                        'collect_case.py and profile_cache.py build it and pass it here.')
     p.add_argument('--hw-config',type=Path,default=ROOT/'release/config/RTX4000Ada.paper-v1.config')
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--seconds',type=int,help='deprecated compatibility argument; ignored (no wall-clock deadline)')
     p.add_argument('--allow-partial-diagnostic',action='store_true')
     a=p.parse_args()
+    if a.binary is None:
+        p.error('--binary is required. This repository ships no prebuilt engine, and a '
+                'machine-local one would make this replay unreproducible from the tree that '
+                'produced it; build '+str(ENGINE_SOURCE.relative_to(ROOT))+
+                ' and name it here, or run the case through collect_case.py, which builds it')
     if a.seconds is not None:print('Note: --seconds is ignored; replay has no wall-clock deadline.',flush=True)
     manifest=None
     if a.expanded:

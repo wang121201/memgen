@@ -50,7 +50,8 @@ archived receipts. They are defaults inside archived scripts, not preferences.
 | CUDA toolkit | `/usr/local/cuda-12.8` (`nvcc`, `ncu`) | `compact-sources/observer/build.py`, `compact-sources/upstream/nvbit_sampler_r4/build.py` |
 | NVBit | `/home/xmu/nvidiagds/simulators/hyfiss/tracing-tool/nvbit` (`libnvbit.a`, `nvbit.h`, `nvbit_tool.h`) | both NVBit `build.py` scripts `--nvbit` |
 | GPU | RTX 4000 Ada Generation, 4 visible; 3 in `run_job.py` `GPU_POOL` | `run_memgen.py`, `run_job.py`, `wait_then_sample.py` |
-| Frozen engine root | `/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1` | `run_memgen.py` `--binary` default, `wait_then_sample.py` `FROZEN` |
+| Frozen engine root | `/home/xmu/nvidiagds/codex-runs/memgen-paper-ada-v1-20260916-01a08d87-r1` | `wait_then_sample.py` `FROZEN` only. `run_memgen.py` no longer defaults to its binary |
+| Cache engine | built from `release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp` | `collect_case.py` and `profile_cache.py` build it, then name it to `run_memgen.py` as `--binary` |
 | Qwen checkpoint | `~/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B-Instruct/snapshots/989aa798...` | `memgen-adapter/contract.json` |
 | Llama checkpoint | `~/.cache/modelscope/hub/models/LLM-Research/Meta-Llama-3-8B-Instruct` | `memgen-adapter/contract.json` |
 

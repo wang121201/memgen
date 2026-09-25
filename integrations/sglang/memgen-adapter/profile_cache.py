@@ -2,7 +2,7 @@
 """CPU-only profile expansion then original MemGen, under run_job.py."""
 import argparse, json, os, subprocess, sys, time
 from pathlib import Path
-from followthrough import guard
+from followthrough import build_engine, guard
 HERE=Path(__file__).resolve().parent
 
 def main():
@@ -13,6 +13,10 @@ def main():
  p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
   help='modeled gives a class with no admitted template an explicit numeric_modeled profile '
        'instead of refusing its launches, which is what lets the cache stage see a full model')
+ p.add_argument('--engine',type=Path,
+  help='frozen engine the cache stage replays through. Built from release/source/tools/ when '
+       'the stage runs, so the replay names a binary this repository produced; run_memgen.py '
+       'refuses without one, because a machine-local binary is not this repository`s source.')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  if os.environ.get('CUDA_VISIBLE_DEVICES'):raise ValueError('CPU-only cache stage requires no GPU')
  result=dict(status='RUNNING',stages=[],hardware_accuracy_accepted=False);start=time.monotonic()
@@ -27,6 +31,11 @@ def main():
     m=json.loads((a.output/'expanded/manifest.json').read_text())
     if not m['complete_declared_profile_stream']:
      result.update(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC',unsupported_launches=m['unsupported_launches']);break
+    if a.engine:
+     argv+=['--binary',str(build_engine(a.engine).resolve())]
+    else:
+     print('  no --engine given: run_memgen.py requires a binary built from this repository, '
+           'so the cache stage will refuse rather than use a machine-local one',file=sys.stderr)
    parent=os.getpid();t=time.monotonic()
    with (a.output/(name+'.stdout')).open('xb') as out,(a.output/(name+'.stderr')).open('xb') as err:
     c=subprocess.Popen(argv,stdin=subprocess.DEVNULL,stdout=out,stderr=err,preexec_fn=lambda:guard(parent))

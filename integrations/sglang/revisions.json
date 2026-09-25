@@ -91,7 +91,7 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "0db83c0c98f83b904d76ad23a6e13c7f76646ad74f78dc384a55f0b9eb136a8c",
       "historical_bytes": 2478,
-      "current_sha256": "68b34591211ef3c440f5f71cab5f391bb92efaf130e01308eb203bd7e57fec89",
+      "current_sha256": "6f8691cca84b55f7ec36afbb2d3013c78189b5bec74e9adc3fee6df51b074200",
       "current_bytes": 2841,
       "reason": "Same no-deadline fix for the cache stage, which killed the child at seconds + 60. --seconds is accepted and ignored. Later revision: accept --model-uncovered and forward it to expand_profiles.py. This entry's whole purpose is to expand a packed profile and replay it, and the flag decides whether a launch whose class has no admitted template is refused or given an explicit numeric_modeled profile; without it this path could only ever stop at the unsupported-profile gate and never hand the cache stage a full model.",
       "record": "docs/ENVIRONMENT.md section 6"
@@ -130,7 +130,7 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "e7b893b99de321f063cb42f95498c0a9fa71daa3e880f1cef3d576506ef3cf4c",
       "historical_bytes": 10630,
-      "current_sha256": "077d7b5cd3df92c5263540eb99a0e523b4c10cea94c8a62741fb5c21569c55f3",
+      "current_sha256": "a5b66189500e0398e1aed234458a31d0ae009085fdcb56bd4f0158fdbee07dba",
       "current_bytes": 10760,
       "reason": "Carry the expansion coverage fields (modeled_completion, exact_launches, modeled_launches, modeled_fraction, modeled_by_cause, fully_exact) from the expanded manifest into the replay receipt, so a result that used modeled completion cannot be read as a fully exact stream.",
       "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"

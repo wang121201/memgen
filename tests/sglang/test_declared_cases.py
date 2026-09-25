@@ -865,6 +865,43 @@ class ReplayIdentityIsCarried(unittest.TestCase):
         self.assertIn('does not permit a ', text)
 
 
+class TheReplayNamesItsOwnEngine(unittest.TestCase):
+    """A replay must not quietly use a binary this repository did not build.
+
+    Before this, run_memgen.py defaulted --binary to a machine-local build, so the
+    same command replayed through different engines on different hosts and the
+    frozen engine was not the one the archive names.
+    """
+
+    def test_run_memgen_refuses_without_a_binary(self):
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        result = subprocess.run(
+            [sys.executable, '-B', str(ADAPTER / 'run_memgen.py'),
+             '--expanded', str(tmp / 'expanded'), '--output', str(tmp / 'out')],
+            capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('--binary is required', result.stderr)
+        self.assertIn('hbserve_profile_stream_cache_semantic_r17.cpp', result.stderr)
+
+    def test_run_memgen_has_no_machine_local_default(self):
+        text = (ADAPTER / 'run_memgen.py').read_text()
+        self.assertNotIn('codex-runs/memgen-paper-ada-v1', text)
+        start = text.index("p.add_argument('--binary'")
+        declaration = text[start:text.index(')\n', start)]
+        self.assertNotIn('default=', declaration,
+                         'a default here is a binary the repository did not build')
+
+    def test_profile_cache_builds_and_names_the_engine(self):
+        text = (ADAPTER / 'profile_cache.py').read_text()
+        self.assertIn('from followthrough import build_engine, guard', text)
+        self.assertIn("argv+=['--binary',str(build_engine(a.engine).resolve())]", text)
+
+    def test_wait_then_sample_forwards_the_engine(self):
+        text = (ADAPTER / 'wait_then_sample.py').read_text()
+        self.assertIn("+ (['--engine',str(a.engine)] if a.engine else [])", text)
+
+
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):
     """The wrappers must not kill a replay that run_memgen.py says is unbounded."""
 
