@@ -168,20 +168,28 @@ class Binder:
         self.unknown_cursor=max(0x600000000000,((max(observed_ends,default=0)+(1<<40)+4095)//4096)*4096)
         self.unknown_allocations=[]
 
-    def contexts(self,call_id):
-        rows=[];call=self.calls.get(call_id)
+    def contexts_with_hop(self,call_id):
+        """Context views of a call, tagged with the call hop that reached them.
+
+        Hop 0 is the launch's own call, which is where its operands live; higher
+        hops are ancestor modules that inherited and reused the same buffers.
+        """
+        rows=[];call=self.calls.get(call_id);hop=0
         while call is not None:
             for field in ('inputs','outputs'):
-                for v in call.get(field,[]):rows.append(((neutral(call['module']),field,v['label']),v))
-            call=self.calls.get(call.get('parent_call_id'))
+                for v in call.get(field,[]):rows.append((hop,(neutral(call['module']),field,v['label']),v))
+            call=self.calls.get(call.get('parent_call_id'));hop+=1
         return rows
+
+    def contexts(self,call_id):
+        return [(k,v) for _,k,v in self.contexts_with_hop(call_id)]
 
     def mapping(self,source,target):
         pairs=[]
-        def add(s,t,kind,label):
+        def add(s,t,kind,label,hop=0):
             if layout(s)==layout(t):
                 lo,hi=view_span(s);tl,th=view_span(t)
-                if hi>lo and th-tl==hi-lo:pairs.append(dict(begin=lo,end=hi,delta=tl-lo,kind=kind,label=label))
+                if hi>lo and th-tl==hi-lo:pairs.append(dict(begin=lo,end=hi,delta=tl-lo,kind=kind,label=label,hop=hop))
         layer=source['layer_id'];target_layer=target['layer_id']
         for name,s in self.parameters.items():
             match=re.search(r'\.layers\.(\d+)(?=\.|$)',name)
@@ -193,9 +201,9 @@ class Binder:
                 target_name=name.rsplit('.',1)[0]+'.'+str(target_layer)
                 if target_name in self.kv:add(s,self.kv[target_name],'KV',target_name)
         dst=defaultdict(list)
-        for k,v in self.contexts(target['call_id']):dst[k].append(v)
-        for k,s in self.contexts(source['call_id']):
-            for t in dst[k]:add(s,t,'activation',repr(k))
+        for hop,k,v in self.contexts_with_hop(target['call_id']):dst[k].append((hop,v))
+        for shop,k,s in self.contexts_with_hop(source['call_id']):
+            for thop,t in dst[k]:add(s,t,'activation',repr(k),max(shop,thop))
         return pairs
 
     def rebind(self,profile,source,target):
@@ -203,18 +211,35 @@ class Binder:
         normalized=normalize_backend_rules(value)
         if source['epoch_id']==target['epoch_id'] and source['epoch_launch_ordinal']==target['epoch_launch_ordinal']:
             return value,dict(status='SOURCE_OWN_PROFILE',rules={},normalized_legacy_flat_cta_rules=normalized)
-        pairs=self.mapping(source,target);pending=[]
+        pairs=self.mapping(source,target);pending=[];resolutions=Counter()
         for ei,(entry,domain) in enumerate(entries_with_domains(value)):
             for gi,(rule,group) in enumerate(zip(entry['address_rules'],entry['groups'])):
                 lo,hi=rule_bounds(rule,value['kernel']['grid_dims'],domain);ll,lh=lane_bounds(entry,group);lo+=ll;hi+=lh
                 candidates=[m for m in pairs if m['begin']<=lo and hi<=m['end']]
-                deltas={m['delta'] for m in candidates}
-                if len(deltas)==1:
+                if candidates:
+                    deltas={m['delta'] for m in candidates}
+                    if len(deltas)>1:
+                        # An ancestor module context inherits the buffers its children
+                        # use, so one source address can appear both as an operand of
+                        # the launch and as an inherited input of a parent module. The
+                        # inherited view's counterpart in the target layer can sit
+                        # elsewhere, which makes the union of containing views
+                        # ambiguous even though the kernel's own operand is not.
+                        # Attribute at the kernel: among the containing views reached
+                        # in the fewest call hops the translation must be unique, and
+                        # only then is it used. If it is not unique the rule is still
+                        # refused, so nothing is guessed.
+                        finest=min(m['hop'] for m in candidates)
+                        innermost=[m for m in candidates if m['hop']==finest]
+                        inner={m['delta'] for m in innermost}
+                        if len(inner)>1:
+                            raise ValueError('Ambiguous observed tensor binding: conflicting target deltas')
+                        candidates=innermost;deltas=inner
+                        resolutions['deepest_callsite_unique']+=1
+                        resolutions['deepest_callsite_hop_%d'%finest]+=1
                     delta=deltas.pop();translate(rule,delta)
                     kind=next((m['kind'] for m in candidates if m['kind'] in ('weights','KV')), 'activation')
                     counts[kind]+=1
-                elif candidates:
-                    raise ValueError('Ambiguous observed tensor binding: conflicting target deltas')
                 else:pending.append((lo,hi,rule,ei,gi,'unobserved_private_object'))
         # Merge overlapping source address intervals before allocating. All
         # rules for an inferred private interval receive the same relocation.
@@ -239,7 +264,15 @@ class Binder:
         value['model'].update(layer_rebinding='same-process tensor view base translation',
             unknown_private_policy='disjoint target-kernel allocation preserving page offset',
             target_addresses_hardware_observed=False,hardware_accuracy_accepted=False)
-        return value,dict(status='PASS_MODELED_LAYER_PROFILE_BINDING',rules=dict(counts),private_allocations=details,normalized_legacy_flat_cta_rules=normalized)
+        if resolutions:
+            # Record which rule placed these addresses, so a reader can see that a
+            # translated address came from the kernel's own operand view and not
+            # from an inherited ancestor buffer.
+            value['model']['ambiguous_binding_resolution']=dict(
+                rule='innermost_callsite_view_must_be_unique',rules=dict(resolutions),
+                scope='layer-to-layer rebinding only; translated addresses are not hardware-observed')
+        return value,dict(status='PASS_MODELED_LAYER_PROFILE_BINDING',rules=dict(counts),private_allocations=details,
+            ambiguous_binding_resolution=dict(resolutions),normalized_legacy_flat_cta_rules=normalized)
 
 
 MODEL_CAUSE = (('Source profile', 'missing_template_profile'),
