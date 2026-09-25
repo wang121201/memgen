@@ -12,9 +12,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "e92a016c407c63168cf7b63b3f5cade4e955977d18c0cb2cc02808fe33e2796a",
       "historical_bytes": 4250,
-      "current_sha256": "74a4eff550d987a8a2cbc694572472b4838c7e5b872ea349aa10f707f0088acd",
-      "current_bytes": 5270,
-      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block, keeping the scale series prefills and decodes arrays unchanged so the 24 scale cases keep their identity, and add a display name per model so a receipt or a case id does not have to be read as a version string. Declare evidence_points: prefill 128 with decode 2 and 16 for qwen25_1p5b, the two points that have independent three-repeat NCU references. This reverses the earlier exclusion, which named P128D2 as an example of a pair that must be refused: the accepted evidence and the declared matrix could not both be right, and the evidence is what a run must reproduce. scale_series and basic_admission keep their axes, so the 26 existing cases keep their identity.",
+      "current_sha256": "380d297ed8aeed711c01662f5d20d07c0d628d366f13b74db29ea1c4e63ae350",
+      "current_bytes": 6526,
+      "reason": "Declare the P32D2 basic admission point in a separate basic_admission block, keeping the scale series prefills and decodes arrays unchanged so the 24 scale cases keep their identity, and add a display name per model so a receipt or a case id does not have to be read as a version string. Declare evidence_points: prefill 128 with decode 2 and 16 for qwen25_1p5b, the two points that have independent three-repeat NCU references. This reverses the earlier exclusion, which named P128D2 as an example of a pair that must be refused: the accepted evidence and the declared matrix could not both be right, and the evidence is what a run must reproduce. scale_series and basic_admission keep their axes, so the 26 existing cases keep their identity. Later revision: declare local_acceptance_matrix, the eight unique conditions of the local RTX 4000 Ada full-model traffic calibration. It is not a Cartesian product, so it states an explicit list of [prefill, decode] points and matrix_workload.py reads a block with points as exactly those pairs instead of as axes. Five of its points (P64D2, P256D2, P512D2, P128D4, P128D8) were undeclared before and were refused by the driver, so the acceptance set a local run was measured on could not be reproduced from this snapshot; the union of declared cases grows from 28 to 33 triples while the scale series, the basic admission point and the evidence points keep their identity and their counts. Declaring the points admits nothing and changes no gate.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
     },
     {
@@ -26,9 +26,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "34dba961f3445e86c1d6c36aadb0a2fa757eb1db3811ccc22d62627c774b3ad6",
       "historical_bytes": 3730,
-      "current_sha256": "bbc735ba402d39ba641d3e9e233dfd71a6b205464194caef1a2f5d0846e983d9",
-      "current_bytes": 5114,
-      "reason": "Derive the case axes and the accepted (model, prefill, decode) triples from contract.json instead of a hard-coded tuple, so a declared point can actually be selected, and reject undeclared pairs such as P32D128 or P128D2. The accepted case now records its declared_matrix name. Derive the evidence_points block the same way as basic_admission, so declaring a point is what makes it selectable and an undeclared model in the block is refused.",
+      "current_sha256": "26ec672f7a6b4e8b66cbe0443ebe0339dae25e48fea302c22d08288d6223d5ef",
+      "current_bytes": 5739,
+      "reason": "Derive the case axes and the accepted (model, prefill, decode) triples from contract.json instead of a hard-coded tuple, so a declared point can actually be selected, and reject undeclared pairs such as P32D128 or P128D2. The accepted case now records its declared_matrix name. Derive the evidence_points block the same way as basic_admission, so declaring a point is what makes it selectable and an undeclared model in the block is refused. Later revision: read a declared block that carries points as exactly the [prefill, decode] pairs it lists, and keep the prefill/decode axes reading as the Cartesian product for the blocks that state axes. This is what lets local_acceptance_matrix declare a set that is not a product without inventing cases it does not hold, and it refuses a block that mixes points with axes instead of silently preferring one.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1"
     },
     {

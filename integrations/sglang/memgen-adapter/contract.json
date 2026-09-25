@@ -3,6 +3,7 @@
   "scale_series_cases": 24,
   "basic_admission_cases": 2,
   "evidence_points_cases": 2,
+  "local_acceptance_cases": 8,
   "models": {
     "qwen25_1p5b": {
       "display": "Qwen2.5-1.5B-Instruct BF16",
@@ -64,6 +65,46 @@
       "qwen25_1p5b"
     ],
     "note": "The two points with independent three-repeat NCU references in evidence/sglang/L2_CACHE_STRATEGY_ACCURACY_REPORT.md: P128D2 and P128D16. Declaring a point makes it selectable and reproducible; it does not admit it, and neither point may be quoted until a run of this chain reproduces its reference."
+  },
+  "local_acceptance_matrix": {
+    "models": [
+      "qwen25_1p5b"
+    ],
+    "points": [
+      [
+        32,
+        2
+      ],
+      [
+        64,
+        2
+      ],
+      [
+        128,
+        2
+      ],
+      [
+        256,
+        2
+      ],
+      [
+        512,
+        2
+      ],
+      [
+        128,
+        4
+      ],
+      [
+        128,
+        8
+      ],
+      [
+        128,
+        16
+      ]
+    ],
+    "note": "The eight unique conditions of the local RTX 4000 Ada full-model traffic calibration, declared here so the acceptance set that local run was measured on can be selected and reproduced from this snapshot. The set is not a Cartesian product: it is PnD2 for n in 32, 64, 128, 256, 512 plus P128Dm for m in 2, 4, 8, 16, with P128D2 counted once. Decode steps 4 and 8 appear in no other block, and prefill 64 and 512 appear at decode 2 in no other block, so without this declaration those five points were undeclared and refused by the driver. Declaring a point makes it selectable and reproducible; it admits nothing, hardware_accuracy_accepted stays false, and every point still needs its own census, sample, packed profile and same-stack NCU reference before any number from it may be quoted."
   },
   "batch_size": 1,
   "dtype": "bfloat16",

@@ -62,7 +62,7 @@ require multi-GPU execution; they are not implied by a single-card result.
 ### 3.1 Declared cases versus target matrices
 
 The admission point and the scale series above are the *target* matrices. The
-adapter declares three matrices of its own in
+adapter declares four matrices of its own in
 `integrations/sglang/memgen-adapter/contract.json`:
 
 | Declared matrix | Prefills | Decodes | Models | Cases |
@@ -70,6 +70,17 @@ adapter declares three matrices of its own in
 | scale series (`prefills` / `decodes`) | 128, 256, 512, 1024 | 32, 64, 128 | 2 | 24 |
 | basic admission (`basic_admission`) | 32 | 2 | 2 | 2 |
 | evidence points (`evidence_points`) | 128 | 2, 16 | 1 | 2 |
+| local acceptance (`local_acceptance_matrix`) | 32, 64, 128, 256, 512 | 2, 4, 8, 16 | 1 | 8 |
+
+The first three blocks state prefill and decode axes, which are read as their
+Cartesian product. The fourth states an explicit list of `[prefill, decode]`
+points, because it is not a product: it is `PnD2` for `n` in `32, 64, 128, 256,
+512` plus `P128Dm` for `m` in `2, 4, 8, 16`, with `P128D2` counted once. It is
+the eight unique conditions of the local RTX 4000 Ada full-model traffic
+calibration, carried here so the acceptance set those runs were measured on can
+be selected and reproduced from this snapshot. Five of its points - `P64D2`,
+`P256D2`, `P512D2`, `P128D4` and `P128D8` - are in no other block, so before it
+existed they were undeclared and the driver refused them.
 
 The scale series keeps the identity it had before the basic admission point was
 declared, so the 24-case results are unaffected. The basic admission point is
@@ -87,14 +98,20 @@ Consequences:
   snapshot: `memgen-adapter/matrix_workload.py` derives the permitted axes and
   accepted `(model, prefill, decode)` triples from `contract.json` instead of a
   hard-coded tuple, and `sample_pipeline.py` reuses that derivation. Pairs that
-  no declared matrix contains, such as `P32D128` or `P128D2`, are rejected.
+  no declared matrix contains, such as `P32D128` or `P512D8`, are rejected.
 - **Producing a point is not an admission decision and not an accuracy result.**
   Each point still needs its own independent sample, packed profile and
   three-run NCU reference. The P32D2 rows remain `BLOCKED` in
   `validation/p32d2_branch_status.csv` until that evidence exists, and
   `P128D2` evidence may not be renamed.
-- decode steps `4, 8` and `16` remain undeclared. Only `D32` comes from the
-  scale series, and `D2` only from the admission point.
+- Six of the eight local acceptance conditions are shared with a block declared
+  earlier and keep that block's identity: `P32D2` is `basic_admission`, and
+  `P128D2` and `P128D16` are `evidence_points`. Only `P64D2`, `P256D2`,
+  `P512D2`, `P128D4` and `P128D8` carry `local_acceptance_matrix`.
+- Decode steps `4` and `8` are declared only by `local_acceptance_matrix`, and
+  `D16` by both it and `evidence_points`. Every other decode value a block lists
+  remains part of that block, so no result may be relabelled from one block to
+  another.
 - The three files that carry the declaration and the two vendored copies are
   hash-pinned by `integrations/sglang/memgen-adapter/deployment-files.json` and
   by `integrations/sglang/package.json`. Any further change to them must update

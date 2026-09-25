@@ -31,6 +31,7 @@ def current_capabilities() -> dict[str, Any]:
     contract = _contract()
     admission = contract.get('basic_admission') or {}
     evidence = contract.get('evidence_points') or {}
+    local = contract.get('local_acceptance_matrix') or {}
     declared = {
         'scale_series': {
             'prefills': sorted(contract['prefills']),
@@ -52,6 +53,13 @@ def current_capabilities() -> dict[str, Any]:
             'cases': (len(evidence.get('prefills', [])) * len(evidence.get('decodes', []))
                       * len(evidence.get('models', []))),
             'note': evidence.get('note', ''),
+        },
+        'local_acceptance_matrix': {
+            'prefills': sorted({int(point[0]) for point in local.get('points', [])}),
+            'decodes': sorted({int(point[1]) for point in local.get('points', [])}),
+            'models': sorted(local.get('models', [])),
+            'cases': len(local.get('points', [])) * len(local.get('models', [])),
+            'note': local.get('note', ''),
         },
     }
     return {

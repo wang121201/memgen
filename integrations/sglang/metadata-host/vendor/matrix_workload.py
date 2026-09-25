@@ -13,22 +13,34 @@ def spec():
     return value
 
 
+BLOCKS = ('basic_admission', 'evidence_points', 'local_acceptance_matrix')
+
+
 def declared_cases(s):
     """Declared (model, prefill, decode) triples, grouped by matrix name.
 
-    The scale series applies to every pinned model. The basic admission point and
-    the evidence points are declared separately with their own explicit model
-    lists, so producing either can never be read as extending the scale series.
+    The scale series applies to every pinned model. Every other block is declared
+    separately with its own explicit model list, so producing one can never be
+    read as extending the scale series. A block states either its own prefill and
+    decode axes, read as their Cartesian product, or an explicit list of
+    [prefill, decode] points, which is how a matrix that is not a product - the
+    local acceptance set - is declared without inventing cases it does not hold.
     """
     scale = {(m, p, d) for m in s['models'] for p in s['prefills'] for d in s['decodes']}
     blocks = {}
-    for name in ('basic_admission', 'evidence_points'):
+    for name in BLOCKS:
         block = s.get(name) or {}
         unknown = [m for m in block.get('models', []) if m not in s['models']]
         if unknown:
             raise RuntimeError(f'{name} names an unknown model: ' + repr(unknown))
-        blocks[name] = {(m, p, d) for m in block.get('models', [])
-                        for p in block.get('prefills', []) for d in block.get('decodes', [])}
+        if block.get('points'):
+            if 'prefills' in block or 'decodes' in block:
+                raise RuntimeError(f'{name} mixes explicit points with prefill/decode axes')
+            blocks[name] = {(m, int(p), int(d)) for m in block.get('models', [])
+                            for p, d in block['points']}
+        else:
+            blocks[name] = {(m, p, d) for m in block.get('models', [])
+                            for p in block.get('prefills', []) for d in block.get('decodes', [])}
     return {'scale_series': scale, **blocks}
 
 

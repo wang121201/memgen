@@ -211,6 +211,7 @@ def matrices() -> list[dict]:
     contract, declared = declared_cases()
     models = sorted(contract['models'])
     basic = contract.get('basic_admission') or {}
+    local = contract.get('local_acceptance_matrix') or {}
     # The documented matrices are prose, so verify the sentences that carry them
     # instead of trusting a copied constant. Drift here means the doc moved.
     doc = ROOT / 'docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md'
@@ -234,8 +235,15 @@ def matrices() -> list[dict]:
              source='docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3',
              prefills=contract['prefills'], decodes=[2, 4, 8, 16, 32], models=len(models), cases=0,
              note=('partially producible: D=32 comes from the scale series and D=2 only from the '
-                   'admission point; D=4, D=8 and D=16 remain undeclared')
+                   'admission point; D=4, D=8 and D=16 are declared by the local_acceptance_matrix block')
                   + ('' if scale_trace in text else ' [DOC TRACE NOT FOUND]')),
+        dict(matrix='implemented local acceptance matrix',
+             source=f'{CONTRACT.name} local_acceptance_matrix',
+             prefills=sorted({int(point[0]) for point in local.get('points', [])}),
+             decodes=sorted({int(point[1]) for point in local.get('points', [])}),
+             models=len(local.get('models', [])), cases=len(declared['local_acceptance_matrix']),
+             note='the eight unique conditions the local full-model traffic calibration was measured '
+                  'on, carried here so they can be selected and reproduced; declaring them admits nothing'),
     ]
     return rows
 

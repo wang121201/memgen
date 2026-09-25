@@ -64,6 +64,35 @@ class DeclaredCases(unittest.TestCase):
                          self.spec['evidence_points_cases'])
         self.assertEqual(self.declared['evidence_points'],
                          {('qwen25_1p5b', 128, 2), ('qwen25_1p5b', 128, 16)})
+        self.assertEqual(len(self.declared['local_acceptance_matrix']),
+                         self.spec['local_acceptance_cases'])
+        self.assertEqual(self.declared['local_acceptance_matrix'],
+                         {('qwen25_1p5b', p, d) for p, d in
+                          [(32, 2), (64, 2), (128, 2), (256, 2), (512, 2),
+                           (128, 4), (128, 8), (128, 16)]})
+
+    def test_local_acceptance_points_are_selectable(self):
+        # The five points that no other block declares. Before the local acceptance
+        # matrix existed they were refused by the driver, so the set of conditions a
+        # local run was measured on could not be reproduced from this snapshot.
+        for prefill, decode in [(64, 2), (256, 2), (512, 2), (128, 4), (128, 8)]:
+            case = workload.contract('qwen25_1p5b', prefill, decode)
+            self.assertEqual(case['declared_matrix'], 'local_acceptance_matrix',
+                             repr((prefill, decode)))
+            self.assertEqual(case['case_id'], f'qwen25_1p5b-p{prefill}-d{decode}')
+        # A shared point keeps the identity of the block that declared it first.
+        self.assertEqual(workload.contract('qwen25_1p5b', 32, 2)['declared_matrix'],
+                         'basic_admission')
+        self.assertEqual(workload.contract('qwen25_1p5b', 128, 2)['declared_matrix'],
+                         'evidence_points')
+
+    def test_local_acceptance_matrix_is_not_a_cartesian_product(self):
+        # D=2 exists at five prefills and D=4/8 exist only at prefill 128, so a
+        # product of the two axes would invent cases the calibration never ran.
+        declared = self.declared['local_acceptance_matrix']
+        self.assertNotIn(('qwen25_1p5b', 256, 4), declared)
+        self.assertNotIn(('qwen25_1p5b', 512, 8), declared)
+        self.assertNotIn(('qwen25_1p5b', 64, 16), declared)
 
     def test_matrices_do_not_overlap(self):
         self.assertEqual(self.declared['scale_series'] & self.declared['basic_admission'], set())
@@ -82,12 +111,16 @@ class DeclaredCases(unittest.TestCase):
         self.assertEqual(case['declared_matrix'], 'scale_series')
 
     def test_undeclared_pairs_are_refused(self):
-        # P128D2 and P128D16 are declared as evidence points, so they are no
-        # longer examples of a refused pair.
+        # P128D2 and P128D16 are declared as evidence points, and the local
+        # acceptance matrix declares P32D2, P64D2, P256D2, P512D2, P128D4 and
+        # P128D8, so none of them is an example of a refused pair any more. The
+        # examples below stay outside every block: a decode the scale series does
+        # not carry, a prefill/decode pair no block holds, and a decode past the
+        # longest declared one.
         for case in [('qwen25_1p5b', 32, 128), ('qwen25_1p5b', 32, 64),
-                     ('qwen25_1p5b', 64, 2), ('qwen25_1p5b', 256, 2),
-                     ('qwen25_1p5b', 128, 4), ('llama3_8b', 32, 16),
-                     ('llama3_8b', 128, 2), ('qwen25_1p5b', 1024, 128 + 1)]:
+                     ('qwen25_1p5b', 64, 4), ('qwen25_1p5b', 256, 8),
+                     ('qwen25_1p5b', 64, 8), ('llama3_8b', 32, 16),
+                     ('llama3_8b', 64, 2), ('qwen25_1p5b', 1024, 128 + 1)]:
             with self.assertRaises(ValueError, msg=repr(case)):
                 workload.contract(*case)
 
@@ -170,13 +203,18 @@ class CollectionDriver(unittest.TestCase):
                                  '--list-cases'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         table = result.stdout.split('\n\n')[0].strip().splitlines()[1:]
-        self.assertEqual(len(table), 28)
+        # 24 scale-series points, 2 basic admission points, 2 evidence points and
+        # 8 local acceptance points over 33 distinct (model, prefill, decode)
+        # triples: (qwen,32,2), (qwen,128,2) and (qwen,128,16) are shared.
+        self.assertEqual(len(table), 33)
         cases = [line.split()[0] for line in table]
         self.assertEqual(cases[0], 'llama3_8b-p32-d2')
         self.assertEqual(cases[-1], 'qwen25_1p5b-p1024-d128')
         matrices = {token for line in table for token in line.split()
-                    if token in ('scale_series', 'basic_admission')}
-        self.assertEqual(matrices, {'scale_series', 'basic_admission'})
+                    if token in ('scale_series', 'basic_admission', 'evidence_points',
+                                 'local_acceptance_matrix')}
+        self.assertEqual(matrices, {'scale_series', 'basic_admission', 'evidence_points',
+                                    'local_acceptance_matrix'})
         # The model key is terse, so the readable name must be visible too.
         self.assertIn('Qwen2.5-1.5B-Instruct', result.stdout)
         self.assertIn('Meta-Llama-3-8B-Instruct', result.stdout)

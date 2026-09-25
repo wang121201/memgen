@@ -18,13 +18,13 @@
     },
     {
       "name": "matrix_workload.py",
-      "bytes": 5114,
-      "sha256": "bbc735ba402d39ba641d3e9e233dfd71a6b205464194caef1a2f5d0846e983d9"
+      "bytes": 5739,
+      "sha256": "26ec672f7a6b4e8b66cbe0443ebe0339dae25e48fea302c22d08288d6223d5ef"
     },
     {
       "name": "contract.json",
-      "bytes": 5270,
-      "sha256": "74a4eff550d987a8a2cbc694572472b4838c7e5b872ea349aa10f707f0088acd"
+      "bytes": 6526,
+      "sha256": "380d297ed8aeed711c01662f5d20d07c0d628d366f13b74db29ea1c4e63ae350"
     },
     {
       "name": "make_sample_plan.py",

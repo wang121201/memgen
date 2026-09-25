@@ -113,7 +113,7 @@ class ReadOnlyVerbs(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = result.stdout.splitlines()
         start = next(index for index, line in enumerate(lines) if line.startswith('case id'))
-        table = lines[start + 1:start + 1 + 28]
+        table = lines[start + 1:start + 1 + 33]
         self.assertTrue(all('Qwen2.5-1.5B' in line or 'Meta-Llama-3-8B' in line for line in table))
         note = [line for line in lines[start + 1 + len(table):] if line]
         self.assertTrue(note and note[0].startswith('The model key'))
