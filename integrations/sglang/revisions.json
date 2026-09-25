@@ -78,10 +78,10 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91",
       "historical_bytes": 4336,
-      "current_sha256": "c665f8f4f2f0af4c7e399573c6398208f343feab9997657987317cccc6cff119",
-      "current_bytes": 4903,
-      "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run.",
-      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section"
+      "current_sha256": "36926d4c863cde1bd9d6a236757d20aebd9efd9c4e1375a73f8789a3601c23c3",
+      "current_bytes": 5531,
+      "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run. Later revision: accept --engine and pass it to run_memgen.py as --binary. The cache stage used to be started with neither flag, so run_memgen.py fell back to its own machine-local default binary and the replay did not use the engine built from this repository`s source; collect_case.py builds that engine and now names it in job 2`s spec, exactly as its partial path already did. Without --engine the fallback is still available for old callers, but it now says so on stderr instead of being silent.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section The same revision moves the frozen-engine build into followthrough.py as build_engine(target): the cache stage builds the binary from release/source/tools/ when it actually replays and names it with --binary, and collect_case.py imports that one function for its partial path instead of repeating the command. Before it, the replay named no binary at all and run_memgen.py fell back to a machine-local build this repository cannot hash."
     },
     {
       "name": "profile_cache.py",
@@ -91,9 +91,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "0db83c0c98f83b904d76ad23a6e13c7f76646ad74f78dc384a55f0b9eb136a8c",
       "historical_bytes": 2478,
-      "current_sha256": "2999cf51e7531307918ea78e684b0a40f7b8f54ef7f8965587163997abed7135",
-      "current_bytes": 2525,
-      "reason": "Same no-deadline fix for the cache stage, which killed the child at seconds + 60. --seconds is accepted and ignored.",
+      "current_sha256": "68b34591211ef3c440f5f71cab5f391bb92efaf130e01308eb203bd7e57fec89",
+      "current_bytes": 2841,
+      "reason": "Same no-deadline fix for the cache stage, which killed the child at seconds + 60. --seconds is accepted and ignored. Later revision: accept --model-uncovered and forward it to expand_profiles.py. This entry's whole purpose is to expand a packed profile and replay it, and the flag decides whether a launch whose class has no admitted template is refused or given an explicit numeric_modeled profile; without it this path could only ever stop at the unsupported-profile gate and never hand the cache stage a full model.",
       "record": "docs/ENVIRONMENT.md section 6"
     },
     {

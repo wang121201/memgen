@@ -12,6 +12,29 @@ HERE=Path(__file__).resolve().parent
 def save(p,v):p.write_text(json.dumps(v,indent=2)+'\n')
 def guard(parent):
  if os.getppid()!=parent or ctypes.CDLL(None).prctl(1,signal.SIGKILL,0,0,0)!=0 or os.getppid()!=parent:os._exit(125)
+
+ENGINE_SOURCE=HERE.parents[2]/'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp'
+
+def build_engine(target):
+ """Compile the frozen CPU engine from the archived source, per RUNBOOK 2.
+
+ The cache stage must replay through a binary this repository can rebuild and
+ hash, not through a machine-local build. It is built here, next to the stage that
+ replays through it, so a run that never reaches the replay does not pay for the
+ compile; collect_case.py's partial path imports this function rather than
+ repeating the command, so the two cannot compile the source differently.
+ """
+ target=Path(target)
+ if target.is_file():return target
+ target.parent.mkdir(parents=True,exist_ok=True)
+ argv=['mpic++','-std=c++17','-O2','-ffunction-sections','-fdata-sections','-Wl,--gc-sections',
+  str(ENGINE_SOURCE),'-l:libzstd.so.1','-lz','-lboost_mpi','-lboost_serialization','-lcrypto',
+  '-pthread','-o',str(target)]
+ print('  building the frozen engine from release/source/tools/ (no GPU)')
+ build=subprocess.run(argv,capture_output=True,text=True)
+ if build.returncode or not target.is_file():
+  raise RuntimeError('engine build failed:\n'+build.stdout+build.stderr)
+ return target
 def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--journal',type=Path,required=True);p.add_argument('--host-finish',type=Path,required=True)
@@ -23,6 +46,11 @@ def main():
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
  p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600,
   help='accepted for compatibility; the replay has no wall-clock deadline')
+ p.add_argument('--engine',type=Path,
+  help='frozen CPU engine the cache stage replays through. collect_case.py builds it from '
+       'release/source/tools/ and passes it here, so the replay names a binary this run '
+       'produced and can hash. Without it run_memgen.py falls back to its own machine-local '
+       'default, which is not this repository`s source.')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  host=json.loads(a.host_finish.read_text());contract=host['input_contract'];stages=[];start=time.monotonic()
  result=dict(status='RUNNING',raw_trace_files=False,hardware_accuracy_accepted=False,stages=stages)
@@ -66,8 +94,15 @@ def main():
    if not manifest['complete_full_model']:
     result.update(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC',unsupported_launches=manifest['unsupported_launches'])
    else:
-    run('memgen',[a.python,'-B',str(HERE/'run_memgen.py'),'--expanded',str(a.output/'expanded'),
-     '--output',str(a.output/'cache')],None)
+    argv=[a.python,'-B',str(HERE/'run_memgen.py'),'--expanded',str(a.output/'expanded'),
+     '--output',str(a.output/'cache')]
+    if a.engine:
+     build_engine(a.engine)
+     argv+=['--binary',str(a.engine.resolve())]
+    else:
+     print('  no --engine given: run_memgen.py falls back to its machine-local default '
+           'binary, which is not built from this repository',file=sys.stderr)
+    run('memgen',argv,None)
   if result['status']=='RUNNING':result['status']='PASS_THROUGH_'+stages[-1]['stage'].upper()
  except BaseException as e:result.update(status='FAIL_DEPENDENCY',error=type(e).__name__+': '+str(e))
  result.update(wall_minutes=(time.monotonic()-start)/60,input_contract=contract)

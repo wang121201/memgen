@@ -51,8 +51,6 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 ADAPTER = HERE / 'memgen-adapter'
 SOURCES = HERE / 'compact-sources'
-# The frozen engine `run_memgen.py` replays through; RUNBOOK 2 builds it the same way.
-ENGINE_SOURCE = ROOT / 'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp'
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ADAPTER))
@@ -171,29 +169,41 @@ def census_process_names(observer: dict, observer_finish: Path) -> tuple[str, st
     return journal, f"process-{observer['pid']}"
 
 
-def collect_spec(case: str, work: Path, args, journal: str, host: str) -> dict:
-    """Job 2's spec, given the two census process names it has to read."""
+def collect_spec(case: str, work: Path, args, journal: str, host: str,
+                 engine: Path | None = None) -> dict:
+    """Job 2's spec, given the two census process names it has to read.
+
+    `engine` is the frozen CPU binary the cache stage replays through. It is named
+    here rather than left to `run_memgen.py`'s own default so the replay uses the
+    engine built from this repository's source, and so the spec records its hash.
+    """
     follow = work / 'runs' / f'{case}-collect' / 'followthrough'
+    argv = [args.python, '-B', str(ADAPTER / 'followthrough.py'),
+            '--journal', str(observer_root(work, case) / journal),
+            '--host-finish', str(work / 'runs' / f'{case}-census' / 'host' / host
+                                 / 'finish.json'),
+            '--sources', str(SOURCES),
+            '--output', str(follow),
+            '--stop-after', 'memgen',
+            '--python', args.python,
+            '--model-uncovered', args.model_uncovered,
+            '--sample-seconds', str(args.sample_seconds)]
+    sources = source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
+                           'expand_profiles.py', 'model_uncovered.py', 'run_memgen.py', 'profile_cache.py',
+                           'contract.json', 'matrix_workload.py'], compact=True)
+    if engine is not None:
+        argv += ['--engine', str(engine)]
+        if engine.is_file():
+            sources.append(pin(engine))
     return dict(case_id=case, tool='memgen', input_kind='sample_and_cache',
                 cpu=args.cpu, gpu=args.gpu, seconds=args.job_seconds,
                 cache_directory=str(work / 'cache'),
-                argv=[args.python, '-B', str(ADAPTER / 'followthrough.py'),
-                      '--journal', str(observer_root(work, case) / journal),
-                      '--host-finish', str(work / 'runs' / f'{case}-census' / 'host' / host
-                                           / 'finish.json'),
-                      '--sources', str(SOURCES),
-                      '--output', str(follow),
-                      '--stop-after', 'memgen',
-                      '--python', args.python,
-                      '--model-uncovered', args.model_uncovered,
-                      '--sample-seconds', str(args.sample_seconds)],
+                argv=argv,
                 # The stage env is allow-listed, so the policy travels in the spec
                 # rather than in the ambient environment, and the written spec is
                 # then the record of which policy this run used.
                 environment={'SG_TEMPLATE_MODEL_POLICY': args.model_policy},
-                sources=source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
-                                     'expand_profiles.py', 'model_uncovered.py', 'run_memgen.py', 'profile_cache.py',
-                                     'contract.json', 'matrix_workload.py'], compact=True))
+                sources=sources)
 
 
 def only(root: Path, pattern: str) -> Path:
@@ -271,6 +281,25 @@ def reused_policy(follow: Path) -> str:
         if isinstance(row, dict) and 'model_policy' in row:
             return row['model_policy']
     return 'strict'
+
+
+def reused_model_uncovered(follow: Path) -> str:
+    """The `--model-uncovered` the expansion under `follow` was completed with.
+
+    The expansion records the setting it ran under as `modeled_completion` in its
+    own manifest, so the value is read back from the artifact rather than from a
+    copy of the command line. `--model-uncovered` is not a property of the sample:
+    the same packed profile is expanded either to refuse a class with no admitted
+    template or to give it an explicit numeric_modeled profile, which changes what
+    the expansion covers. A tree with no readable expansion reports the default,
+    and the caller only asks after `decided_job_two` named a decided job.
+    """
+    manifest = follow / 'expanded' / 'manifest.json'
+    try:
+        row = json.loads(manifest.read_text())
+    except (OSError, ValueError):
+        return 'refuse'
+    return str(row.get('modeled_completion', 'refuse'))
 
 
 def stash_job_output(work: Path, case: str) -> Path | None:
@@ -443,22 +472,14 @@ def kernel_counters(path: Path) -> dict:
 def build_engine(work: Path) -> Path:
     """Build the frozen CPU engine from the archived source, per RUNBOOK 2.
 
-    It is built into `--work` so the partial replay names a binary that this run
-    produced and can hash, instead of depending on a machine-local build.
+    It is built into `--work` so a replay names a binary that this run produced
+    and can hash, instead of depending on a machine-local build. The command
+    itself lives in followthrough.py, which is also the stage that replays
+    through the binary, so the two paths cannot compile the source differently.
     """
-    out = work / 'engine' / 'hbserve'
-    if out.is_file():
-        return out
-    out.parent.mkdir(parents=True, exist_ok=True)
-    import subprocess
-    argv = ['mpic++', '-std=c++17', '-O2', '-ffunction-sections', '-fdata-sections',
-            '-Wl,--gc-sections', str(ENGINE_SOURCE), '-l:libzstd.so.1', '-lz',
-            '-lboost_mpi', '-lboost_serialization', '-lcrypto', '-pthread', '-o', str(out)]
-    print('  building the frozen engine from release/source/tools/ (no GPU)')
-    build = subprocess.run(argv, capture_output=True, text=True)
-    if build.returncode or not out.is_file():
-        raise SystemExit('engine build failed:\n' + build.stdout + build.stderr)
-    return out
+    sys.path.insert(0, str(ADAPTER))
+    import followthrough
+    return followthrough.build_engine(work / 'engine' / 'hbserve')
 
 
 def run_partial_replay(case: str, args, follow: Path) -> dict:
@@ -545,7 +566,10 @@ def main() -> int:
                         help='when the expansion does not cover the full model, replay what it '
                              'does cover and label the counters partial')
     parser.add_argument('--engine', type=Path,
-                        help='frozen CPU engine for --partial; built into --work by default')
+                        help='frozen CPU engine for --partial; built into --work by default. The '
+                             'cache stage of the normal path always builds and passes its own, '
+                             'because run_memgen.py would otherwise use a machine-local binary '
+                             'that this repository cannot hash')
     parser.add_argument('--model-uncovered', choices=('refuse', 'modeled'), default='refuse',
                         help='refuse stops when a class has no admitted template (default); '
                              'modeled completes the full model with an explicit numeric_modeled label')
@@ -707,6 +731,7 @@ def main() -> int:
     print('== job 2: sample, expand and cache replay ==')
     follow = args.work / 'runs' / f'{case}-collect' / 'followthrough'
     closed = decided_job_two(follow) if args.resume else None
+    reused = False
     if closed is not None:
         sampled = reused_policy(follow)
         if sampled != args.model_policy:
@@ -716,10 +741,22 @@ def main() -> int:
                 'projection admits, and therefore what the reused expansion covers. '
                 f'Move {follow} aside to sample again, or ask for the policy it was '
                 'sampled with')
-        print(f"  reused from --work (--resume): {closed['status']}"
-              f'  [--model-policy {sampled}]')
-        print(f"  expansion {follow / 'expanded' / 'manifest.json'}")
-    else:
+        expanded = reused_model_uncovered(follow)
+        if expanded != args.model_uncovered:
+            # The sample is reusable, but the expansion beside it was completed under
+            # the other --model-uncovered. That flag decides whether a launch whose
+            # class has no admitted template is refused or receives an explicit
+            # numeric_modeled profile, so the expansion on disk answers a different
+            # question and its coverage is not this run's coverage. Keep it as
+            # evidence and expand the same sample again rather than report it.
+            print(f'  reused job 2 was expanded with --model-uncovered {expanded}, not '
+                  f'{args.model_uncovered}: expanding the same sample again')
+        else:
+            reused = True
+            print(f"  reused from --work (--resume): {closed['status']}"
+                  f'  [--model-policy {sampled}, --model-uncovered {expanded}]')
+            print(f"  expansion {follow / 'expanded' / 'manifest.json'}")
+    if not reused:
         if args.resume:
             stashed = stash_job_output(args.work, case)
             if stashed is not None:
@@ -727,7 +764,12 @@ def main() -> int:
         spec2 = args.work / 'collect-spec.json'
         if journal is None:
             journal, host = 'process-<pid>-<ticks>', 'process-<pid>'
-        spec2.write_text(json.dumps(collect_spec(case, args.work, args, journal, host),
+        # Name the engine the cache stage must replay through. followthrough.py
+        # builds it from this repository's source when the stage actually runs, so
+        # a run that never reaches the replay does not pay for the compile, and the
+        # replay never falls back to run_memgen.py's machine-local default.
+        spec2.write_text(json.dumps(collect_spec(case, args.work, args, journal, host,
+                                                args.work / 'engine' / 'hbserve'),
                                    indent=2) + '\n')
         print('  spec ' + str(spec2))
         if run_job(spec2, args.work / 'runs' / f'{case}-collect', args.dry_run,

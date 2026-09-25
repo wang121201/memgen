@@ -10,12 +10,16 @@ def main():
  p.add_argument('--sample',type=Path,required=True);p.add_argument('--bindings',type=Path,required=True)
  p.add_argument('--output',type=Path,required=True);p.add_argument('--seconds',type=int,default=21600,
   help='accepted for compatibility; the cache replay has no wall-clock deadline')
+ p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
+  help='modeled gives a class with no admitted template an explicit numeric_modeled profile '
+       'instead of refusing its launches, which is what lets the cache stage see a full model')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  if os.environ.get('CUDA_VISIBLE_DEVICES'):raise ValueError('CPU-only cache stage requires no GPU')
  result=dict(status='RUNNING',stages=[],hardware_accuracy_accepted=False);start=time.monotonic()
  try:
   cmds=[('expand',[sys.executable,'-B',str(HERE/'expand_profiles.py'),'--sample-output',str(a.sample),
-    '--layer-bindings',str(a.bindings),'--output',str(a.output/'expanded')],1800),
+    '--layer-bindings',str(a.bindings),'--output',str(a.output/'expanded'),
+    '--model-uncovered',a.model_uncovered],1800),
    ('cache',[sys.executable,'-B',str(HERE/'run_memgen.py'),'--expanded',str(a.output/'expanded'),
     '--output',str(a.output/'cache')],None)]
   for name,argv,timeout in cmds:

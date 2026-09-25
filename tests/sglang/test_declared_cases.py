@@ -575,7 +575,45 @@ class Resume(unittest.TestCase):
         self.sample_receipt(model_policy='estimate_ldg_source_predicate')
         done = self.driver_run('--resume', '--model-policy',
                                'estimate_ldg_source_predicate')
-        self.assertIn('[--model-policy estimate_ldg_source_predicate]', done.stdout)
+        # The banner names both settings that decide what the reused expansion
+        # covers: the policy chooses which sampled records the projection admits,
+        # and --model-uncovered chooses whether a class with no admitted template is
+        # refused or modeled.
+        self.assertIn('[--model-policy estimate_ldg_source_predicate, '
+                      '--model-uncovered refuse]', done.stdout)
+
+    def expanded_manifest(self, follow, modeled_completion):
+        (follow / 'expanded').mkdir(parents=True, exist_ok=True)
+        (follow / 'expanded' / 'manifest.json').write_text(
+            json.dumps(dict(modeled_completion=modeled_completion)))
+        return follow
+
+    def test_the_model_uncovered_of_a_reused_job_is_read_back(self):
+        follow = self.expanded_manifest(self.sample_receipt(), 'modeled')
+        self.assertEqual(self.driver.reused_model_uncovered(follow), 'modeled')
+
+    def test_an_expansion_with_no_manifest_reads_as_refuse(self):
+        self.assertEqual(self.driver.reused_model_uncovered(self.sample_receipt()),
+                         'refuse')
+
+    def test_resuming_onto_another_model_uncovered_expands_again(self):
+        # The sample is the same and stays reusable, but an expansion completed
+        # under --model-uncovered refuse does not answer a request for modeled:
+        # the flag decides whether a launch with no admitted template is refused or
+        # gets a numeric_modeled profile, so its coverage is not this run's coverage.
+        follow = self.expanded_manifest(self.sample_receipt(model_policy='strict'),
+                                        'refuse')
+        done = self.driver_run('--resume', '--model-uncovered', 'modeled')
+        self.assertIn('was expanded with --model-uncovered refuse', done.stdout)
+        # Job 1 is reused in this fixture too, so the assertion has to name the
+        # job 2 banner rather than the string 'reused from --work (--resume)'.
+        self.assertNotIn('reused from --work (--resume): STOP_X', done.stdout)
+        self.assertIn('previous job 2 output kept as', done.stdout)
+
+    def test_resuming_onto_the_model_uncovered_it_was_expanded_with_reuses_it(self):
+        self.expanded_manifest(self.sample_receipt(model_policy='strict'), 'modeled')
+        done = self.driver_run('--resume', '--model-uncovered', 'modeled')
+        self.assertIn('[--model-policy strict, --model-uncovered modeled]', done.stdout)
 
     def test_collect_spec_points_at_both_real_directories(self):
         import argparse
@@ -588,6 +626,21 @@ class Resume(unittest.TestCase):
         given = dict(zip(spec['argv'], spec['argv'][1:]))
         self.assertTrue(Path(given['--journal']).is_dir())
         self.assertTrue(Path(given['--host-finish']).is_file())
+
+    def test_collect_spec_names_the_engine_it_replays_through(self):
+        import argparse
+        finish, observer = self.driver.reused_census(self.work, self.CASE, 8, self.GPU)
+        journal, host = self.driver.census_process_names(observer, finish)
+        engine = self.work / 'engine' / 'hbserve'
+        args = argparse.Namespace(cpu=8, gpu=self.GPU, job_seconds=0, python=sys.executable,
+                                  sample_seconds=7200, model_uncovered='refuse',
+                                  model_policy='strict')
+        spec = self.driver.collect_spec(self.CASE, self.work, args, journal, host, engine)
+        given = dict(zip(spec['argv'], spec['argv'][1:]))
+        # Named explicitly because run_memgen.py otherwise falls back to a
+        # machine-local binary that this repository's source did not build.
+        self.assertEqual(given['--engine'], str(engine))
+        self.assertIn('--binary', (self.driver.ADAPTER / 'followthrough.py').read_text())
 
     def test_reused_census_still_applies_the_gate(self):
         (self.work / 'runs' / f'{self.CASE}-census' / 'job-finish.json').write_text(json.dumps(
@@ -694,7 +747,7 @@ class PartialDiagnostic(unittest.TestCase):
         (self.follow / 'finish.json').write_text(json.dumps(
             dict(status='STOP_UNSUPPORTED_PROFILES_NOT_FULL_MODEL_TRAFFIC', stages=[],
                  unsupported_launches=0)))
-        result = self.resume()
+        result = self.resume('--model-uncovered', 'modeled')
         receipt = json.loads((self.work / 'collect-receipt.json').read_text())
         coverage = receipt['expansion_coverage']
         self.assertEqual(coverage['exact_launches'], 1360)
@@ -733,8 +786,18 @@ class PartialDiagnostic(unittest.TestCase):
         self.assertFalse(self.driver.stopped_at_the_gate(self.follow))
 
     def test_the_engine_is_built_from_the_archived_source(self):
-        self.assertTrue(self.driver.ENGINE_SOURCE.is_file())
-        self.assertIn('release/source/tools/', str(self.driver.ENGINE_SOURCE))
+        """The build lives in followthrough.py, next to the stage that replays.
+
+        collect_case.py's partial path imports it from there, so the flags are
+        written once and the two paths cannot compile the source differently.
+        """
+        source = (ADAPTER / 'followthrough.py').read_text()
+        self.assertIn("HERE.parents[2]/'release/source/tools/"
+                      "hbserve_profile_stream_cache_semantic_r17.cpp'", source)
+        self.assertIn('def build_engine(target)', source)
+        driver = (SGLANG / 'collect_case.py').read_text()
+        self.assertIn('followthrough.build_engine(', driver)
+        self.assertNotIn('mpic++', driver)
 
 
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):
@@ -742,8 +805,20 @@ class ReplayWrappersHaveNoDeadline(unittest.TestCase):
 
     def test_followthrough_runs_the_replay_without_a_timeout(self):
         text = (ADAPTER / 'followthrough.py').read_text()
-        self.assertIn("'--output',str(a.output/'cache')],None)", text)
+        self.assertIn("'--output',str(a.output/'cache')]", text)
+        self.assertIn("run('memgen',argv,None)", text)
         self.assertNotIn('a.memgen_seconds+60', text)
+
+    def test_followthrough_replays_through_the_engine_it_was_given(self):
+        """The cache stage must name a binary this repository built.
+
+        Without `--engine`, run_memgen.py silently uses a machine-local build,
+        so the frozen engine would not be the one the archive names.
+        """
+        text = (ADAPTER / 'followthrough.py').read_text()
+        self.assertIn('build_engine(a.engine)', text)
+        self.assertIn("argv+=['--binary',str(a.engine.resolve())]", text)
+        self.assertIn('no --engine given', text)
 
     def test_profile_cache_runs_the_replay_without_a_timeout(self):
         text = (ADAPTER / 'profile_cache.py').read_text()
