@@ -52,13 +52,17 @@ cleaner.
 Current SGLang NCU runs do not provide a same-range, same-denominator L1/L2
 hit-rate oracle, so no SGLang L1/L2 accuracy value is fabricated. P128D4 and
 P128D8 prefix sums are diagnostics from P128D16, not independent workload
-acceptance. P32D2 is also absent under this exact model/framework contract. The
-P32D2 calibration evidence that was produced outside this archive is now archived
-under `evidence/sglang/p32d2-traffic-comparison-20260922/`, but that copy's own
-assessment records `complete_inference_model_comparison: false` and its comparison
-snapshot still has no rows, so the P32D2 traffic errors remain unavailable here
-for the same reason; see
-[the P32D2 calibration evidence
+acceptance. P32D2 is also absent under this exact model/framework contract, and
+its traffic comparison was produced outside this archive; that comparison is now
+archived under `evidence/sglang/p32d2-p64d2-traffic-comparison-20260923/`, which
+closes P32D2 and P64D2 as its own two of the declared eight and states
+`hardware_accuracy_accepted: false`; see
+[the traffic comparison
+finding](P32D2_P64D2_TRAFFIC_COMPARISON_FINDING.md). The r4 parameter selection
+behind those candidates, including the twelve historical anchors where r4 is the
+worst of the three, is archived under
+`evidence/sglang/p32d2-traffic-comparison-20260922/`; see
+[the calibration evidence
 finding](P32D2_CALIBRATION_EVIDENCE_FINDING.md).
 
 The admission gate itself is normative in

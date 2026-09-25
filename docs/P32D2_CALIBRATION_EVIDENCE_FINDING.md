@@ -95,16 +95,17 @@ the three-range NCU reports behind them are not archived either.
 `validation/p32d2_branch_status.csv` therefore keeps its `main` row for
 `Qwen2.5-1.5B-Instruct BF16 / P32D2` at `BLOCKED_MISSING_INDEPENDENT_PROFILE_AND_NCU`.
 Splitting that status: the independent profile half is now present in the archive
-and manifest-verified; the NCU-comparison half is not, and the archived copy says
-so itself.
+and manifest-verified; the NCU-comparison half is not in *this* copy, and the copy
+says so itself. The closed traffic comparison was archived separately, from its own
+run root, in
+[the traffic comparison finding](P32D2_P64D2_TRAFFIC_COMPARISON_FINDING.md); this
+document is about the calibration copy and does not restate its rows.
 
 ## 5. What is still missing, named
 
-1. The closed traffic-comparison rows for the declared conditions, with the
-   hardware medians and the model values in the same protocol. This is the file
-   that would let the `+0.4287%` / `+3.8943%` / `+85.0699%` claims be checked.
-2. The three-range NCU reports behind those rows, per `docs/REPRODUCTION.md`.
-3. A gate decision. `docs/ACCURACY_BASELINES.md` records that this repository
+1. The other six declared conditions' model sides. Their NCU reference exists; the
+   replays that would pair a model value with it are not closed.
+2. A gate decision. `docs/ACCURACY_BASELINES.md` records that this repository
    states two different DRAM write gates — at most 20% in the branch contract and
    strictly below 10% in the L2 strategy report — and that they have not been
    reconciled. No number archived here resolves that.

@@ -1,0 +1,76 @@
+{
+  "status": "PASS_FULL_SOURCE_CACHE_REPLAY_NOT_HARDWARE_ACCEPTANCE",
+  "models": {
+    "legacy": {
+      "seconds": 1407.7755839359015,
+      "source": {
+        "schema": "hbserve_profile_stream_cache_v1",
+        "status": "PASS",
+        "mode": "memgen",
+        "profile_index": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/profiles.index.jsonl",
+        "app_config": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/app.config",
+        "issue_config": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/issue.config",
+        "hw_config": "/home/xmu/nvidiagds/simulators/hbserve-hyfiss-integration-20260911-r1/memgen-worktrees/llm-traffic-calibration/release/config/RTX4000Ada.paper-v1.config",
+        "kernel_count": 2062,
+        "placement_tuples": 919030,
+        "generated_memory_instructions": 434562818,
+        "generated_lane_addresses": 13847183104,
+        "semantic_digest_a": "e5e2161aefe3f64a",
+        "semantic_digest_b": "f73a191c674e6d68",
+        "source_sector_stats_scope": "SEE_BACKEND_KERNEL_SUMMARY",
+        "sector_requests": null,
+        "read_sector_requests": null,
+        "write_sector_requests": null,
+        "compact_bytes": 0,
+        "backend_returncode": 0,
+        "elapsed_ms": 1407678,
+        "ordering": "kernel id, then global merge of CTA start plus modeled intra-CTA delta",
+        "materialized_raw_sass_bytes": 0,
+        "claim_boundary": "HBServe generated address stream and cache-model input; not captured full SASS or hardware truth"
+      }
+    },
+    "r4-small-shared": {
+      "seconds": 1117.5704836025834,
+      "source": {
+        "schema": "hbserve_profile_stream_cache_v1",
+        "status": "PASS",
+        "mode": "memgen",
+        "profile_index": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/profiles.index.jsonl",
+        "app_config": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/app.config",
+        "issue_config": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-replay/issue.config",
+        "hw_config": "/home/xmu/nvidiagds/simulators/hbserve-hyfiss-integration-20260911-r1/memgen-worktrees/llm-traffic-calibration/release/config/RTX4000Ada.paper-v1.config",
+        "kernel_count": 2062,
+        "placement_tuples": 919030,
+        "generated_memory_instructions": 434562818,
+        "generated_lane_addresses": 13847183104,
+        "semantic_digest_a": "e5e2161aefe3f64a",
+        "semantic_digest_b": "f73a191c674e6d68",
+        "source_sector_stats_scope": "SEE_BACKEND_KERNEL_SUMMARY",
+        "sector_requests": null,
+        "read_sector_requests": null,
+        "write_sector_requests": null,
+        "compact_bytes": 0,
+        "backend_returncode": 0,
+        "elapsed_ms": 1117450,
+        "ordering": "kernel id, then global merge of CTA start plus modeled intra-CTA delta",
+        "materialized_raw_sass_bytes": 0,
+        "claim_boundary": "HBServe generated address stream and cache-model input; not captured full SASS or hardware truth"
+      }
+    }
+  },
+  "launches": 2062,
+  "measurement_launches": 1030,
+  "allocation_audit": {
+    "observed_generations": 104,
+    "allocation_api_events": 210,
+    "successful_null_free_noops": 1,
+    "allocation_sizes_not_sector_aligned": 0,
+    "launches": 2062,
+    "scope": "synchronous host-return spans, per-selected-launch device completion proved by sampler; all requested sector bytes checked by candidate C++"
+  },
+  "source_receipt_sha256": "14de1fb75722611646e7005530be785aca3b17264637178131223fabcd309c72",
+  "ordering": "modeled CTA round robin over 48 SMs, not physical arrival order",
+  "warmup_replayed": true,
+  "initialization_and_DMA_modeled": false,
+  "terminal_dirty_flush": false
+}

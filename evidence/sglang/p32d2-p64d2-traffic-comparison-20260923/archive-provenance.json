@@ -1,0 +1,108 @@
+{
+  "traffic-comparison/comparison.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/traffic-comparison/comparison.json",
+    "bytes": 143173,
+    "sha256": "2a509c6a8f76e06d3c67a4e36bfea2875f9bf03ab91bd994931b4a75050fbab1",
+    "archived": true
+  },
+  "traffic-comparison/assessment.md": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/traffic-comparison/assessment.md",
+    "bytes": 1853,
+    "sha256": "6449c875d58c53424cb3edba791d9376eba98eed1542651e882f0208a64697af",
+    "archived": true
+  },
+  "evaluation/finish.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/finish.json",
+    "bytes": 2916,
+    "sha256": "695d1d93a8175edba645b18592f4162adf55bacf754fd2cfb20721ab7628e626",
+    "archived": true
+  },
+  "evaluation/progress.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/progress.json",
+    "bytes": 2916,
+    "sha256": "695d1d93a8175edba645b18592f4162adf55bacf754fd2cfb20721ab7628e626",
+    "archived": true
+  },
+  "p32d2-replay/finish.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/finish.json",
+    "bytes": 3913,
+    "sha256": "cd6321c2dfcd5586b01b68575403835c68d421a0b3fb7eee4f646081116cd275",
+    "archived": true
+  },
+  "p64d2-replay/finish.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/finish.json",
+    "bytes": 3936,
+    "sha256": "4b7a0d76c6ce9145bae17063334ce74df3d65fffa99eb4c3c0ca787ecbaef84c",
+    "archived": true
+  },
+  "p64d2-replay/allocation-audit.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/allocation-audit.json",
+    "bytes": 318,
+    "sha256": "9e3505919942e2155f7fe661e102f247b2ba007b2ce5f586861918251b102cfb",
+    "archived": true
+  },
+  "p32d2-replay/issue.config": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/issue.config",
+    "bytes": 23232100,
+    "sha256": "3feaafc270fb60989efdecbbf0aff6c65fcbd674f6e2b77de5ad0d4cf6614e68",
+    "archived": false,
+    "reason": "over the archive 10 MiB limit"
+  },
+  "p32d2-replay/app.config": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/app.config",
+    "bytes": 1282975,
+    "sha256": "a13321e205f3d23b7470ff6d5da81681752ae7c14a794fe7cc5deacc774a1d94",
+    "archived": false,
+    "reason": "input not shipped"
+  },
+  "p32d2-replay/r4-context.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/r4-context.json",
+    "bytes": 22528413,
+    "sha256": "8a65616eaf417101af471bdc8422d057a89d33f4c1f6f522e65249484a6a9a28",
+    "archived": false,
+    "reason": "over the archive 10 MiB limit"
+  },
+  "p32d2-replay/profiles.index.jsonl": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/profiles.index.jsonl",
+    "bytes": 761430,
+    "sha256": "9533e666c71179aeecb0d9a3410cff0afe88ac11ee757bd1fa4b3f10730059f2",
+    "archived": false,
+    "reason": "input not shipped"
+  },
+  "p64d2-replay/issue.config": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/issue.config",
+    "bytes": 23691192,
+    "sha256": "1d65b11fd8ca4a91554f11326a0c4d5ede068d1876e2f181a801de6882ed9139",
+    "archived": false,
+    "reason": "over the archive 10 MiB limit"
+  },
+  "p64d2-replay/app.config": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/app.config",
+    "bytes": 1271159,
+    "sha256": "a49f3cd4c0b2064259a76bb3e88ebc99e476a410dd56b1299ee59304127a326f",
+    "archived": false,
+    "reason": "input not shipped"
+  },
+  "p64d2-replay/r4-context.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/r4-context.json",
+    "bytes": 22528413,
+    "sha256": "4777be6263ba793ea18c9119f3a22290722e88958f34b6ae0c2b6c8ff23a1bdb",
+    "archived": false,
+    "reason": "over the archive 10 MiB limit"
+  },
+  "p64d2-replay/profiles.index.jsonl": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/profiles.index.jsonl",
+    "bytes": 761527,
+    "sha256": "7979f18a020d9aac082834bf6923177e2e4087a4106140edad947bb69c1c1a61",
+    "archived": false,
+    "reason": "input not shipped"
+  },
+  "p64d2-replay/population.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P64D2-replay/population.json",
+    "bytes": 348179,
+    "sha256": "348fd33298e09354cbe4203db6b18d8ad5c5549da8b8383abfdd656114f54afd",
+    "archived": false,
+    "reason": "input not shipped"
+  },
+  "_note": "Provenance for evidence/sglang/p32d2-p64d2-traffic-comparison-20260923. `archived: true` entries are present in this directory and their digest is of the archived copy; `archived: false` entries are inputs the rows depend on that the archive cannot hold, recorded by digest only."
+}

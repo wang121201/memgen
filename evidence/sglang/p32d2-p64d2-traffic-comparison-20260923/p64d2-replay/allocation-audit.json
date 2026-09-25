@@ -1,0 +1,8 @@
+{
+  "observed_generations": 104,
+  "allocation_api_events": 210,
+  "successful_null_free_noops": 1,
+  "allocation_sizes_not_sector_aligned": 0,
+  "launches": 2062,
+  "scope": "synchronous host-return spans, per-selected-launch device completion proved by sampler; all requested sector bytes checked by candidate C++"
+}

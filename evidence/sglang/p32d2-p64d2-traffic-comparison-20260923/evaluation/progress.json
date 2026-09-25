@@ -1,0 +1,81 @@
+{
+  "status": "FAIL_STOP_NEW_DISPATCH",
+  "control_policy": "NO_WALLCLOCK_CUTOFF",
+  "workloads": [
+    "qwen1p5b-P32D2",
+    "qwen1p5b-P64D2",
+    "qwen1p5b-P128D2",
+    "qwen1p5b-P256D2",
+    "qwen1p5b-P512D2",
+    "qwen1p5b-P128D4",
+    "qwen1p5b-P128D8",
+    "qwen1p5b-P128D16"
+  ],
+  "expected_conditions": 8,
+  "hardware_accuracy_accepted": false,
+  "cases": [
+    {
+      "workload": "qwen1p5b-P32D2",
+      "status": "COMPLETE"
+    },
+    {
+      "workload": "qwen1p5b-P64D2",
+      "status": "COMPLETE"
+    },
+    {
+      "workload": "qwen1p5b-P128D2",
+      "status": "WAITING_SOURCE_PREPARATION"
+    },
+    {
+      "workload": "qwen1p5b-P256D2",
+      "status": "WAITING_SOURCE_PREPARATION"
+    },
+    {
+      "workload": "qwen1p5b-P512D2",
+      "status": "WAITING_SOURCE_PREPARATION"
+    },
+    {
+      "workload": "qwen1p5b-P128D4",
+      "status": "WAITING_SOURCE_PREPARATION"
+    },
+    {
+      "workload": "qwen1p5b-P128D8",
+      "status": "WAITING_SOURCE_PREPARATION"
+    },
+    {
+      "workload": "qwen1p5b-P128D16",
+      "status": "WAITING_SOURCE_PREPARATION"
+    }
+  ],
+  "auxiliary_workloads": [
+    "qwen1p5b-P32D4",
+    "qwen1p5b-P32D8"
+  ],
+  "cancelled_pending_workloads": [
+    "qwen1p5b-P64D4",
+    "qwen1p5b-P64D8"
+  ],
+  "schedule": {
+    "max_source_pipelines": 1,
+    "max_cpu_replays": 8,
+    "overlap": true,
+    "gpu_exclusive": true,
+    "hardware_starts_after_gpu_lease_release": true,
+    "timing_scope": "concurrent_throughput_diagnostic_not_isolated_speedup",
+    "replay_limit_changed_without_model_change": true
+  },
+  "hardware_ready_conditions": 8,
+  "completed_comparisons": 2,
+  "active_cpu_replays": 1,
+  "updated_unix": 1790100878.1094992,
+  "error": "Traceback (most recent call last):\n  File \"/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/runtime/run_revision.py\", line 152, in main\n    assert code==0,(kind,key,code);del jobs[slot]\nAssertionError: ('prepare', 'census', 1)\n",
+  "live_children_preserved": [],
+  "adopted_children_preserved": {
+    "replay": {
+      "pid": 710532,
+      "start_ticks": 909418710,
+      "state": "S",
+      "argv": "python3 -B /home/xmu/nvidiagds/codex-runs/memgen-qwen-statistics-20260922-r1/replay_full.py --samples /home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r4/qwen1p5b-P32D8-samples/qwen1p5b-P32D8 --shared /home/xmu/nvidiagds/codex-runs/memgen-qwen-six-source-20260922-r2/shared/qwen1p5b-P32D8/shared-profiles.json --candidate /home/xmu/nvidiagds/codex-runs/memgen-qwen-statistics-20260922-r1/model-candidate/hbserve --baseline /home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r5/hbserve --hw-config /home/xmu/nvidiagds/simulators/hbserve-hyfiss-integration-20260911-r1/memgen-worktrees/llm-traffic-calibration/release/config/RTX4000Ada.paper-v1.config --output /home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r4/qwen1p5b-P32D8-replay"
+    }
+  }
+}
