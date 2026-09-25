@@ -756,6 +756,42 @@ class PartialDiagnostic(unittest.TestCase):
         self.assertIs(coverage['fully_exact'], False)
         self.assertIn('1360 exact + 700 modeled of 2060 (34.0% modeled)', result.stdout)
 
+    def test_a_run_that_never_replayed_records_no_hardware(self):
+        self.resume()
+        receipt = json.loads((self.work / 'collect-receipt.json').read_text())
+        self.assertIsNone(receipt['hardware'])
+        self.assertNotIn('does not permit a', receipt['claim_boundary'])
+
+    def test_the_receipt_names_the_hardware_that_produced_the_counters(self):
+        """A reader must be able to tell, from the receipt alone, whether these
+        counters may be compared with NCU. The replay decides that, so the receipt
+        repeats what the replay resolved rather than implying agreement."""
+        (self.follow / 'finish.json').write_text(json.dumps(
+            dict(status='PASS_THROUGH_MEMGEN', stages=[],
+                 hardware_config='/repo/release/config/RTX4000Ada.paper-v1.config',
+                 config_sha256='a' * 64, hardware_schema='legacy',
+                 hardware_accuracy_status='not_accepted',
+                 cache_policy='legacy_paper_v1',
+                 allow_full_NCU_accuracy_comparison=False)))
+        self.resume()
+        receipt = json.loads((self.work / 'collect-receipt.json').read_text())
+        self.assertEqual(receipt['hardware']['hardware_schema'], 'legacy')
+        self.assertEqual(receipt['hardware']['hardware_accuracy_status'], 'not_accepted')
+        self.assertIs(receipt['hardware']['allow_full_NCU_accuracy_comparison'], False)
+        self.assertIn('legacy_paper_v1', receipt['claim_boundary'])
+        self.assertIn('does not permit a full NCU accuracy comparison',
+                      receipt['claim_boundary'])
+
+    def test_the_banner_repeats_what_the_receipt_records(self):
+        (self.follow / 'finish.json').write_text(json.dumps(
+            dict(status='PASS_THROUGH_MEMGEN', stages=[],
+                 hardware_config='/repo/release/config/RTX4000Ada.paper-v1.config',
+                 hardware_schema='legacy', hardware_accuracy_status='not_accepted',
+                 cache_policy='legacy_paper_v1',
+                 allow_full_NCU_accuracy_comparison=False)))
+        result = self.resume()
+        self.assertIn('NCU comparison permitted: False', result.stdout)
+
     def test_the_declared_matrix_point_has_no_replay_to_reuse(self):
         self.assertFalse((self.follow / 'cache' / 'model' / 'kernel_summary.csv').exists())
 
@@ -798,6 +834,35 @@ class PartialDiagnostic(unittest.TestCase):
         driver = (SGLANG / 'collect_case.py').read_text()
         self.assertIn('followthrough.build_engine(', driver)
         self.assertNotIn('mpic++', driver)
+
+
+class ReplayIdentityIsCarried(unittest.TestCase):
+    """The counters must travel with the hardware that produced them.
+
+    `run_memgen.py` decides whether an NCU comparison is permitted and never says
+    yes for this pipeline, so a stage receipt that drops the field would let a
+    legacy replay read as an accuracy result.
+    """
+
+    def test_followthrough_reads_the_identity_from_the_replay(self):
+        text = (ADAPTER / 'followthrough.py').read_text()
+        self.assertIn('def replay_identity(cache)', text)
+        self.assertIn("result.update(replay_identity(a.output/'cache'))", text)
+        self.assertIn("out['hardware_config']=command[command.index('--hw-config')+1]", text)
+        self.assertIn("hardware_identity='unreadable: '", text)
+
+    def test_progress_does_not_keep_reporting_running(self):
+        text = (ADAPTER / 'followthrough.py').read_text()
+        terminal = text.index("if result['status']=='RUNNING'")
+        self.assertLess(terminal,
+                        text.index("save(a.output/'progress.json',result)", terminal),
+                        'progress.json must be rewritten after the terminal status, '
+                        'otherwise a monitor polls RUNNING forever')
+
+    def test_the_collector_receipt_carries_the_identity(self):
+        text = (SGLANG / 'collect_case.py').read_text()
+        self.assertIn('hardware=hardware,', text)
+        self.assertIn('does not permit a ', text)
 
 
 class ReplayWrappersHaveNoDeadline(unittest.TestCase):

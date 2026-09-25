@@ -35,6 +35,36 @@ def build_engine(target):
  if build.returncode or not target.is_file():
   raise RuntimeError('engine build failed:\n'+build.stdout+build.stderr)
  return target
+
+REPLAY_IDENTITY_KEYS=('cache_policy','allow_full_NCU_accuracy_comparison','config_sha256',
+ 'binary_sha256','input_scope','raw_trace_materialized','L1_bytes_per_SM','L2_bytes')
+
+def replay_identity(cache):
+ """What the replay says about itself, read from the replay's own receipts.
+
+ The hardware config decides whether these counters may be compared with NCU at
+ all, and only the replay knows what it resolved, so this is copied rather than
+ restated from the arguments. A receipt that cannot be read is named as such
+ instead of being filled in, because an unreadable identity is not an identity.
+ """
+ try:
+  fin=json.loads((cache/'finish.json').read_text())
+ except (OSError,ValueError):
+  return dict(hardware_identity='unreadable: '+str(cache/'finish.json'))
+ out={k:fin[k] for k in REPLAY_IDENTITY_KEYS if k in fin}
+ try:
+  hw=json.loads((cache/'hardware-description.json').read_text())
+  out.update(hardware_schema=hw.get('schema'),
+   hardware_accuracy_status=hw.get('hardware_accuracy_status'))
+ except (OSError,ValueError):
+  pass
+ try:
+  command=json.loads((cache/'command.json').read_text())
+  if '--hw-config' in command:
+   out['hardware_config']=command[command.index('--hw-config')+1]
+ except (OSError,ValueError):
+  pass
+ return out
 def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--journal',type=Path,required=True);p.add_argument('--host-finish',type=Path,required=True)
@@ -103,9 +133,14 @@ def main():
      print('  no --engine given: run_memgen.py falls back to its machine-local default '
            'binary, which is not built from this repository',file=sys.stderr)
     run('memgen',argv,None)
+    result.update(replay_identity(a.output/'cache'))
   if result['status']=='RUNNING':result['status']='PASS_THROUGH_'+stages[-1]['stage'].upper()
  except BaseException as e:result.update(status='FAIL_DEPENDENCY',error=type(e).__name__+': '+str(e))
  result.update(wall_minutes=(time.monotonic()-start)/60,input_contract=contract)
+ # progress.json is what a monitor polls during a long run, so it must not keep
+ # reporting RUNNING once the run reached its terminal state. finish.json stays
+ # the record of the result; this only keeps the two from disagreeing.
+ save(a.output/'progress.json',result)
  save(a.output/'finish.json',result);print(json.dumps(result))
  return 0 if result['status'].startswith('PASS_') else 2
 if __name__=='__main__':raise SystemExit(main())

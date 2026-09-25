@@ -821,10 +821,30 @@ def main() -> int:
             partial = run_partial_replay(case, args, follow)
             if partial is None:
                 return 1
+    # The replay's own hardware identity, propagated through the job-2 stage receipt.
+    # It decides whether these counters may be compared with NCU at all, so the
+    # receipt names it instead of leaving the reader to infer it from prose. A run
+    # that never replayed has no identity and records none.
+    hardware = {k: finish.get(k) for k in (
+        'hardware_config', 'config_sha256', 'hardware_schema', 'hardware_accuracy_status',
+        'cache_policy', 'allow_full_NCU_accuracy_comparison', 'input_scope')}
+    if all(value is None for value in hardware.values()):
+        hardware = None
+    claim_boundary = ('Collected counters for one declared case. Not an accuracy '
+                      'admission: that needs an independent three-repeat NCU reference '
+                      'for the same ranges, recorded in validation/.')
+    if hardware and hardware.get('allow_full_NCU_accuracy_comparison') is not True:
+        claim_boundary += (f" This replay ran {hardware.get('hardware_config')}"
+                           f" (schema {hardware.get('hardware_schema')}, calibration "
+                           f"status {hardware.get('hardware_accuracy_status')}, policy "
+                           f"{hardware.get('cache_policy')}), which does not permit a "
+                           'full NCU accuracy comparison, so these counters are not '
+                           'evidence of hardware agreement.')
     receipt = dict(schema='SG_CASE_COLLECTION_V1', case_id=case,
                    declared_matrix=contract['declared_matrix'],
                    status=finish['status'], stages=finish['stages'],
                    expansion_coverage=coverage,
+                   hardware=hardware,
                    work=str(args.work), artifacts=dict(
                        census_observer_finish=str(observer_root(args.work, case)
                                                   / journal / 'finish.json'),
@@ -839,13 +859,16 @@ def main() -> int:
                    raw_trace_persisted=False, full_native_address_coverage=False,
                    hardware_accuracy_accepted=False,
                    partial_diagnostic=partial,
-                   claim_boundary='Collected counters for one declared case. Not an accuracy '
-                                  'admission: that needs an independent three-repeat NCU reference '
-                                  'for the same ranges, recorded in validation/.')
+                   claim_boundary=claim_boundary)
     (args.work / 'collect-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print()
     print(json.dumps({k: receipt[k] for k in ('case_id', 'declared_matrix', 'status',
                                               'hardware_accuracy_accepted')}, indent=2))
+    if hardware:
+        print(f"  hardware                 {hardware.get('hardware_config')}"
+              f" ({hardware.get('hardware_schema')}, {hardware.get('cache_policy')}, "
+              f"NCU comparison permitted: "
+              f"{hardware.get('allow_full_NCU_accuracy_comparison')})")
     print(f"  launches                 {coverage['exact_launches']} exact + "
           f"{coverage['modeled_launches']} modeled of {coverage['target_launches']} "
           f"({coverage['modeled_fraction']:.1%} modeled)" if coverage['modeled_fraction'] is not None else

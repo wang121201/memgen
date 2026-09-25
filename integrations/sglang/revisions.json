@@ -78,7 +78,7 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91",
       "historical_bytes": 4336,
-      "current_sha256": "36926d4c863cde1bd9d6a236757d20aebd9efd9c4e1375a73f8789a3601c23c3",
+      "current_sha256": "8d6c6fdf4c93065653832c16d2577ec0361b26315dfc07ac23acca1ac8ef96b8",
       "current_bytes": 5531,
       "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run. Later revision: accept --engine and pass it to run_memgen.py as --binary. The cache stage used to be started with neither flag, so run_memgen.py fell back to its own machine-local default binary and the replay did not use the engine built from this repository`s source; collect_case.py builds that engine and now names it in job 2`s spec, exactly as its partial path already did. Without --engine the fallback is still available for old callers, but it now says so on stderr instead of being silent.",
       "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section The same revision moves the frozen-engine build into followthrough.py as build_engine(target): the cache stage builds the binary from release/source/tools/ when it actually replays and names it with --binary, and collect_case.py imports that one function for its partial path instead of repeating the command. Before it, the replay named no binary at all and run_memgen.py fell back to a machine-local build this repository cannot hash."
