@@ -1,0 +1,27 @@
+{
+  "status": "PARTIAL_COMPARISON",
+  "missing_workloads": [
+    "qwen1p5b-P32D2",
+    "qwen1p5b-P32D4",
+    "qwen1p5b-P32D8",
+    "qwen1p5b-P64D2",
+    "qwen1p5b-P64D4",
+    "qwen1p5b-P64D8"
+  ],
+  "rows": [],
+  "summary": [],
+  "cost": [],
+  "excluded_metrics": {
+    "l1tex_global_store_lookup_hit": "Candidate bypasses L1 stores and supplies no equivalent hit count.",
+    "lts_tex_write_lookup_miss": "Model write residency misses do not have validated NCU lookup semantics."
+  },
+  "limits": [
+    "Continuous modeled warmup and measurement replay; scope selection does not recreate physical range synchronization.",
+    "CTA round-robin order is modeled, not a measured physical arrival order.",
+    "Initialization, nonkernel DMA, timing, MSHR concurrency and cross-kernel L1 retention are not modeled.",
+    "Dirty writebacks are charged to the service/eviction kernel, including warmup-origin dirty lines; no terminal drain.",
+    "Hardware ranges are independent protocols: do not combine whole, Decode and steps into one accuracy denominator."
+  ],
+  "matrix_status": "RUNNING",
+  "hardware_accuracy_accepted": false
+}

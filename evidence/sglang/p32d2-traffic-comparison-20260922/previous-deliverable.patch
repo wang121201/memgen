@@ -1,0 +1,3038 @@
+diff --git a/release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp b/release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp
+index 4d6f07a..0d602cd 100644
+--- a/release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp
++++ b/release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp
+@@ -56,6 +56,7 @@ struct Arguments {
+   fs::path stats;
+   fs::path output_dir;
+   fs::path semantic_file;
++  fs::path r4_context;
+   bool observe_cache=false;
+   bool include_local=false;
+ };
+@@ -84,6 +85,7 @@ Arguments parse_arguments(int argc, char **argv) {
+     else if (key == "--stats") result.stats = value;
+     else if (key == "--output-dir") result.output_dir = value;
+     else if (key == "--semantic-file") result.semantic_file = value;
++    else if (key == "--r4-context") result.r4_context = value;
+     else if (key == "--include-local") {
+       if(value!="true" && value!="false") usage_error("include-local must be true or false");
+       result.include_local=(value=="true");
+@@ -102,6 +104,8 @@ Arguments parse_arguments(int argc, char **argv) {
+     usage_error("profile index, app/issue configs, hardware config, and stats are required");
+   if (result.mode == "memgen" && result.output_dir.empty())
+     usage_error("memgen mode requires --output-dir");
++  if (!result.r4_context.empty() && result.mode!="memgen")
++    usage_error("r4 context requires memgen mode");
+   return result;
+ }
+ 
+@@ -683,7 +687,7 @@ public:
+              "hbserve.hyfiss_sampled_sass_profile",
+          "unexpected profile schema name");
+     const int version = root.get<int>("schema.version");
+-    need(version >= 4 && version <= 11, "unsupported profile schema version");
++    need(version >= 4 && version <= 12, "unsupported profile schema version");
+     need(root.get<int>("kernel.id") == kernel_, "profile kernel id differs");
+     need(root.get<std::string>("kernel.name") == launch_.name,
+          "profile/app kernel name differs");
+@@ -692,7 +696,7 @@ public:
+     const std::string status = root.get<std::string>("status");
+     need(status.rfind("PASS_", 0) == 0, "profile status is not PASS");
+ 
+-    if (version == 6 || version == 9 || version == 10 || version == 11) {
++    if (version == 6 || version == 9 || version == 10 || version == 11 || version == 12) {
+       std::unordered_map<std::string, std::uint32_t> class_index;
+       for (const auto &item : root.get_child("structural_classes")) {
+         const std::string id = item.second.get<std::string>("class_id");
+@@ -710,6 +714,71 @@ public:
+         }
+         need(class_by_block_.size() == launch_.grid_size,
+              "CTA structural class map size differs from grid");
++      } else if (version == 12) {
++        const auto member_set = [&](const std::string &path) {
++          std::unordered_map<std::uint32_t, bool> values;
++          for (const auto &item : root.get_child(path)) {
++            const auto value = item.second.get_value<std::uint32_t>();
++            need(value < launch_.grid_size && values.emplace(value, true).second,
++                 "invalid declared structural sample set");
++          }
++          return values;
++        };
++        const auto training = member_set("sampling.training_ctas");
++        const auto holdout = member_set("sampling.holdout_ctas");
++        need(training == member_set("source.launch.fit_ctas") &&
++             holdout == member_set("source.launch.holdout_ctas"),
++             "structural samples differ from source launch");
++        for (const auto &entry : training)
++          need(!holdout.count(entry.first), "declared training and holdout overlap");
++        std::size_t total_training = 0, total_holdout = 0;
++        need(root.get<std::string>("structural_class_selector.kind") ==
++                 "linear_cta_intervals", "unsupported schema-12 selector");
++        class_by_block_.reserve(launch_.grid_size);
++        std::vector<bool> used(classes_.size(), false);
++        for (const auto &item : root.get_child("structural_class_selector.intervals")) {
++          const auto lo = item.second.get<std::uint32_t>("start");
++          const auto hi = item.second.get<std::uint32_t>("stop");
++          const auto found = class_index.find(item.second.get<std::string>("class_id"));
++          need(lo == class_by_block_.size() && lo < hi && hi <= launch_.grid_size,
++               "linear CTA intervals overlap, leave a hole, or escape the grid");
++          need(found != class_index.end(), "linear CTA interval uses unknown class");
++          class_by_block_.insert(class_by_block_.end(), hi-lo, found->second);
++          used[found->second] = true;
++        }
++        need(class_by_block_.size() == launch_.grid_size &&
++             std::all_of(used.begin(), used.end(), [](bool x) { return x; }),
++             "linear CTA intervals do not cover the grid and every class");
++        for (const auto &item : root.get_child("structural_classes")) {
++          const auto expected = class_index.at(item.second.get<std::string>("class_id"));
++          const auto count = std::count(class_by_block_.begin(), class_by_block_.end(), expected);
++          need(item.second.get<std::uint32_t>("domain_cta_count") == count,
++               "structural class domain count differs");
++          std::unordered_map<std::uint32_t, bool> members;
++          for (const auto &cta : item.second.get_child("ctas")) {
++            const auto block = cta.second.get_value<std::uint32_t>();
++            need(block < launch_.grid_size && class_by_block_[block] == expected &&
++                 training.count(block) && members.emplace(block, true).second,
++                 "invalid structural training member");
++          }
++          need(!members.empty(), "structural class has no training members");
++          std::unordered_map<std::uint32_t, bool> held;
++          for (const auto &cta : item.second.get_child("independent_holdout_ctas")) {
++            const auto block = cta.second.get_value<std::uint32_t>();
++            need(block < launch_.grid_size && class_by_block_[block] == expected &&
++                 holdout.count(block) && !members.count(block) && held.emplace(block, true).second,
++                 "invalid structural holdout member");
++          }
++          if (item.second.get<bool>("observed_domain_complete"))
++            need(members.size() == static_cast<std::size_t>(count) && held.empty(),
++                 "complete class domain is not fully observed");
++          else
++            need(members.size() >= 2 && held.size() >= 2,
++                 "extrapolated class has insufficient independent evidence");
++          total_training += members.size(); total_holdout += held.size();
++        }
++        need(total_training == training.size() && total_holdout == holdout.size(),
++             "structural class samples do not cover declared samples");
+       } else {
+         need(root.get<std::string>("structural_class_selector.kind") ==
+                  "categorical_y",
+@@ -1416,7 +1485,34 @@ int run_compact(const Arguments &args, WorkloadSource &source) {
+ int run_memgen(const Arguments &args, WorkloadSource &source,
+     const std::function<void(const hyfiss_request_trace::L2AccessObservation&)> &observe_l2={},
+     const std::function<void(const hyfiss_request_trace::L2AccessObservation&)> &observe_l1={}) {
++  struct Context { unsigned shared; std::vector<hyfiss_request_trace::R4Allocation> allocations; };
++  std::map<int,Context> contexts;
++  std::string r4_model_id="CLOCK_u128_s16_h2_c1062";
++  if(!args.r4_context.empty()) {
++    ptree root;boost::property_tree::read_json(args.r4_context.string(),root);
++    need(root.get<std::string>("schema")=="MEMGEN_R4_CONTEXT_V1","r4 context schema mismatch");
++    r4_model_id=root.get<std::string>("model_id","CLOCK_u128_s16_h2_c1062");
++    need(r4_model_id=="CLOCK_u128_s16_h2_c1062" || r4_model_id=="r4-small-shared-20260922","unknown r4 model identity");
++    need(root.get<std::string>("profile_index_sha256")==sha256_file(args.profile_index),"r4 profile identity mismatch");
++    need(root.get<std::string>("app_config_sha256")==sha256_file(args.app_config),"r4 launch identity mismatch");
++    for(const auto &item:root.get_child("kernels")) {
++      const auto &row=item.second;Context c;
++      c.shared=row.get<unsigned>("shared_kib");
++      if(c.shared==8 || c.shared==16)need(r4_model_id=="r4-small-shared-20260922","small shared candidate requires explicit model identity");
++      hyfiss_request_trace::R4L1ReadFilter::ways_for(c.shared);
++      need(!row.get<std::string>("shared_evidence").empty(),"r4 shared profile provenance missing");
++      for(const auto &entry:row.get_child("allocations")) {
++        const auto &a=entry.second;
++        c.allocations.push_back({a.get<uint64_t>("id"),a.get<uint64_t>("base"),a.get<uint64_t>("bytes")});
++      }
++      need(contexts.emplace(row.get<int>("kernel_id"),std::move(c)).second,"duplicate r4 kernel context");
++    }
++    need(!contexts.empty(),"empty r4 kernel context");
++  }
++  std::set<int> used_contexts;
+   hyfiss_request_trace::BackendOptions options;
++  options.r4_l1_read_filter=!args.r4_context.empty();
++  options.r4_model_id=r4_model_id;
+   options.hw_config = args.hw_config.string();
+   options.output_dir = args.output_dir.string();
+   options.semantic_file = args.semantic_file.string();
+@@ -1453,12 +1549,28 @@ int run_memgen(const Arguments &args, WorkloadSource &source,
+           ref.kernel_id = kernel;
+           ref.kernel_name = std::move(name);
+           ref.llm_phase = std::move(phase);
++          if(options.r4_l1_read_filter) {
++            auto it=contexts.find(kernel);
++            need(it!=contexts.end(),"missing r4 kernel context");
++            need(used_contexts.insert(kernel).second,"repeated r4 kernel context");
++            ref.r4_shared_kib=it->second.shared;
++            ref.r4_allocations=it->second.allocations;
++          }
+           ref.next_ordered_inst = [&](OrderedMemoryInst &item) {
+             return buffered.next_inst(item);
+           };
+           return true;
+         });
++    if(code!=0) { buffered.cancel_and_join(); return code; }
+     buffered.finish();
++    if(options.r4_l1_read_filter) {
++      need(used_contexts.size()==contexts.size(),"unused r4 kernel context");
++      std::ofstream receipt(args.output_dir/"r4_context_identity.json");
++      need(bool(receipt),"cannot write r4 context identity");
++      receipt<<"{\"schema\":\"MEMGEN_R4_CONTEXT_IDENTITY_V1\",\"sha256\":\""
++             <<sha256_file(args.r4_context)<<"\",\"model_id\":\""<<r4_model_id<<"\",\"hardware_accuracy_accepted\":false}\n";
++      need(bool(receipt),"r4 context identity write failed");
++    }
+     return code;
+   } catch (...) {
+     buffered.cancel_and_join();
+diff --git a/release/source/tools/hyfiss_request_trace_backend_api_semantic.h b/release/source/tools/hyfiss_request_trace_backend_api_semantic.h
+index cf898ce..f1c9866 100644
+--- a/release/source/tools/hyfiss_request_trace_backend_api_semantic.h
++++ b/release/source/tools/hyfiss_request_trace_backend_api_semantic.h
+@@ -8,6 +8,7 @@
+ #include <vector>
+ 
+ #include "../trace-parser/trace-parser.h"
++#include "r4_l1_read_filter.h"
+ 
+ namespace hyfiss_request_trace {
+ 
+@@ -30,6 +31,9 @@ struct L2AccessObservation {
+   bool victim=false;uint64_t victim_addr=0;uint32_t victim_valid=0,victim_dirty=0;
+ };
+ struct BackendOptions {
++  // Experimental serial-read candidate; legacy remains the default.
++  bool r4_l1_read_filter = false;
++  std::string r4_model_id = "CLOCK_u128_s16_h2_c1062";
+   std::function<void(const L2AccessObservation&)> observe_l2_access;
+   // Same state payload; partition is SM id. Bypassed L1 operations are excluded.
+   std::function<void(const L2AccessObservation&)> observe_l1_access;
+@@ -68,6 +72,8 @@ struct BackendOptions {
+ };
+ 
+ struct KernelTraceRef {
++  unsigned r4_shared_kib = 0;
++  std::vector<R4Allocation> r4_allocations;
+   int kernel_id = 0;
+   std::string kernel_name;
+   std::string llm_phase = "unknown";
+diff --git a/release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc b/release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc
+index b209024..07e9e1e 100644
+--- a/release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc
++++ b/release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc
+@@ -4438,6 +4438,18 @@ int run_from_sm_trace_source(
+     const HwParams hw = read_hw_params(opt.hw_config);
+     apply_hw_options(opt, hw);
+ 
++    if (backend_opt.r4_l1_read_filter && (opt.preserve_l1 ||
++        opt.l1_store_policy!="bypass" || opt.l1_fill_latency!=0 || opt.sector_size!=32))
++      throw std::runtime_error("r4 requires per-kernel L1 reset, store bypass and zero L1 fill latency");
++    if(backend_opt.r4_l1_read_filter &&
++       backend_opt.r4_model_id!="CLOCK_u128_s16_h2_c1062" &&
++       backend_opt.r4_model_id!="r4-small-shared-20260922")
++      throw std::runtime_error("unknown r4 model identity");
++    std::unique_ptr<R4L1ReadFilter> r4;
++    if (backend_opt.r4_l1_read_filter)
++      r4=std::make_unique<R4L1ReadFilter>(std::max(1u,opt.num_sms));
++    std::ofstream r4_ledger;
++
+     if (backend_opt.observe_cache && (opt.output_format!="summary" || opt.l2_line_size!=128 ||
+         opt.sector_size!=32 || !opt.preserve_l2 || opt.l2_dirty_drain ||
+         opt.dram_store_policy!="writeback" || opt.l2_streaming_fill))
+@@ -4445,6 +4457,13 @@ int run_from_sm_trace_source(
+     CacheObservation observation;
+     CacheInputCensus input_census;
+     fs::create_directories(opt.output_dir);
++    if (r4) {
++      if(fs::exists(opt.output_dir/"r4_l1_profiles.csv"))
++        throw std::runtime_error("r4 ledger exists; use fresh output directory");
++      r4_ledger.open(opt.output_dir/"r4_l1_profiles.csv");
++      if(!r4_ledger)throw std::runtime_error("cannot open r4 ledger");
++      r4_ledger<<"kernel_id,shared_kib,effective_bytes,sets,ways,allocations,model\n";
++    }
+     RotatingOutput req_out;
+     if (wants_csv(opt)) {
+       req_out.open(opt.output_dir / "requests.csv", request_csv_header(opt),
+@@ -4545,6 +4564,8 @@ int run_from_sm_trace_source(
+     auto process_inst = [&](const KernelMeta &meta, MemoryInst &inst,
+                             std::vector<uint64_t> &last_ts,
+                             uint64_t &kernel_max_ts) {
++      if (r4 && inst.sm_id >= last_ts.size())
++        throw std::runtime_error("r4 SM id outside hardware configuration");
+       if (inst.sm_id >= last_ts.size())
+         inst.sm_id %= last_ts.size();
+       uint64_t ts = kernel_base + inst.timestamp;
+@@ -4586,6 +4607,7 @@ int run_from_sm_trace_source(
+       if (inst.op == 'W' && inst.mem_width >= 16)
+         ks.wide_store_insts++;
+       for (const auto &req : reqs) {
++        if(r4)r4->require_sector(req.addr,req.byte_mask);
+         const SemanticInfo &req_sem = semantic_db.lookup(req.addr);
+         if (g_semantic_traffic_ledger)
+           g_semantic_traffic_ledger->add_source(
+@@ -4601,6 +4623,16 @@ int run_from_sm_trace_source(
+         if (!bypass_l1) {
+           ks.l1_requests++;
+           if (bypass_l1_read(inst)) l1_access.result=CacheResult::SectorMiss;
++          else if (r4) {
++            if(inst.op!='R' || req.size!=32)
++              throw std::runtime_error("r4 accepts read sectors only");
++            auto a=r4->access(inst.sm_id,req.addr,req.byte_mask);
++            l1_access.result=a.outcome==0?CacheResult::Hit:
++                             a.outcome==2?CacheResult::LineMiss:CacheResult::SectorMiss;
++            l1_access.valid_before=a.before;l1_access.valid_after=a.after;
++            l1_access.evicted.present=a.victim;l1_access.evicted.addr=a.victim_addr;
++            l1_access.evicted.valid_sectors=a.victim_valid;
++          }
+           else l1_access=l1_caches[inst.sm_id].access(req.addr, req.size, opt.sector_size, ts,
+                           opt.l1_fill_latency, cache_operation(inst.op),
+                           false, 0, false, false, req.byte_mask);
+@@ -4763,6 +4795,16 @@ int run_from_sm_trace_source(
+       meta.id = kernel_ref.kernel_id;
+       meta.name = kernel_ref.kernel_name.empty() ? "unknown" : kernel_ref.kernel_name;
+       meta.llm_phase = kernel_ref.llm_phase.empty() ? "unknown" : kernel_ref.llm_phase;
++      if(r4) {
++        if((kernel_ref.r4_shared_kib==8 || kernel_ref.r4_shared_kib==16) &&
++           backend_opt.r4_model_id!="r4-small-shared-20260922")
++          throw std::runtime_error("small shared candidate requires explicit model identity");
++        r4->begin_kernel(kernel_ref.r4_shared_kib,kernel_ref.r4_allocations);
++        r4_ledger<<meta.id<<','<<kernel_ref.r4_shared_kib<<','<<16*128*r4->ways()
++                 <<",16,"<<r4->ways()<<','<<kernel_ref.r4_allocations.size()
++                 <<','<<backend_opt.r4_model_id<<"\n";
++        if(!r4_ledger)throw std::runtime_error("r4 ledger write failed");
++      }
+       if (!opt.preserve_l1) {
+         for (auto &c : l1_caches)
+           c.clear();
+@@ -4925,6 +4967,8 @@ int run_from_sm_trace_source(
+         << "emit_level=" << opt.emit_level << "\n"
+         << "output_phase=" << opt.output_phase << "\n"
+         << "order=" << backend_opt.order << "\n"
++        << "l1_filter_model=" << (r4?backend_opt.r4_model_id:"legacy") << "\n"
++        << "l1_geometry_source=" << (r4?"r4_l1_profiles.csv;config_geometry_below_unused":"hw_config") << "\n"
+         << "include_local=" << (opt.include_local ? 1 : 0) << "\n"
+         << "num_sms=" << opt.num_sms << "\n"
+         << "sector_size=" << opt.sector_size << "\n"
+diff --git a/release/source/tools/r4_l1_read_filter.h b/release/source/tools/r4_l1_read_filter.h
+new file mode 100644
+index 0000000..0850636
+--- /dev/null
++++ b/release/source/tools/r4_l1_read_filter.h
+@@ -0,0 +1,127 @@
++#ifndef MEMGEN_R4_L1_READ_FILTER_H
++#define MEMGEN_R4_L1_READ_FILTER_H
++#include <algorithm>
++#include <array>
++#include <cstdint>
++#include <stdexcept>
++#include <unordered_map>
++#include <vector>
++
++namespace hyfiss_request_trace {
++// Original allocation spans, not tensor views. IDs must identify the allocation
++// generation for this kernel. Multi-allocation/SM use is an unvalidated extension.
++struct R4Allocation { uint64_t id=0, base=0, bytes=0; };
++struct R4ReadResult {
++  unsigned outcome=0; // 0 hit, 2 line miss, 3 resident-tag sector miss
++  uint32_t before=0, after=0, victim_valid=0;
++  uint64_t victim_addr=0;
++  bool victim=false;
++};
++
++// Frozen CLOCK_u128_s16_h2_c1062. Synchronous sector fills, no MSHR/timing.
++class R4L1ReadFilter {
++public:
++  struct Node { uint64_t tag=0; uint32_t mask=0; bool ref=false; };
++  struct Set {
++    std::vector<Node> nodes;
++    std::unordered_map<uint64_t,unsigned> lookup;
++    unsigned hand=0;
++  };
++  explicit R4L1ReadFilter(unsigned sms):sms_(sms) {
++    if (!sms) throw std::runtime_error("r4 requires nonzero SM count");
++  }
++  static unsigned ways_for(unsigned shared_kib) {
++    switch(shared_kib) {
++    case 8:return 64; case 16:return 56; case 32:return 50; case 64:return 33; case 100:return 14;
++    default:throw std::runtime_error("candidate requires declared shared profile 8/16/32/64/100 KiB");
++    }
++  }
++  static unsigned index(uint32_t offset) {
++    uint32_t x=offset/128;
++    x^=x>>16; x*=0x7feb352dU; x^=x>>15; x*=0x846ca68bU; x^=x>>16;
++    return x&15;
++  }
++  void begin_kernel(unsigned shared_kib, std::vector<R4Allocation> allocations) {
++    const unsigned ways=ways_for(shared_kib);
++    if (allocations.empty()) throw std::runtime_error("r4 allocation map is missing");
++    std::sort(allocations.begin(),allocations.end(),[](auto a,auto b){return a.base<b.base;});
++    std::unordered_map<uint64_t,bool> ids;
++    uint64_t end=0;
++    for (const auto &a:allocations) {
++      if (!a.id || !a.base || a.base%128 || !a.bytes || a.bytes>(uint64_t{1}<<32) ||
++          a.base>UINT64_MAX-a.bytes || a.base<end || !ids.emplace(a.id,true).second)
++        throw std::runtime_error("r4 requires unique nonoverlapping aligned allocations within 4 GiB");
++      end=a.base+a.bytes;
++    }
++    allocations_=std::move(allocations); ways_=ways; last_allocation_=0;
++    // Retain bounded storage across kernels, but never retain cache contents.
++    data_.resize(sms_);
++    for(auto &sm:data_)for(auto &set:sm) {
++      set.nodes.clear();set.lookup.clear();set.hand=0;
++      if(set.nodes.capacity()<ways_)set.nodes.reserve(ways_);
++      if(set.lookup.bucket_count()<2*ways_)set.lookup.reserve(2*ways_);
++    }
++    ready_=true;
++  }
++  void require_span(uint64_t address,uint64_t bytes) {
++    if(!ready_ || !bytes || address>UINT64_MAX-bytes)
++      throw std::runtime_error("r4 invalid allocation span check");
++    // A run of sectors usually belongs to the same original allocation.
++    // The half-open span check also rejects holes and address reuse mistakes.
++    const auto *allocation=&allocations_[last_allocation_];
++    if(address<allocation->base || address-allocation->base>=allocation->bytes) {
++    auto it=std::upper_bound(allocations_.begin(),allocations_.end(),address,
++                            [](uint64_t x,const R4Allocation&a){return x<a.base;});
++    if(it==allocations_.begin())throw std::runtime_error("r4 address lacks allocation base");
++    --it;
++    if(address-it->base>=it->bytes)throw std::runtime_error("r4 address lacks allocation base");
++    last_allocation_=it-allocations_.begin();allocation=&*it;
++    }
++    if(bytes>allocation->bytes-(address-allocation->base))
++      throw std::runtime_error("r4 sector extends beyond original allocation");
++  }
++  void require_sector(uint64_t address,uint32_t requested_bytes) {
++    if(address%32 || !requested_bytes)
++      throw std::runtime_error("r4 requires nonempty aligned requested-byte mask");
++    // Allocation bases are 128 B aligned, so a sector cannot straddle the
++    // beginning of a span. The last requested byte, not the fetched sector
++    // width, must remain within the original observed allocation.
++    require_span(address,32u-static_cast<unsigned>(__builtin_clz(requested_bytes)));
++  }
++  R4ReadResult access(unsigned sm,uint64_t address,uint32_t requested_bytes=UINT32_MAX) {
++    if (!ready_ || sm>=sms_ || address%32)
++      throw std::runtime_error("r4 requires initialized, aligned sector input and valid SM");
++    require_sector(address,requested_bytes);
++    const auto *allocation=&allocations_[last_allocation_];
++    const uint32_t offset=static_cast<uint32_t>(address-allocation->base);
++    // Absolute tag keeps distinct allocations from aliasing at equal offsets.
++    const uint64_t tag=address/128;
++    const uint32_t bit=1u<<((offset%128)/32);
++    auto &s=data_[sm][index(offset)]; R4ReadResult out;
++    auto found=s.lookup.find(tag);
++    if(found!=s.lookup.end()) {
++      auto &n=s.nodes[found->second];out.before=n.mask;
++      out.outcome=(n.mask&bit)?0:3;n.mask|=bit;n.ref=true;out.after=n.mask;
++      return out;
++    }
++    out.outcome=2;unsigned slot;
++    if(s.nodes.size()<ways_) {slot=s.nodes.size();s.nodes.emplace_back();}
++    else {
++      while(s.nodes[s.hand].ref) {s.nodes[s.hand].ref=false;s.hand=(s.hand+1)%ways_;}
++      slot=s.hand;s.hand=(s.hand+1)%ways_;
++      const auto &old=s.nodes[slot];out.victim=true;out.victim_addr=old.tag*128;
++      out.victim_valid=old.mask;s.lookup.erase(old.tag);
++    }
++    s.nodes[slot]=Node{tag,bit,true};s.lookup.emplace(tag,slot);out.after=bit;
++    return out;
++  }
++  unsigned ways() const {return ways_;}
++  const Set& inspect(unsigned sm,unsigned set) const {return data_.at(sm).at(set);}
++private:
++  unsigned sms_,ways_=0;bool ready_=false;
++  std::vector<R4Allocation> allocations_;
++  size_t last_allocation_=0;
++  std::vector<std::array<Set,16>> data_;
++};
++}
++#endif
+diff --git a/research/llm_traffic_calibration/README.md b/research/llm_traffic_calibration/README.md
+index 1234bec..bf60118 100644
+--- a/research/llm_traffic_calibration/README.md
++++ b/research/llm_traffic_calibration/README.md
+@@ -1,6 +1,6 @@
+ # RTX 4000 Ada 完整模型流量校准
+ 
+-更新日期：2026-09-22。当前状态：**四条件两套共96份NVIDIA Nsight Compute（NCU，硬件性能计数器采集工具）矩阵报告、四份完整启动/静态指令来源清单、六份二级缓存（Level-2 Cache，L2）口径诊断报告均已完成**。两套矩阵各有36份正式报告和72个正式测量范围，独立原始计数复核通过。重要发现：同次采集的L2直接未命中计数不等于访问减命中，不能用后者调参后就声称前者与显存流量已匹配。尚未完成新的动态访存地址采样、HBServe展开和memgen误差验收。r3（第三轮缓存参数研究候选）仍按用户决定**暂不接受，保留证据**。
++更新日期：2026-09-22。当前状态：**4000 Ada 参数可以用于受控实验，但尚不能称为已通过完整模型流量验收。** 新增 Qwen2.5-1.5B 的 P32/P64 × D2/D4/D8 六条件硬件矩阵已完成，HBServe 完整来源与 memgen 对比正在执行。r4（第四轮缓存候选）的 8/16 KiB 共享划分已补充独立微基准参数，仍有明显留出误差；不以此替代原冻结 r4 或宣称真实物理容量已识别。r3（第三轮候选）仍按用户决定暂不接受，保留证据。原 P128 的1.5B/8B四条件硬件参考继续保留，完整模型来源验收尚未完成。
+ 
+ ## 目标、术语与边界
+ 
+@@ -8,7 +8,7 @@
+ 
+ 图形处理器（Graphics Processing Unit，GPU）固定为 NVIDIA RTX 4000 Ada Generation，本轮物理设备编号1、唯一标识符 `GPU-7a22d253-7921-4e49-992e-0199eebd6f86`。中央处理器（Central Processing Unit，CPU）承担采集控制、来源核查和后续模型回放。
+ 
+-P128 表示一个请求含128个输入词元（token）。Prefill 是一次提示处理前向；Dm 表示此后再执行 m 次逐词元解码前向（decode forward），本轮 m∈{2,4}。D不是包含prefill末尾预测在内的输出总词元数。每次decode的输入固定交替为944、291，**不反馈模型预测结果**；这是现有控制实验协议，不是交互聊天生成。`max_new_tokens` 分别为3和5。
++Pn 表示一个请求含 n 个输入词元（token）；原四条件 n=128，新增六条件 n∈{32,64}。Prefill 是一次提示处理前向；Dm 表示此后再执行 m 次逐词元解码前向（decode forward），原四条件 m∈{2,4}，新增六条件 m∈{2,4,8}。D不是包含prefill末尾预测在内的输出总词元数。每次decode的输入固定交替为944、291，**不反馈模型预测结果**；这是现有控制实验协议，不是交互聊天生成。`max_new_tokens` 为 m+1，即3、5或9。
+ 
+ BF16（Brain Floating Point 16）是16位浮点格式；本轮权重使用现有 safetensors 张量文件，计算精度沿用BF16。SGLang 0.4.10是现有推理框架；FlashInfer是现有注意力计算后端。KV（Key/Value，键/值）缓存保存注意力历史；容量固定1024个词元槽位。CUDA（Compute Unified Device Architecture，统一计算设备架构）是NVIDIA的GPU计算平台；CUDA Graph是执行图，本轮禁用，以现有即时逐内核执行方式运行。张量并行和流水线并行均为1。
+ 
+@@ -16,11 +16,66 @@ L1/L2 分别为一级/二级缓存（Level-1/Level-2 Cache）；sector是计数
+ 
+ SHA-256（256位安全散列算法）用于确认文件内容身份。原生数值身份采用各阶段完整logits（下一词元未归一化评分）的SHA-256及预测词元；数值一致不等于访存地址顺序或缓存命中一致。元数据kernel census（内核启动清单）只证明内核数量、名称和启动形状覆盖，不等于完整SASS（NVIDIA机器指令汇编）访存地址覆盖。
+ 
+-## 冻结的四组条件
++## 新增六条件：硬件完成，完整来源及模型比较在执行
++
++Qwen2.5-1.5B-Instruct、BF16、SGLang 0.4.10、FlashInfer、单请求和固定解码输入沿用现有协议；只更改输入词元数和实际解码前向次数。六条件均有一次同形状预热及一次测量，分别采集连续整段（whole）、连续全部解码（Decode）和逐阶段（steps）三个独立范围协议。每协议一次预检、三次正式重复，共72份报告，其中54份正式报告含138个正式范围样本。每份均为单次采集、零额外预热；数值、输入、位置及启动身份检查通过。
++
++下表是 **whole 独立协议的三次正式重复中位数**。GB=10^9字节，MB=10^6字节；L2读取单位为百万个32字节扇区。表中不含任何模拟预测。
++
++| 条件 | DRAM读 GB | DRAM写 MB | L2读请求 百万扇区 | L2直接读miss 百万扇区 |
++|---|---:|---:|---:|---:|
++| P32D2 | 9.240374 | 72.884480 | 339.319054 | 288.602603 |
++| P32D4 | 15.415756 | 72.787456 | 535.204805 | 481.552449 |
++| P32D8 | 27.768328 | 74.357504 | 927.022670 | 867.443958 |
++| P64D2 | 9.251510 | 152.238720 | 347.968310 | 288.839207 |
++| P64D4 | 15.426741 | 152.394496 | 543.943527 | 481.786369 |
++| P64D8 | 27.776842 | 152.352512 | 935.883209 | 867.676906 |
++
++硬件重复性与口径核查：
++
++- 138/138正式范围精确满足“L1全局读请求−L1读命中=TEX来源L2读请求”。L1读写输入三次重复完全一致。46个范围条件的DRAM读最大相对极差为0.02914%；相对极差定义为100×(最大值−最小值)/中位数。
++- DRAM读比同次TEX直接读miss×32略高；whole差额为4.90–12.23 MB，占DRAM读0.0292%–0.0967%。未采集全来源计数，不能确定归因于某个客户端。
++- 连续whole的DRAM写6/6满足“极差不超过中位数2%或2字节”的重复性诊断阈值；连续Decode为0/6，逐步Decode为0/28。P32D8的Decode8写样本为384、896、182784字节，必须同时报告绝对值，不能只用百分比判断模型。
++- 分步读取之和与whole相差约+0.00834%至+0.02551%；写出对范围边界更敏感。分步求和不是连续范围的实测替代，不混合三个协议计算总体误差。
++
++8/16 KiB实际共享划分已通过NCU确认：分别使用512/256线程块的单活动线程依赖读链。每档84条件×3次重复，覆盖容量边界、32/128字节步长、顺序/逆序/随机链及两种偏移。冻结设计以56个顺序/逆序条件开发，28个随机条件留出；未使用六组LLM计数拟合。
++
++| 实际共享划分 | 新候选路数 | 有效L1容量 | 随机留出WAPE | 留出2%或2扇区内 |
++|---|---:|---:|---:|---:|
++| 8 KiB | 64 | 128 KiB | 20.1204% | 10/28 |
++| 16 KiB | 56 | 112 KiB | 14.2295% | 6/28 |
++
++WAPE（Weighted Absolute Percentage Error，加权绝对百分比误差）定义为100×绝对误差之和/硬件计数之和，范围[0,∞)，硬件分母为0时不定义。模型标识为 `r4-small-shared-20260922`；这两个容量是有效拟合参数，不是统一缓存池物理划分。原32/64/100 KiB共享条件继续使用冻结50/33/14路。原r4留出总体WAPE为12.013%，最差组18.77%；新小共享条件同样未达到每组10%的既有目标，不能声称参数已solid。
++
++完整来源入口维持“稀疏样本→HBServe profile→完整SASS访存流式展开→memgen缓存过滤”。D8预热及测量共5914次启动，旧4096上限不足；新8192上限已有正负测试。小域动态规约采用有界完整观察，大域保持分布采样与独立验证样本，不采集完整模型原始动态访存轨迹。模型遗漏、计划身份变更或传输未闭合均拒绝进入完整缓存回放，不填零。
++
++回放使用实际采样进程的分配生命周期及逐内核实测共享划分。已修复成功 `cuMemFree(0)` 的合法空操作、BEGIN消息缺失共享字节字段的计划关联，以及尾部32字节扇区只核验活动字节的边界。新候选普通/地址及未定义行为消毒器构建各通过4,131,136次参考请求与384个冻结条件；这证明软件转移，不证明硬件准确度。
++
++HBServe与直接后端入口现在共同检查模型标识：8/16 KiB只在显式指定 `r4-small-shared-20260922` 时允许；缺省原r4或未知标识不能静默使用小共享参数。逐内核表、运行摘要和上下文收据记录同一实际标识。普通读、绕过L1的读、写及原子请求均经过分配范围检查；合法部分尾扇区允许，越界活动字节拒绝。新代码提交为 `cb64b8817eaf258f9a58a06cc80d6ed491f31e5e`，从研究分支重新构建的二进制与受测候选完全相同，SHA-256为 `b25eae1d5674313c4bf1268ab4a77ddc556eab2baeea0126591e03a5377a8396`。当前不是生产默认参数。
++
++全部六组启动清单已完成，D2/D4/D8的预热与测量合计分别为2062、3346、5914次启动。新计划采样线程块占完整线程块展开域的1.5283%–3.1640%；这不是动态指令采样比例。P32旋转位置编码的56线程块域不足以保留独立验证点，因此有界完整观察；P64保持按坐标分层采样。调度已通过纯CPU替身实验验证正常六条件、来源拒绝及基础设施故障停止三条路径；最多同时执行一路采样管线与一路CPU回放，GPU实验仍串行。完整模型实际加速尚待测量。
++
++首个完整P32D2动态来源尝试在1826/2062次选定启动闭合后，触发4,000万条样本上限；应用失败，传输以截断拒绝，未产生合格模型流量结果。控制器耗时780.91秒，采样管线三个直接子进程的常驻主机内存（Resident Set Size，RSS）观测峰值36,940,632,064字节；该数不含所有后代或系统文件缓存。调度器停止后续五组，失败证据原样保留。这说明当前完整来源入口的扩展性尚未通过，不能把纯CPU回归通过称为稳定的完整流程。
++
++接收器已改为独占创建的有界文件暂存（spool）：只保存计划选定线程块的样本，完整模型轨迹仍不采集。原始数据写缓冲为1 MiB，文件额度96 GiB，记录额度1.28亿；并保留48 GiB直接进程RSS硬限额。每条二进制记录含640字节传输数据，1.28亿条约76.3 GiB，其余额度用于静态信息及闭合记录。该改造消除累计wire字节的内存留存，不消除逐记录解析成本、逐内核收据和单内核拟合峰值，尚未证明端到端加速。
++
++跨写缓冲边界的CPU差分测试确认：RAM（Random-Access Memory，随机访问内存）旧容器与新文件容器的解析收据、规范化输出和校验摘要完全一致。截断记录、截断闭合消息、尾随字节、同长度篡改、重新计算内部散列后的篡改、错误生产者退出、来源散列门禁失败、超额、写入失败及证据路径碰撞均被拒绝；失败文件保留。仍须生产者退出、原始来源闭合、计划与代码散列一致后才允许投影，后续模型资格另待完整回放结束。第二次尝试在构建阶段因新源码清单未刷新而停止，未启动GPU；已补齐Python/C++两端额度及派生清单核验，再执行真实构建预检。
++
++第三次执行的P32D2已完成全部2062次选定启动的实际GPU采集，生产者正常退出；共40,956,470条稀疏记录、26,242,149,040字节原始传输数据。GPU采集管线至释放设备耗时755.48秒（约12.59分钟，含应用启动与插桩，不是原生推理时间），三个直接子进程RSS观测峰值11,323,891,712字节（约10.55 GiB）。当前继续进行CPU规范化、profile拟合及资格核查；生产者成功不能替代完整profile和缓存回放验收。旧RAM尝试与此次观察范围不完全相同，不能用两次峰值之比声称完整流程的公平性能提升。
++
++已建立单次运行的比较进程：完整来源与两个缓存版本的回放闭合后，逐条件汇总同口径NCU差异。比较前要求六个硬件条件、46个独立范围和每范围三次重复完整且无重复；未完成或拒绝的模型条件不填零。对照按whole、Decode、steps分别统计八项指标，不混合范围分母；保留原始三次硬件计数、绝对误差和分母为零的情况。结果在本轮执行目录的 `traffic-comparison/comparison.json` 和 `assessment.md` 持续更新；矩阵闭合前仅代表当前进度。
++
++采样效率的独立CPU诊断已完成：先将26,242,149,040字节完整选定样本文件的SHA-256与成功退出的生产者核对，再对 `epoch-1-launch-17` 的CUTLASS矩阵乘启动作逐记录对照。原224,256条记录中198,656条是当前投影器已接受的纯共享内存访问；省略它们后仍得到完全相同的64个线程块、25,600条规范化全局访存指令、地址、顺序及语义摘要。88.5845%是这一个启动的记录占比，不是全模型占比或速度提升。未知操作码、未支持宽度、原子、未知/混合空间、local、异步零源和带源谓词的全局加载均不满足省略条件。该诊断没有改变实际运行中的采样域，也没有生成新的合格传输收据；设备端优化尚未实现或验收。证据根为 `/home/xmu/nvidiagds/codex-runs/memgen-six-shared-projection-audit-20260922-r1`。
++
++当前边界：每内核清空L1、L2跨内核保留，读取同步填充，写及原子绕过L1；MSHR并发、真实到达时序、跨内核L1保留、初始化及非内核DMA尚未建模。DMA（Direct Memory Access，直接内存访问）在此指非SASS内核产生的传输。显存写按触发淘汰的服务内核计入，无末尾强制排空。比较器使用方向字段，L1写命中与L2写驻留miss不伪装为等价NCU指标。
++
++硬件根目录：`/home/xmu/nvidiagds/codex-runs/memgen-qwen-p32p64-d2d4d8-20260922-r1`。来源根目录：`/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-source-20260922-r2`。后续采样/回放执行目录：`/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3`；该目录尾号是实验尝试序号，与用户暂缓接受的r3缓存参数无关。源码与候选运行目录：`/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-runtime-20260922-r2`。前两次失败分别保存在evaluation的r1/r2目录。本地证据位于 `D:\codexdataspace\remote-sync\xmu\memgen-qwen-six-matrix-20260922`。其中 `complete-hardware` 已逐文件验证1,114个文件、4,923,621,124字节，清单SHA-256为 `72a995bded98a4bdbe8820ef74c780da4ed0dd52e10972bc248bada49aca7283`；`complete-source-census` 已验证192个文件、1,742,368,630字节，清单SHA-256为 `cc7f7da520d561d6e84eb53ba8ded35fba4a085eaeaa1a8e28091bddf3cf6697`。此前两个小共享预检未取得目标档位、首个尚未执行的来源控制器取消记录均保留，不计为成功实验。
++
++## 原 P128 四组条件
+ 
+ | 条件 | 现有模型 | 层数 | 输入词元 | 解码前向次数 | 状态 |
+ |---|---|---:|---:|---:|---|
+-| qwen1p5b-P128D2 | Qwen2.5-1.5B-Instruct | 28 | 128 | 2 | 硬件及启动清单完成；地址采样待完成 |
++| qwen1p5b-P128D2 | Qwen2.5-1.5B-Instruct | 28 | 128 | 2 | 硬件完成；代表失败族已修复，完整启动来源未验收 |
+ | qwen1p5b-P128D4 | Qwen2.5-1.5B-Instruct | 28 | 128 | 4 | 硬件及启动清单完成；地址采样待完成 |
+ | llama8b-P128D2 | Meta-Llama-3-8B-Instruct | 32 | 128 | 2 | 硬件及启动清单完成；地址采样待完成 |
+ | llama8b-P128D4 | Meta-Llama-3-8B-Instruct | 32 | 128 | 4 | 硬件及启动清单完成；地址采样待完成 |
+@@ -64,12 +119,52 @@ SHA-256（256位安全散列算法）用于确认文件内容身份。原生数
+ 
+ ## HBServe与memgen基线
+ 
+-本轮仍以HBServe展开稀疏采样的访存SASS、memgen缓存过滤为工作流。独立研究分支为 `research/llm-traffic-calibration`，从main提交 `03a986ef711b29b1e7557162af9af7ac93aaa75f` 创建；main本身未改。初始对照使用原有 `RTX4000Ada.paper-v1.config`，一级缓存写绕行、关闭额外有界替换窗口、无结束时强制脏数据排空。它是未校准对照，不能称为硬件已接受配置。
++正式工作流固定为NVBit稀疏采样→HBServe profile（访存模式描述文件）→完整模型访存SASS流式展开→memgen缓存过滤，不要求NVBit采集全模型所有动态访存。独立研究分支为 `research/llm-traffic-calibration`，从main提交 `03a986ef711b29b1e7557162af9af7ac93aaa75f` 创建；main本身未改。初始对照使用原有 `RTX4000Ada.paper-v1.config`，一级缓存写绕行、关闭额外有界替换窗口、无结束时强制脏数据排空。它是未校准对照，不能称为硬件已接受配置。
+ 
+ r3原验证提交 `3df582b0241e63599eebc345b477c46c4f1eebc6` 的证据保持；暂缓接受状态提交 `a94f861757795e0f33c06a490a19ef2f301ada25`。不会因为r3在通用内核上改善某个汇总误差，就将它当作完整模型的已接受参数。
+ 
+ 旧完整1.5B/P128D2来源有2173个预热及测量内核，但其驱动包含阶段间诊断，启动序列和张量生命周期不同，不能直接与新硬件报告相连。新四组地址来源需要各自重新采样、验证覆盖、展开并检查流量守恒。旧代码中固定48个流式多处理器的轮转线程块分配是模型调度假设，并非物理到达顺序观测。
+ 
++### r4接入、验证及适用范围
++
++采用冻结候选 `CLOCK_u128_s16_h2_c1062` 作为可选实验模型。CLOCK（时钟替换算法）使用一位访问标记与循环指针；128字节分配单位有四个32字节扇区有效位，16个集合。实际共享内存划分为32/64/100 KiB时，每集合分别50/33/14路，对应有效L1容量100/66/28 KiB。KiB为1024字节。这些是经验模型参数，不是硬件物理配置声明。
++
++候选索引使用原始内存分配起点的相对地址，经冻结的32位整数混合哈希选集合。多分配情况下，标签仍保留完整绝对地址，防止不同分配相同偏移产生假命中。输入必须提供逐内核实际共享划分及带代际标识的原始分配范围；张量子指针不能代替分配起点。当前要求起点128字节对齐、范围不重叠、单分配不超过4 GiB。GiB为2^30字节。
++
++HBServe仍展开访存机器指令，memgen仍负责合并及缓存过滤；新增 `--r4-context` 明确选择候选并绑定输入文件散列。每内核清空L1、读未命中同步填充、写和原子绕过L1，L2沿用现有模型。未命中状态保持寄存器（Miss Status Holding Register，MSHR）、延迟、并发填充合并和跨内核L1保留不在此次接入范围。8/16 KiB配置明确拒绝，未外推容量。
++
++原32/64/100 KiB冻结r4转移的验证根为 `/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r5`；末尾r5是执行目录编号，不是新的缓存参数候选。新增小共享候选的最终身份与边界验证位于 `memgen-qwen-six-runtime-20260922-r2/model-identity-candidate`，完整路径以前述 `/home/xmu/nvidiagds/codex-runs/` 为根。
++
++| 检查 | 当前结果及含义 |
++|---|---|
++| 冻结参考差分 | 4,115,136次读请求的命中与CLOCK完整状态一致；地址/未定义行为检查构建复验通过 |
++| 实际memgen后端 | 全部384个旧条件的L1命中、L2读请求和输入请求逐项匹配参考，含绕过L1控制 |
++| 旧路径回归 | 真实两内核前缀的311,296条访存指令、9,502,720个线程地址及汇总字节保持一致 |
++| 失败路径 | 五个上下文拒绝用例通过；另一个直接后端初始化失败测试证明生产线程启动后能取消队列，0.717秒退出 |
++| 既有测试债务 | `test_partial_validity` 在未改main与候选上均报 `partial dirty drain changed sectors`；未计为通过，也未修改其语义 |
++
++加权绝对百分比误差（Weighted Absolute Percentage Error，WAPE）为绝对误差之和除以硬件计数之和，乘100%，范围[0,∞)，分母为零时不定义。冻结r4在360个新串行读硬件条件上WAPE仍为12.01%，最差共享划分为18.77%，没有达到总体及各组≤10%的既定门槛。软件转移验证不改变该结论，也不构成完整LLM验收。
++
++当前量化的NCU mismatch（模型预测与硬件计数差异）只覆盖上述串行读微基准：32/64/100 KiB共享划分各120个新条件，L2读扇区WAPE分别12.15%/8.96%/18.77%。360个新条件中98个满足绝对差≤max(2个扇区，硬件中位数的2%)。独立从原始硬件和冻结预测汇总重算，总WAPE为12.0130%，有177个高估、119个低估、64个完全一致；不能靠总量误差抵消来宣称准确。最大单条件相对误差为+90.57%：条件34，32 KiB共享划分、92 KiB地址跨度、128字节步长，NCU中位数1389个L2读扇区，模型2647个。最大绝对误差条件60为硬件25140、模型19724个扇区，即−21.54%。这些是微基准结果，不能作为完整LLM误差。
++
++完整1.5B/8B、P128D2/P128D4当前没有可用的r4端到端NCU误差表；“尚未通过”在这里具体表示来源和模型范围未齐、对比尚未完成，而不是已经测得四组误差都超出阈值。
++
++
++### 完整模型新增的共享划分证据
++
++四份新NCU报告采集 `launch__shared_mem_config_size`，使用逐内核重放、保持原有缓存与时钟控制设置。它们只用于实际共享划分，不能替代原来的范围流量报告。导出原始修饰函数名，再用 `c++filt` 解码，与已固定内核名、顺序及三维启动形状逐项关联。
++
++| 条件 | 测量内核总数 | 8 KiB | 16 KiB | 32 KiB | 64 KiB | 100 KiB | 冻结r4未覆盖 |
++|---|---:|---:|---:|---:|---:|---:|---:|
++| 1.5B/P128D2 | 1086 | 112 | 227 | 316 | 174 | 257 | 339 |
++| 1.5B/P128D4 | 1784 | 168 | 453 | 502 | 290 | 371 | 621 |
++| 8B/P128D2 | 1234 | 131 | 259 | 353 | 198 | 293 | 390 |
++| 8B/P128D4 | 2028 | 197 | 517 | 561 | 330 | 423 | 714 |
++
++合计6132个测量内核中2064个（33.66%）不在冻结r4的共享划分域内。这是内核数量比例，**不是流量比例**。静态机器指令核查发现这些内核均存在可进入当前L1读路径的指令，不能将其整体当成绕过L1处理；该静态观察亦不等于已测得动态L1流量。分配日志中的最大单分配小于4 GiB，但逐内核生命周期及全部地址覆盖尚未验收。
++
++证据根：`/home/xmu/nvidiagds/codex-runs/memgen-r4-llm-shared-20260922-r2`。软件转移和共享划分的首批本地副本为 `D:\codexdataspace\remote-sync\xmu\memgen-r4-integration-20260922`，116个数据文件、392,318,778字节，文件数、大小及SHA-256核对通过。随后新增 `source-and-final` 子目录，159个数据文件、639,929,108字节，也完成逐文件核对，包含最终诊断profile、采样日志、失败记录、计划及补充验证；旧副本未覆盖。
++
+ ## 当前产物与下一道验收
+ 
+ 远端命中计数矩阵根：`/home/xmu/nvidiagds/codex-runs/memgen-llm-p128-d2d4-20260922-r2`。直接miss矩阵根：`/home/xmu/nvidiagds/codex-runs/memgen-llm-direct-miss-p128d2d4-20260922-r1`。启动/静态来源根：`/home/xmu/nvidiagds/codex-runs/memgen-llm-source-p128d2d4-20260922-r3`。同次计数诊断根：`/home/xmu/nvidiagds/codex-runs/memgen-llm-counter-partition-20260922-r3`。
+@@ -173,7 +268,7 @@ NCU文档明确区分请求、扇区、缓存来源和显存传输；应用范
+ 
+ ### 来源完整性、开销和未完成项
+ 
+-线程块（Cooperative Thread Array，CTA）是协作执行的一组GPU线程；候选采样数量是拟合及留出检查计划选择的线程块总数，尚非已完成的地址采样量。
++线程块（Cooperative Thread Array，CTA）是协作执行的一组GPU线程；下表候选采样数量为初始计划选择的拟合及留出线程块总数；修订计划和动态结果在后文单列。
+ 
+ | 条件 | 测量内核 | 含预热/重置的全部内核 | 候选采样线程块 | 来源清单应用耗时 s |
+ |---|---:|---:|---:|---:|
+@@ -182,7 +277,7 @@ NCU文档明确区分请求、扇区、缓存来源和显存传输；应用范
+ | 8B / P128D2 | 1234 | 2470 | 18936 | 198.22 |
+ | 8B / P128D4 | 2028 | 4058 | 28824 | 240.90 |
+ 
+-96次有效矩阵NCU应用运行耗时范围18.04–25.39秒，中位数20.94秒。这是包含模型加载、完整预热、采集和退出的主机耗时，不是GPU原生前向时间。上表NVBit（NVIDIA Binary Instrumentation，二进制插桩框架）耗时仅含启动/静态信息采集及该应用执行；动态地址采样、模板拟合和memgen回放尚未执行。
++96次有效矩阵NCU应用运行耗时范围18.04–25.39秒，中位数20.94秒。这是包含模型加载、完整预热、采集和退出的主机耗时，不是GPU原生前向时间。上表NVBit（NVIDIA Binary Instrumentation，二进制插桩框架）耗时仅含启动/静态信息采集及该应用执行；后续动态地址采样和模板拟合成本不能从该表推算；新的完整memgen回放尚未完成。
+ 
+ 四份来源清单与硬件参考逐项核对了测量内核名称、顺序、线程块形状、实际输入/KV和完整logits。两套NCU矩阵的原生数值、控制量和启动清单也逐项相同。清单包含完整预热及其后的KV分配器重置；初始化和末尾诊断在标记范围之外。新驱动的插桩派生仅添加已有C接口的主机范围标记，反向补丁与原有调用结构检查通过。CTA候选样本分别用于拟合和留出检查；候选计划不等于已获得地址样本。
+ 
+@@ -195,20 +290,82 @@ NCU文档明确区分请求、扇区、缓存来源和显存传输；应用范
+ 本地copy-only（只复制、不迁移或删除）证据为 `D:\codexdataspace\remote-sync\xmu\memgen-llm-p128-d2d4-20260922-r1\evidence`，共1417个被校验数据文件、8,269,256,698字节（另有复制清单、验证收据及传输故障记录），已核对文件数、字节数及SHA-256。清单散列 `fffaf9390974fe0045661a6c6588a7eb6e04a95e29ef7adbcb69c6cf1e9a1c36`。主要文件为 `hardware/independent-audit.json`、`direct-miss/independent-audit.json`、两套各自的 `hardware-summary.json`、`source/finish.json`、`plan-qualification/finish.json`、`counter-partition/independent-audit.json` 和 `copy-manifest.json`。全部原始NCU报告、导出计数、命令、身份、失败记录及静态来源元数据保留。
+ 
+ 
+-### 下一步动态来源接入的实际约束
++### 动态地址来源的实际进度与限制
++
++已适配新驱动、GPU1租约、延后诊断协议和正确的现有采样器。首轮1.5B/P128D2覆盖全部启动的稀疏采样应用成功退出，数值身份与硬件参考一致：2174个预热及测量内核、8,131,584条选中动态记录、5,237,809,003字节传输，逐内核采样收尾守恒检查通过。实际从991,798个CTA中选择15,472个，比例1.56%；记录数不是全模型展开指令数。该次CPU后处理未闭合，因此这些是生产端事实，不能称完整来源已获准。
++
++在已处理280个回调中104个被严格地址/结构检查拒绝。发现六类问题：局部训练点不足以识别矩阵乘法地址映射；一维训练仅有0、1、2、4，达不到部分既有非线性规则的最低样本数；旋转位置编码（Rotary Positional Embedding，RoPE）缺少逐y行训练及独立留出；12个CTA的注意力内核只采9个，不能使用已有完整枚举路径；索引读取和直接复制也出现地址外推不一致。这里的原因包含已证明的样本不足和已观察的外推失败，并未声称已识别全部地址机制。
++
++确认无法满足完整来源验收后，已停止该次CPU拟合并保留原始元数据、部分候选和拒绝日志。没有把拒绝内核记为零流量，也没有放宽到仅比较扇区数量。证据根为 `/home/xmu/nvidiagds/codex-runs/memgen-r4-llm-samples-20260922-r3`，停止时无消费端完整回放资格。动态原始包仅经内存传输，未持久保存，后续修订需要重新采集。
++
++修订计划采用小网格完整枚举、更多分散的训练坐标、跨轴训练及RoPE逐y行留出。完整枚举标为“无外推”，不伪称独立留出通过。旧样本已用于开发，新的留出点排除旧采样点及当前训练点，计划在采集前冻结。所有启动行和身份仍保留；代表性诊断只将非选中行的拟合/留出列表置空，不重编号，不复用其他层的地址。
++
++四条件修订计划均通过现有计划编译器：完整候选CTA数量分别为27,032、36,552、42,258、58,182，顺序为1.5B/D2、1.5B/D4、8B/D2、8B/D4。按旧采样平均记录/CTA估计，1.5B/D2覆盖全部启动的稀疏采样候选约13,655,198条记录；该估计不是上界，其他三组尚无动态预算资格。已执行1.5B/D2代表性诊断，覆盖146个代码/形状/阶段/角色组合、2010个CTA，实测555,808条记录，传输384,111,673字节。诊断使用完整原生应用，不能解释为只执行146个内核；结果范围明确为所选来源，不是完整LLM。
++
++修订计划根为 `/home/xmu/nvidiagds/codex-runs/memgen-r4-source-plan-20260922-r2`；首轮诊断根为 `/home/xmu/nvidiagds/codex-runs/memgen-r4-source-pilot-20260922-r1`。该诊断已完成：GPU应用结束及身份核查约235.66秒，随即释放GPU租约；含CPU拟合的控制阶段总耗时566.18秒，另有约11秒构建/预检。传输和消费端回放闭合，128个profile通过严格样本检查，18个拒绝；该次任务已结束。范围计数、逐指令顺序、程序计数器、操作码、有效线程掩码及逐线程地址检查保持严格。18个拒绝全部发生在规则构建阶段，本轮没有模板已经建成后再报留出地址不符的拒绝。具体如下：
++
++| 来源内核/三维CTA网格 | 拒绝数 | 原始原因及边界 |
++|---|---:|---|
++| BF16直接复制，384×1×1 | 2 | 8个分散训练CTA的地址仍不能由现有线性、整除及排列候选规则表达；整除规则未能识别，排列搜索为0候选，不能再简单归因于只有4个训练点 |
++| 另一类展开循环的复制，297×1×1 | 6 | 不同CTA的指令结构不同；现有稀疏结构选择器仅支持按y分类，当前y=1，无法表达 |
++| 变长注意力状态合并，48×1×1 | 4 | 同样缺少能表达此一维网格中异质结构的选择器；尚未证明变化由尾块或调度引起 |
++| 最大值位置规约，1×19×1 | 6 | 当前要求每个y同时有训练和独立留出CTA，但每个y只有1个CTA，接口要求本身无法满足；仅增加少数采样点不能修复 |
++
++128个通过中90个使用完整CTA网格枚举、38个使用稀疏样本精确验证；这不是128个独立留出都通过。它们只覆盖所选实例，不证明其他同签名启动正确，也不是缓存流量验收。新增地址或结构规则后仍需新的独立样本验证，不能通过放宽检查让旧失败变为通过。
++
++采样器硬限制仍为4096个选中内核、单网格65,536个CTA、单内核选中8192个CTA；后处理最多1600万条动态记录、单内核100万条。传输上限12 GiB、解码记账上限24 GiB。这些是采样后处理的实现限制，不是HBServe展开或memgen处理规模的上限。解码记账不等于进程树实际常驻内存上界；首轮控制器没有实际RSS门槛；本轮已补充三个直接管道进程合计48 GiB门槛，边界见下节。完整元数据仍接近256 MiB上限，代表采样不意味着静态元数据同比减少。
++
++旧入口谓词证书继续绑定指定机器码和形状；遇到未证明的谓词、新指令或缺失来源必须拒绝。完整启动集合与指定全局访存投影覆盖也不等于全部L2客户端覆盖。初始化访存、直接内存访问（Direct Memory Access，DMA）以及模型化线程块排列造成的残差仍需单列。后续重点是对失败族补充最小必要训练/留出样本并修正HBServe profile规则，继续稀疏采样与完整展开。另行准备的扩大枚举计划 `/home/xmu/nvidiagds/codex-runs/memgen-r4-source-plan-20260922-r3` 仅保留为诊断候选，未执行GPU、未采纳为正式方案。下一道验收是修复后的profile规则、四条件完整稀疏来源、8/16 KiB共享划分模型，以及固定参数下的HBServe展开和分层流量比较；当前没有完整LLM误差数字。
++
++### 本轮已落实的稀疏规则、效率与稳定性更新
++
++本节profile规则修复的初始提交为 `9756c7d2df09bec13a8a83893306c3ab13989d2f`，六条件缓存候选代码已推进至前述 `cb64b8817eaf258f9a58a06cc80d6ed491f31e5e`，均位于独立研究分支。已阅读侧边“memgen”“accesim”“hbserve + memgen”“HyiFiss memory footprint”的近期工作，继续沿用稀疏采样→HBServe展开→memgen过滤。Accel-Sim仍作为缓存状态转换和有限资源行为的参照。其H100参数与整体相关性不构成Ada验收；原32/64/100 KiB冻结r4容量保持，小共享候选单独标识，未引入未经Ada数据支持的MSHR、跨SM请求合并参数。
++
++新增一维商余数地址式：`a0 + q_step×floor(x/d) + r_step×(x mod d)`。a0是整数地址截距，不能等同原始内存分配起点；x是CTA的一维坐标，范围0至grid-x−1；d是大于1、小于grid-x且能整除grid-x的整数；q_step和r_step分别是商项和余项的带符号整数字节步长。生成地址仍受消费者的地址范围检查。只用训练样本选出唯一规则，再检查独立留出CTA的每个有效线程地址。已有Python及C++地址消费者支持该表达式，不引入新的地址算式。
++
++新增profile格式版本12的结构选择器，使用起点包含、终点不包含的CTA区间；区间必须无重叠、无空洞、覆盖整个网格。当前拟合只接受经采样验证的首尾例外或由相邻训练CTA唯一确定边界的活跃前缀。每个外推类至少两个不同训练和两个不同留出CTA；小型完整例外类必须观察整个类域，不能伪称独立留出通过。Python与C++同时检查类成员去重、训练/留出互斥、实际采样集合绑定以及覆盖。格式12须使用本研究分支的新C++消费者，冻结的旧独立生成器没有新增此格式支持。
++
++| 原18个拒绝实例 | 本轮处理 | 验证结果 |
++|---|---|---|
++| BF16直接复制，2个 | 一维商余数规则；新增独立留出 | 2个通过逐线程精确地址检查 |
++| 展开循环复制，6个 | 补采末端相邻CTA；完整观察末端例外类 | 6个通过新留出；不采完整297-CTA网格 |
++| 变长状态合并，4个 | 相邻训练点确定活跃前缀；零全局访存CTA必须有原生入口证明 | 4个通过活跃及非活跃区域的新留出 |
++| ArgMax最大值位置规约，6个 | 逐次观察其19个CTA；不按坐标外推动态完成者 | 6个通过全域精确检查，无独立CTA留出声明 |
++
++ArgMax不能被概括为固定首尾类别：同一代码、同一启动在两次已闭合采集中，执行70条全局访存记录的CTA由12变成4或0；普通CTA为67条。另观察到CTA17为54条、CTA18为51条。安装版本 `ATen/native/cuda/Reduce.cuh` 第682–693及798–812行按原子完成计数选最后完成CTA执行最终规约，这与上述观察一致；尚未声称对每条二进制分支作了源码归因。拟合器对已识别机器码强制“网格≤32 CTA且全域实际观测”，防止恰好漏采动态完成者时误接纳稀疏常量结构。更大的此类域会拒绝，需要另外实现并验证动态谓词语义。
++
++最后一轮只选择6个19-CTA规约及3个控制，共9个内核、132个CTA、7537条记录，全部通过；整个应用的2174条启动身份仍保留。这是有明确上限的小kernel例外，不是全模型动态SASS采集。源地址仍经profile展开进入memgen。
++
++原18个拒绝的同名启动键及机器码已逐项关联到新合格profile：12个采用稀疏修复，6个采用小域完整观察。该结论跨三个诊断采集成立，**不能写成一次完整146/146或全模型2174/2174通过**。另外两批15和9个合格profile均由新C++后端逐个冷启动回放，指令数、线程地址来源摘要（有完整参考时）及读/写/原子扇区计数符合来源预期。这里验证的是来源和消费者一致性，使用原配置作回归，不是r4缓存的硬件误差验收。
++
++效率改动与实测如下，均注明实际测量范围：
++
++| 改动 | 相同结果的检查 | 实测范围与耗时 |
++|---|---|---|
++| r4保留集合容器容量，跨kernel只清内容；缓存最近原始分配区间，未命中回到原二分查找 | 4,115,136次参考请求、384个后端条件；新增连续切换32/64/100 KiB、分配代际复用及空洞拒绝 | 同CPU交替顺序，4个设置各5对；缓存核心中位加速1.42–1.63倍。burst为连续访问同一分配的请求数，本次取1或64；单分配的两种设置实际地址流相同，不算两个独立场景，也不代表完整LLM加速 |
++| 对模32余数不变的地址规则精确聚合流量计数；其余仍逐CTA计算 | 130个已闭合原生profile全部匹配旧计数；另测8种非对齐/负步长 | 全部130个profile含读文件约1.40秒；3个37,984-CTA案例，各3对：逐CTA路径约14.28–14.95秒，聚合约0.076–0.101秒 |
++| 有界保存指定失败族及控制的原生CTA投影 | 文件SHA-256、传输及回放闭合收据；可直接CPU重拟合 | 各次约1.22–1.24 MB压缩样本，避免每次改规则都重新运行GPU；不是完整NVBit二进制流 |
++
++计数优化只替换Python中可严格合并的遍历；逐线程地址验证和C++完整地址流保持。其缓存最多4096个相对布局，CTA列表仍受既有网格上限约束。尚未测得整个HBServe+memgen工作流的端到端加速，也未证明8B/P128D4扩展性已经通过。
++
++| 本轮原生诊断 | 选中内核 / CTA / 记录 | 通过 / 拒绝 | 控制总时间 / GPU应用及身份核查 |
++|---|---|---|---|
++| 一维规则修复，source-pilot r3 | 146 / 2010 / 555808 | 130 / 16 | 653.40 / 283.83秒 |
++| 新留出及结构边界，source-pilot r5 | 21 / 244 / 8375 | 15 / 6 | 246.49 / 234.72秒 |
++| 动态规约小域，source-pilot r6 | 9 / 132 / 7537 | 9 / 0 | 266.22 / 255.05秒 |
+ 
+-旧采样控制器固定Qwen的28层、D2和GPU2，且依赖旧驱动的来源库存接口；本轮已经用现有计划校验器验证四份实际清单并生成C++采样计划头文件；尚未据此编译、启动动态采样器二进制。接入须沿用新驱动、GPU1租约和延后诊断协议。旧2173内核分母不可复用，新WarmReset（预热后清空逻辑KV分配器的GPU重置内核）也必须计入。计划严格绑定范围、启动序号、机器码散列、网格、线程块及共享内存形状；不能按层数复制旧模板。
++上述时间包含模型加载、原生完整应用与插桩/后处理，不是原生GPU前向时间。不同诊断选择不同来源，不能直接相除报告工作流加速。一维修复的653.40秒还比首轮566.18秒更慢；计数聚合是在之后单独验证并接入的。本轮监测三个直接管道进程的RSS（Resident Set Size，常驻内存）之和，峰值分别约11.44、12.14、12.15 GiB；设置48 GiB停止门槛。这不是所有后代进程与设备内存的总上界。
+ 
+-当前采样器除4096内核上限外，还限制单网格65,536个CTA、单内核采样8192个CTA；后处理最多1600万条动态记录、单内核100万条。传输编码量上限12 GiB、解码量24 GiB，控制器进程树常驻内存（Resident Set Size，RSS）上限48 GiB。四组目前仅有内核数与候选CTA计划，没有证明其动态记录和字节预算通过。
++稳定性验证包括地址/未定义行为检查构建、原两内核311,296条指令和9,502,720个线程地址回归、三个合成结构的完整网格地址摘要，以及10项错误profile拒绝（含区间孔洞/重叠、未知类、虚假完整类、重复成员、训练留出重叠、未实际采样CTA与来源绑定错误）。已知 `test_partial_validity` 基线失败仍原样记录，未计作通过。
+ 
+-旧入口谓词证书固定机器码散列和启动形状，后处理拒绝未经证明的谓词估计，拟合必须有独立留出CTA。当前原子指令投影也只有已支持的具体形式，遇到新指令、缺失CTA或未解码来源必须明确报出。完整启动集合与指定全局访存投影的覆盖，不等于已覆盖全部L2客户端；其他来源的残差必须单列。已补读并核验16个实际依赖源码文件。旧入口证书只绑定匹配机器码及特定谓词候选，并不拒绝所有其他内核；WarmReset的普通全局写指令已有投影支持，但尚无本轮动态覆盖证明。后续先完成控制器适配并做最小地址采样准入，再完成四组采样、拟合、HBServe展开和memgen回放；初始化访存及直接内存访问（Direct Memory Access，DMA）的初始缓存状态仍需单列。
++运行中曾出现状态文件误用独占创建接口、一次验证入口文件名错误，以及一次GPU租约被其他任务占用；均保留失败证据。状态写入已修正；控制器现在先获取GPU租约，再创建消费进程，最多等待180秒，不接管其他任务的锁。旧已测试源码在换行规范化前归档；仅CRLF转换为LF后，Python语法树相同，重建C++二进制SHA-256仍为 `df435cde4cbf423bd0b10f16f77096069765bb01fe79ae0f3b485c2a4f84ed23`。
+ 
+-## 研究脚本与执行约束
++证据总根为 `/home/xmu/nvidiagds/codex-runs/`：`memgen-r4-source-pilot-20260922-r3/r5/r6` 是三次原生诊断；`memgen-r4-source-plan-20260922-r4/r5` 是冻结计划；`memgen-sparse-native-cpp-20260922-r1/r2` 是实际消费者验证；`memgen-profile-census-validation-20260922-r1`、`memgen-r4-cache-performance-20260922-r1`、`memgen-r4-integration-20260922-r5` 保存性能与回归。斜线分隔的r编号在此表示同前缀不同目录，并非子目录。
+ 
+-本目录保存本轮已执行程序的源文件快照，生产缓存实现未修改。`collect_traffic.py` 对应后采集的直接未命中计数矩阵；首套命中计数控制器原件保留在证据根。`audit_traffic.py` 根据合同区分两套指标，独立重算原始导出、单位、数值身份和聚合结果。`counter_partition.py` 只采集同次Prefill的五项口径诊断。`source_census.py` 与派生驱动只进行完整启动及静态来源清点。
++本地证据在 `D:\codexdataspace\remote-sync\xmu\memgen-sparse-update-20260922`，906个复制文件、807,746,407字节，逐文件大小和SHA-256核对通过，另有复制收据及本地交叉审计。复制清单SHA-256为 `36515c99a3983c8fb642bd1e01d467e3a6b2461e05b9d4777a5326228a430080`。失败运行的大型未完成观察器数据继续保留在服务器；本次复制的是清单列出的证据，未删除任何历史文件。较早两次profile内部的 `raw_trace_saved=false` 字段未随新增样本留存更新，实际留存以父收据 `native_fixtures` 为准；最后一次采集已同步修正profile字段，旧证据不重写。
+ 
+-这些脚本依赖合同中的现有SGLang环境、模型路径、来源观察器、GPU1租约和原始硬件参考目录，不是任意服务器上即用的安装包。重新采集必须创建新的实验根并放入驱动、合同及重新验证的输入散列；不可直接在历史输出目录运行，不能覆写已有报告。控制器使用独占设备租约，单元失败立即停止，保留证据并等待自身进程及设备上下文退出。管理员凭据只经进程标准输入传递，不写入合同、命令记录或本目录。
++原P128四条件尚无完整模型r4 NCU误差表；新增P32/P64六条件正在以完整来源和连续L2历史执行独立对照。已有360个串行读微基准的L2读扇区WAPE仍为12.0130%，原32/64/100 KiB模型行为保持；8/16 KiB有效模型已另行建立，留出结果见本文开头。六条件回放已包含逐内核分配生命周期，MSHR/回填/请求合并仍需与Ada并发硬件数据配对。这里不承诺尚未测得的完整准确度、全流程速度或8B扩展性。
+ 
+-`evidence-index.json` 给出实际远端证据根、本地逐文件验证收据及本目录每个脚本的来源散列。源程序的固定路径用于复核本轮执行，不代表后续不同模型或解码条件可跳过来源完整性检查。尚未完成动态地址采样、拟合、HBServe展开及memgen误差验收。
++## 研究提交
+ 
+-仓库中的Python快照统一为LF换行；仅两个控制脚本的CRLF换行发生规范化，已核对抽象语法树（Abstract Syntax Tree，AST）一致。原执行文件、原散列和原始证据未改，`evidence-index.json` 分别记录来源与仓库文件散列。
++独立分支 `research/llm-traffic-calibration` 的硬件参考基点为 `acd39647f9462922e3ac4ed10b43205859503f07`；初次r4接入提交为 `4df2a1a4a22f2d5defbcef1dd1f4ccc338b80522`；规则与效率更新初始提交为 `9756c7d2df09bec13a8a83893306c3ab13989d2f`；六条件小共享候选、模型身份和活动字节边界修复提交为 `cb64b8817eaf258f9a58a06cc80d6ed491f31e5e`。源文件、数据合同、报告和证据索引位于远端该分支的 `research/llm_traffic_calibration/`。生产main仍为 `03a986ef711b29b1e7557162af9af7ac93aaa75f`。硬件参考批次的两个旧控制脚本只规范化换行，原执行文件与散列保持；本轮新修改的拟合、计数及采样代码另有提交和来源归档。
+diff --git a/research/llm_traffic_calibration/evidence-index.json b/research/llm_traffic_calibration/evidence-index.json
+index d08608b..e7d4c03 100644
+--- a/research/llm_traffic_calibration/evidence-index.json
++++ b/research/llm_traffic_calibration/evidence-index.json
+@@ -1,5 +1,5 @@
+ {
+-  "status": "HARDWARE_REFERENCE_AND_STATIC_CENSUS_COMPLETE_NOT_MEMGEN_ACCEPTANCE",
++  "status": "REPRESENTATIVE_SOURCE_REPAIRED_WITH_BOUNDED_EXCEPTION_NOT_FULL_LLM_ACCEPTANCE",
+   "r3_status": "USER_DEFERRED_NOT_ACCEPTED",
+   "base_commit": "03a986ef711b29b1e7557162af9af7ac93aaa75f",
+   "branch": "research/llm-traffic-calibration",
+@@ -12,7 +12,15 @@
+     "direct_miss_panel": "/home/xmu/nvidiagds/codex-runs/memgen-llm-direct-miss-p128d2d4-20260922-r1",
+     "source_census": "/home/xmu/nvidiagds/codex-runs/memgen-llm-source-p128d2d4-20260922-r3",
+     "same_run_counter_diagnostic": "/home/xmu/nvidiagds/codex-runs/memgen-llm-counter-partition-20260922-r3",
+-    "plan_qualification": "/home/xmu/nvidiagds/codex-runs/memgen-llm-plan-qualification-20260922-r2"
++    "plan_qualification": "/home/xmu/nvidiagds/codex-runs/memgen-llm-plan-qualification-20260922-r2",
++    "r4_integration": "/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r5",
++    "r4_shared": "/home/xmu/nvidiagds/codex-runs/memgen-r4-llm-shared-20260922-r2",
++    "sparse_pilot": "/home/xmu/nvidiagds/codex-runs/memgen-r4-source-pilot-20260922-r1",
++    "r4_initial_integration": "/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r3",
++    "sparse_boundary_pilot": "/home/xmu/nvidiagds/codex-runs/memgen-r4-source-pilot-20260922-r5",
++    "bounded_completion_pilot": "/home/xmu/nvidiagds/codex-runs/memgen-r4-source-pilot-20260922-r6",
++    "cache_performance": "/home/xmu/nvidiagds/codex-runs/memgen-r4-cache-performance-20260922-r1",
++    "profile_census": "/home/xmu/nvidiagds/codex-runs/memgen-profile-census-validation-20260922-r1"
+   },
+   "copy_verification": {
+     "status": "PASS_COPY_ONLY_COUNT_BYTES_SHA256",
+@@ -95,7 +103,175 @@
+       "normalization": "none"
+     }
+   },
+-  "production_cache_changed": false,
+   "dynamic_address_coverage_proven": false,
+-  "memgen_accuracy_accepted": false
+-}
+\ No newline at end of file
++  "memgen_accuracy_accepted": false,
++  "r4_implementation_commit": "4df2a1a4a22f2d5defbcef1dd1f4ccc338b80522",
++  "shared_profile_reports": 4,
++  "r4_software_transfer_passed": true,
++  "experiment_backend_changed": true,
++  "production_main_changed": false,
++  "workflow": "sparse NVBit samples with bounded observed dynamic-reduction exceptions -> HBServe profiles -> full memory SASS expansion -> memgen cache filtering",
++  "pilot": {
++    "selected_launches": 146,
++    "selected_ctas": 2010,
++    "selected_records": 555808,
++    "profiles_accepted": 128,
++    "profiles_missing": 18,
++    "transport_qualified": true,
++    "replay_closed": true,
++    "full_launch_population_complete": false,
++    "hardware_accuracy_accepted": false,
++    "scope": "initial_representative_diagnostic_before_sparse_update"
++  },
++  "additional_copy_verifications": [
++    {
++      "status": "PASS_COPY_SIZE_SHA256",
++      "files": 116,
++      "bytes": 392318778,
++      "root": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-r4-integration-20260922",
++      "manifest_sha256": "fbc4a4af0bc804091ea96a147aef79476e3e9f3864a93cea8afd4488d28db9e1"
++    },
++    {
++      "status": "PASS_COPY_SIZE_SHA256",
++      "files": 159,
++      "bytes": 639929108,
++      "root": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-r4-integration-20260922\\source-and-final",
++      "manifest_sha256": "d4e86f81cdbd25d02d53bc32d02aa3d82faeb3bcd37c95c34ba194a1f607c899"
++    },
++    {
++      "status": "PASS_COPY_SIZE_SHA256",
++      "files": 906,
++      "bytes": 807746407,
++      "root": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-sparse-update-20260922",
++      "manifest_sha256": "36515c99a3983c8fb642bd1e01d467e3a6b2461e05b9d4777a5326228a430080"
++    }
++  ],
++  "sparse_source_update": {
++    "status": "PASS_REPAIRED_REPRESENTATIVE_FAILURES_NOT_FULL_MODEL",
++    "old_rejected": 18,
++    "sparse_rule_repairs": 12,
++    "complete_small_domain_repairs": 6,
++    "repaired": {
++      "epoch-1-launch-19": {
++        "code_sha256": "62ee9483d3ce99efea1ac258050f3a20663a0b4d309b247b779c0b8ca60fb8d1",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-387": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-404": {
++        "code_sha256": "ee37b075dfd417ab8f86a1bb914a8180541f11ebaad95d5b3d1130de6f4d3b63",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-736": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-753": {
++        "code_sha256": "ee37b075dfd417ab8f86a1bb914a8180541f11ebaad95d5b3d1130de6f4d3b63",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-1085": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-2-launch-18": {
++        "code_sha256": "62ee9483d3ce99efea1ac258050f3a20663a0b4d309b247b779c0b8ca60fb8d1",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-2-launch-386": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-3-launch-15": {
++        "code_sha256": "ee37b075dfd417ab8f86a1bb914a8180541f11ebaad95d5b3d1130de6f4d3b63",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-3-launch-347": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-4-launch-15": {
++        "code_sha256": "ee37b075dfd417ab8f86a1bb914a8180541f11ebaad95d5b3d1130de6f4d3b63",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-4-launch-347": {
++        "code_sha256": "d7d73af0765453d1729320a3749eb835da25a9aa07b5e88734b0eea438aee862",
++        "source_capture": 5,
++        "complete_grid_no_extrapolation": false
++      },
++      "epoch-1-launch-388": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      },
++      "epoch-1-launch-737": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      },
++      "epoch-1-launch-1086": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      },
++      "epoch-2-launch-387": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      },
++      "epoch-3-launch-348": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      },
++      "epoch-4-launch-348": {
++        "code_sha256": "b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8",
++        "source_capture": 6,
++        "complete_grid_no_extrapolation": true
++      }
++    },
++    "sources": [
++      {
++        "path": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-sparse-update-20260922\\source-5\\qwen1p5b-P128D2\\profiles\\receipt.json",
++        "sha256": "b23ef6b3fedabf7c62c6a30379fc0ad00856961e833ae99909fd14a98b2d83c5"
++      },
++      {
++        "path": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-sparse-update-20260922\\source-6\\qwen1p5b-P128D2\\profiles\\receipt.json",
++        "sha256": "5eb790eed3b720f6368acb2c39bcfca91d47dfd1652b18071ad330bff6102162"
++      }
++    ],
++    "implementation_commit": "9756c7d2df09bec13a8a83893306c3ab13989d2f"
++  },
++  "six_conditions_20260922": {
++    "status": "HARDWARE_COMPLETE_FULL_SOURCE_AND_CACHE_EVALUATION_PENDING",
++    "hardware_root": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-p32p64-d2d4d8-20260922-r1",
++    "source_census_root": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-source-20260922-r2",
++    "evaluation_root": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3",
++    "runtime_root": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-runtime-20260922-r2",
++    "cache_tests": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-runtime-20260922-r2/model-identity-candidate",
++    "cache_binary_sha256": "b25eae1d5674313c4bf1268ab4a77ddc556eab2baeea0126591e03a5377a8396",
++    "cache_source_manifest_sha256": "e1c26d7b05accc8c37a1053f8544791e08b979310031d698c4b78f03cac27f0a",
++    "hardware_accepted": false,
++    "local_evidence_root": "D:\\codexdataspace\\remote-sync\\xmu\\memgen-qwen-six-matrix-20260922",
++    "cache_code_commit": "cb64b8817eaf258f9a58a06cc80d6ed491f31e5e",
++    "comparison_root": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/traffic-comparison",
++    "first_capture_host_closed": true,
++    "first_capture_workload": "qwen1p5b-P32D2",
++    "first_capture_selected_records": 40956470,
++    "shared_omission_cpu_proof": "/home/xmu/nvidiagds/codex-runs/memgen-six-shared-projection-audit-20260922-r1",
++    "device_omission_implemented": false
++  }
++}
+diff --git a/research/r4_l1_filter/README.md b/research/r4_l1_filter/README.md
+new file mode 100644
+index 0000000..50e5390
+--- /dev/null
++++ b/research/r4_l1_filter/README.md
+@@ -0,0 +1,90 @@
++# memgen 冻结 r4 一级读缓存接入
++
++本目录的 r4 指第四轮缓存校准候选 `CLOCK_u128_s16_h2_c1062`，不是准确度等级。当前状态为实验分支已接入、串行参考转移验证通过；完整大语言模型（Large Language Model，LLM）流量准确度尚未验收。正式流程为NVBit（NVIDIA Binary Instrumentation，二进制插桩工具）稀疏采样→HBServe profile（访存模式描述）→完整模型机器访存指令展开→memgen缓存过滤，不要求NVBit采集全模型所有动态访存。`candidate_parameters.json` 和 `r4_frozen_reference.cpp` 保留校准时的原始证据内容，其中旧部署状态描述属于冻结记录，不是本目录的当前状态。
++
++一级缓存（Level-1 Cache，L1）按流式多处理器（Streaming Multiprocessor，SM）分别保存状态；二级缓存（Level-2 Cache，L2）沿用原有模型。扇区（sector）为32字节，分配单位为128字节，每单位有四个独立有效位。CLOCK（时钟替换）使用一位访问标记和循环指针；标签内扇区命中或未命中都置访问标记，新标签填充也置标记。替换扫描清除遇到的1标记，淘汰遇到的第一个0标记，随后推进指针。所有读未命中同步填充，不模拟未命中状态保持寄存器（Miss Status Holding Register，MSHR）、延迟或合并。
++
++KiB（二进制千字节）为1024字节。共享内存实际划分为32/64/100 KiB时，16个集合分别使用50/33/14路，对应有效容量100/66/28 KiB。容量是经验参数，不是物理结构声明。8/16 KiB划分不在原冻结候选内。新增 `r4-small-shared-20260922` 候选明确使用64/56路，对应有效容量128/112 KiB；仅在显式选择这个模型标识时允许。两个容量是行为拟合值，不是物理缓存划分。
++
++## 输入约定
++
++输入仍经HBServe地址展开器进入memgen，后端处理展开的机器访存指令（SASS，NVIDIA机器指令汇编）并合并为32字节请求。C++后端通过 `BackendOptions.r4_l1_read_filter` 显式选择r4；默认仍为原模型。`BackendOptions.r4_model_id` 默认是原冻结标识 `CLOCK_u128_s16_h2_c1062`；8/16 KiB必须显式指定 `r4-small-shared-20260922`。HBServe上下文顶层 `model_id` 同样遵守此规则；未知标识在两种入口均拒绝。每个 `KernelTraceRef` 必须提供 `r4_shared_kib` 与 `r4_allocations`。每个内核清空L1，写入和原子操作绕过L1，L2连续性沿用现有选项。跨内核L1保留、非零L1填充延迟、L1写分配均不接受。
++
++每个allocation（内存分配）必须提供该内核时刻的独立代际标识id、原始起始地址base、长度bytes。base不是张量视图或子指针；当前要求128字节对齐、范围不重叠、长度不超过4 GiB（二进制吉字节，1 GiB=2^30字节）。相对起点的32位字节偏移除以128后执行冻结的32位混合哈希；乘法在每步按模2^32截断。缓存标签保留完整绝对地址，避免不同分配的相同相对偏移发生假命中。缺少分配映射、越界地址或SM编号会报错。
++
++多分配、多SM及实际线程束交错属于本次接入的功能扩展，尚未由r4串行硬件微基准证明准确。warp（线程束）为一起执行指令的一组32个线程。不存在把地址放入虚构大跨度范围以绕过完整性检查的正式实验许可。
++
++## HBServe入口
++
++在已有 `hbserve_profile_stream_cache_semantic_r17.cpp` 的memgen模式调用中增加 `--r4-context PATH`。该JSON（JavaScript Object Notation，结构化文本）边带文件必须有以下结构；示例只说明格式，不是可用于硬件评估的数据：
++
++```json
++{
++  "schema": "MEMGEN_R4_CONTEXT_V1",
++  "model_id": "CLOCK_u128_s16_h2_c1062",
++  "profile_index_sha256": "实际profiles.index.jsonl的SHA-256",
++  "app_config_sha256": "实际app.config的SHA-256",
++  "kernels": [{
++    "kernel_id": 1,
++    "shared_kib": 32,
++    "shared_evidence": "对应硬件采集和内核关联证据的位置",
++    "allocations": [{"id": 1, "base": 4096, "bytes": 128}]
++  }]
++}
++```
++
++SHA-256为256位内容散列。入口验证展开索引和启动配置身份，以及内核上下文唯一性与覆盖；`shared_evidence`是供审查的来源字段，入口本身不会独立验证该来源的硬件真实性。调用方仍须保存并核验原始采集、对应关系和分配生命周期。原来的语义范围文件没有分配代际信息，不能直接等同此上下文。
++
++输出的 `r4_l1_profiles.csv` 记录每个内核实际采用的容量和路数；`run_summary.txt` 标记r4模型，硬件配置内的旧L1几何字段明确标为未使用。完整成功后才写入 `r4_context_identity.json`。来源或上下文失败时取消有界生产队列，不生成成功来源统计。
++
++## 已完成的验证
++
++远端证据根 `/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r5` 中的r5仅为本次验证第五次执行目录，与被暂缓接受的第三轮缓存参数无关。
++
++- 冻结参考与独立接入实现比较4,115,136次请求的命中/未命中，包括随机压力和全部384个旧采集条件；检查CLOCK槽位、访问位、指针和有效位状态。地址及未定义行为检查构建（AddressSanitizer/UndefinedBehaviorSanitizer）复验通过。
++- 实际memgen后端对384个条件的L1命中、L2读请求、读请求总量逐项匹配冻结参考，包括绕过L1的控制。
++- 原配置在真实两内核HBServe前缀上，311,296条访存指令、9,502,720个线程地址的展开身份和全部内核汇总逐字节保持一致。
++- 保留式清理观察、L2驻留统计测试通过；非法SM编号拒绝；五个上下文失败用例返回失败并保留既有输出，包含运行中缺少分配范围与缺少内核上下文的取消路径。
++- 单独的直接后端测试在生产线程已经启动后触发初始化失败，成功取消并退出，耗时0.717秒；这是实际执行结果。采样控制器另外补充可处理终止信号的收尾及退出竞态保护，该信号路径只经过代码/语法核查，未声称GPU中断测试通过。
++- 存在一个既有测试债务：`test_partial_validity` 在未改动main和本候选上都以 `partial dirty drain changed sectors` 失败。该测试期待部分脏扇区立即排空，而当前缓存保留未完整数据；本接入没有修改该行为，也没有将这项测试计为通过。
++
++复现串行与回归：`python3 -B research/r4_l1_filter/validate_r4.py --output <全新远端输出目录>`。冻结r4在360个新硬件条件上的加权绝对百分比误差（Weighted Absolute Percentage Error，WAPE；绝对误差总和除以实测总和，乘100%）仍为12.01%，最差共享划分18.77%；未达到总体及各组不超过10%的原目标。本次软件接入不会改变这一硬件结论。
++
++## 四组LLM的新增证据
++
++使用现有1.5B和8B模型、128个输入词元，以及Prefill提示处理后2或4次Decode逐词元前向。四组实测启动数依次为1086、1784、1234、2028；实际共享划分都包含8/16/32/64/100 KiB。NCU（NVIDIA Nsight Compute，硬件性能计数分析工具）报告与已固定的内核名称和三维启动形状完整对应。NCU默认简化名称会改变模板表示，因此导出原始修饰名后使用 `c++filt` 解码再关联，未放宽为仅按序号匹配。
++
++共享划分证据在 `/home/xmu/nvidiagds/codex-runs/memgen-r4-llm-shared-20260922-r2`。6132个测量内核中2064个使用8/16 KiB划分，且存在可经过L1的读指令；该33.66%是内核数量比例，不是流量比例。不得将四份启动划分报告当成memgen完整流量验收。
++
++## 稀疏来源与本轮效率更新
++
++本轮原生来源为Qwen2.5-1.5B-Instruct，BF16（16位Brain Floating Point），单请求，P128D2表示128个输入词元的Prefill提示处理，再执行两次Decode解码前向；数值、输入和启动身份仍与原NCU硬件参考核对。线程块（Cooperative Thread Array，CTA）是协作执行的一组线程。
++
++原代表诊断146个所选内核中有18个拒绝，本轮在同启动键、同机器码的新采集中逐项修复：12个通过一维商余数地址规则、首尾结构例外或活跃前缀选择器及新留出验证；6个ArgMax最大值位置规约具有运行间变化的最终完成CTA，逐次观察其各19个CTA。完整小域不声称独立CTA留出通过。未要求采集全模型动态SASS；未知的大规模动态完成者域仍拒绝，不能猜测。
++
++profile格式版本12支持覆盖整个网格、无重叠或孔洞的CTA区间。外推类至少两个不同训练与两个不同留出CTA；完整例外类必须观测整个类域。Python和C++同时核验集合互斥、去重、实际来源绑定和覆盖。旧冻结消费者不支持版本12，新消费者位于本研究分支。单个CTA在两次采集出现不同指令结构时，不能用静态坐标分类掩盖。
++
++新profile分两批15和9个通过实际C++冷启动来源回放；其中完整小域还核对独立原生地址摘要。不能合并成一次146/146或2174/2174全模型通过。最后一次采样选择9个内核、132个CTA、7537条记录，控制耗时266.22秒；包含加载、插桩和后处理，不是GPU原生时间。
++
++效率方面，r4保留集合容器容量、清空内容和CLOCK指针，缓存最近原始分配区间，空洞或换代仍验证；参数和命中行为不变。4,115,136次参考请求、384个实际后端条件及真实两内核前缀回归通过，缓存核心成对微基准中位加速1.42–1.63倍。对地址在32字节扇区内偏移不变的规则，Python用严格代数聚合计数，其余逐CTA计算；130个profile与旧结果完全相同，三个37,984-CTA计数案例约14秒降至0.08–0.10秒。这些都不是完整LLM端到端加速比。
++
++指定失败族和控制的原生CTA投影被有界压缩保存，供CPU重拟合，单轮约1.24 MB（十进制百万字节）；内存及文件预算超限拒绝。控制器监测三个直接管道进程的RSS（Resident Set Size，常驻内存）之和，上限48 GiB，不包含全部后代或设备内存。先获取GPU租约后创建消费者，最多等待180秒，不接管其他任务。
++
++复现CPU拟合时使用 `replay_sparse_fixtures.py --receipt <已闭合父收据> --output <全新目录>`；实际消费者使用 `replay_native_profiles.py --receipt <父收据> --binary <当前C++可执行文件> --output <全新目录>`。`sample_llm.py` 现在要求显式 `--output <全新目录> --plans <冻结计划根> --workload <合同中的条件名>`；仅接受代表性来源计划。参数解析与原采样函数语法树一致性已检查；本轮实际GPU采集使用归档的固定参数控制器，未重跑新增命令行包装。
++
++当前合格C++二进制为 `/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r5/hbserve`。源码换行规范化后重建字节完全相同。18项失败族修复、所有原始计数、失败记录及各自的范围见本分支 `research/llm_traffic_calibration/README.md`；本文件已给出结论的必要定义和边界。
++
++完整模型验收仍未完成：四条件是现有1.5B与8B模型，128输入词元，随后2或4次解码前向。仍需完整稀疏来源、8/16 KiB有效模型、分配生命周期、与Ada并发数据匹配的MSHR/回填/请求合并及分层NCU流量比较。r4硬件WAPE仍为12.0130%，本轮严格等价优化不改变它；生产main不变，r3缓存候选暂不接受。所有本轮采样与拟合任务已结束。
++
++
++## 六条件测试与最新软件修复
++
++2026-09-22新增Qwen2.5-1.5B-Instruct的P32/P64与D2/D4/D8六个组合；Pn表示n个输入词元，Dm表示一次Prefill之后m次实际Decode前向，n∈{32,64}、m∈{2,4,8}。批量为1，使用现有BF16、SGLang和FlashInfer。72份NCU报告包含54份正式报告、138个正式范围样本；读取重复性通过核查，完整HBServe来源和memgen误差尚未验收。完整定义、硬件表与运行状态见同仓库 `research/llm_traffic_calibration/README.md`。
++
++8/16 KiB独立微基准各84条件、三次重复；56个顺序/逆序条件开发，28个随机条件留出。新参数留出WAPE分别20.1204%与14.2295%；WAPE取绝对误差总和除以同组实测计数总和再乘100%，范围[0,∞)，零分母不定义。参数未达到各组10%的原目标，`hardware_accepted=false`。新LLM六条件没有用于选取这两个容量。
++
++所有读、写、原子和绕过L1的请求均检查实际活动字节是否在原始分配范围内。合法的末尾部分扇区不要求整32字节均属于分配；计数仍是32字节扇区流量。CSV（Comma-Separated Values，逗号分隔表）、运行摘要和上下文收据统一记录实际模型标识。
++
++最新纯CPU检查在 `memgen-qwen-six-runtime-20260922-r2/model-identity-candidate`：普通及地址/未定义行为检查构建各通过4,131,136次参考请求及384个冻结条件；实际后端覆盖两种模型身份、四类访存的合法尾部和越界拒绝；HBServe身份拒绝及旧两内核真实前缀回归通过。最终源码清单与二进制均固定SHA-256。它们证明软件实现与入口门禁，不证明硬件流量准确。
++
++首个完整P32D2采样在4,000万条选定CTA记录额度处停止，保留全部失败证据。新私有来源入口使用有额度的磁盘暂存保存稀疏样本，仍由HBServe展开完整模型；来源接收闭合、生产者退出、独立留出与最终回放资格不放宽。新入口的首个P32D2已完成2062次选定启动和40,956,470条稀疏记录的GPU采集；生产者正常退出，CPU拟合及缓存回放资格仍待闭合。完整来源尚在测试，该入口尚未替换生产流程。主分支main未变更，第三轮r3缓存候选仍暂缓接受。
+diff --git a/research/r4_l1_filter/audit_metadata.py b/research/r4_l1_filter/audit_metadata.py
+new file mode 100644
+index 0000000..0c29580
+--- /dev/null
++++ b/research/r4_l1_filter/audit_metadata.py
+@@ -0,0 +1,29 @@
++"""Relate measured shared profiles to exact static source and allocation APIs."""
++import collections,hashlib,json,pathlib,re
++P=pathlib.Path;R=P('/home/xmu/nvidiagds/codex-runs')
++shared=R/'memgen-r4-llm-shared-20260922-r2';source=R/'memgen-llm-source-p128d2d4-20260922-r3'
++out=R/'memgen-r4-integration-20260922-r3/llm-metadata-audit.json'
++result={'status':'PASS_STATIC_JOIN_NOT_DYNAMIC_TRAFFIC','cases':[]}
++for case in json.loads((shared/'finish.json').read_text())['cases']:
++    name=case['workload'];j=next((source/name/'observer-journal').glob('process-*'))
++    instructions=collections.defaultdict(set)
++    for line in (j/'static-instructions.jsonl').open():
++        row=json.loads(line);ins=row['instruction']
++        if ins['memory_space']=='GLOBAL' and ins['opcode'].startswith('LD'):instructions[row['function_id']].add(ins['opcode'])
++    launches=[json.loads(line) for line in (j/'launch-journal.jsonl').open()]
++    launches=[x for x in launches if x.get('type')=='launch' and x.get('edge')=='before' and x.get('role')=='measurement']
++    profiles=json.loads((shared/name/'shared-profiles.json').read_text())['kernels'];assert len(launches)==len(profiles)
++    subgroup=collections.defaultdict(lambda:{'kernels':0,'kernels_with_potential_l1_read':0,'static_read_opcodes':collections.Counter()})
++    for a,b in zip(launches,profiles):
++        assert re.sub(r'\s+','',a['function_name'])==re.sub(r'\s+','',b['kernel']) and a['grid']==b['grid'] and a['block']==b['block']
++        s=subgroup[b['shared_kib']];s['kernels']+=1
++        ops=instructions[a['function_id']]
++        eligible=[op for op in ops if op not in ['LDG.E.STRONG.GPU','LDG.E.64.STRONG.GPU','LDG.E.128.STRONG.GPU']]
++        s['kernels_with_potential_l1_read']+=bool(eligible)
++        s['static_read_opcodes'].update(ops)
++    allocation=[json.loads(line) for line in (j/'allocation-journal.jsonl').open()]
++    allocation=[x for x in allocation if x.get('edge')=='return']
++    successful=[x for x in allocation if x.get('parsed') and x.get('cuda_status')==0 and x.get('action')=='allocate']
++    result['cases'].append({'workload':name,'launches':len(launches),'shared':dict(subgroup),'unmodeled_launches':sum(s['kernels'] for k,s in subgroup.items() if k not in [32,64,100]),'allocation_api_returns':len(allocation),'unparsed_returns':sum(not x.get('parsed') for x in allocation),'async_returns':sum(bool(x.get('async')) for x in allocation),'max_observed_allocation_bytes':max(x['bytes'] for x in successful),'allocation_lifetimes_qualified':False,'sample_address_coverage_qualified':False})
++with out.open('x') as f:json.dump(result,f,indent=2)
++print(json.dumps(result))
+diff --git a/research/r4_l1_filter/benchmark_r4.cpp b/research/r4_l1_filter/benchmark_r4.cpp
+new file mode 100644
+index 0000000..4c6947e
+--- /dev/null
++++ b/research/r4_l1_filter/benchmark_r4.cpp
+@@ -0,0 +1,36 @@
++// Paired, bounded CPU microbenchmark. This is not LLM throughput evidence.
++#define R4L1ReadFilter OriginalR4L1ReadFilter
++#define R4Allocation OriginalR4Allocation
++#define R4ReadResult OriginalR4ReadResult
++#include BASELINE_HEADER
++#undef R4L1ReadFilter
++#undef R4Allocation
++#undef R4ReadResult
++#undef MEMGEN_R4_L1_READ_FILTER_H
++#include "../../release/source/tools/r4_l1_read_filter.h"
++#include <chrono>
++#include <iostream>
++using namespace hyfiss_request_trace;
++template<class Model,class Allocation> void run(const char* label,unsigned trial,unsigned nalloc,unsigned burst) {
++  Model model(48);std::vector<Allocation> alloc;
++  for(unsigned a=0;a<nalloc;++a)alloc.push_back({a+1,0x100000000ULL+a*0x100000ULL,0x80000});
++  uint64_t checksum=0,requests=0;auto start=std::chrono::steady_clock::now();
++  for(unsigned kernel=0;kernel<240;++kernel) {
++    model.begin_kernel(std::array<unsigned,3>{32,64,100}[kernel%3],alloc);
++    for(unsigned i=0;i<16384;++i) {
++      unsigned a=((i/burst)*37)%nalloc;
++      auto result=model.access((i/128)%48,alloc[a].base+((i*997)%8192)*32);
++      checksum+=result.outcome+result.after+result.victim_valid+(result.victim_addr>>5);++requests;
++    }
++  }
++  auto seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
++  std::cout<<label<<','<<trial<<','<<nalloc<<','<<burst<<','<<requests<<','<<seconds<<','<<checksum<<'\n';
++}
++int main() {
++  std::cout<<"variant,trial,allocations,burst,requests,seconds,checksum\n";
++  for(auto n:{1u,256u})for(auto burst:{1u,64u})for(unsigned trial=0;trial<5;++trial) {
++    if(trial%2)run<R4L1ReadFilter,R4Allocation>("optimized",trial,n,burst);
++    run<OriginalR4L1ReadFilter,OriginalR4Allocation>("baseline",trial,n,burst);
++    if(!(trial%2))run<R4L1ReadFilter,R4Allocation>("optimized",trial,n,burst);
++  }
++}
+diff --git a/research/r4_l1_filter/benchmark_r4.py b/research/r4_l1_filter/benchmark_r4.py
+new file mode 100644
+index 0000000..c5543ff
+--- /dev/null
++++ b/research/r4_l1_filter/benchmark_r4.py
+@@ -0,0 +1,24 @@
++"""Paired CPU timings; explicitly not end-to-end LLM speed measurements."""
++import argparse,csv,json,os,pathlib,statistics,subprocess
++P=pathlib.Path;SRC=P(__file__).resolve().parent;REPO=SRC.parents[1]
++a=argparse.ArgumentParser();a.add_argument('--output',type=P,required=True);OUT=a.parse_args().output;OUT.mkdir()
++baseline=OUT/'baseline_r4.h'
++baseline.write_bytes(subprocess.check_output(['git','show','b351a0c07922f96444728b85a7d2ccf1805e9c94:release/source/tools/r4_l1_read_filter.h'],cwd=REPO))
++argv=['g++','-std=c++17','-O3','-DBASELINE_HEADER="'+str(baseline)+'"',str(SRC/'benchmark_r4.cpp'),'-o',str(OUT/'benchmark')]
++with (OUT/'build.log').open('x') as f:subprocess.run(argv,check=True,stdout=f,stderr=subprocess.STDOUT,timeout=120)
++cpu=max(os.sched_getaffinity(0))
++with (OUT/'timings.csv').open('x') as f:subprocess.run(['taskset','-c',str(cpu),str(OUT/'benchmark')],stdout=f,check=True,timeout=180)
++rows=list(csv.DictReader((OUT/'timings.csv').open()));summary=[]
++for count in [1,256]:
++ for burst in [1,64]:
++  pairs=[]
++  for trial in range(5):
++   found={x['variant']:x for x in rows if int(x['allocations'])==count and int(x['burst'])==burst and int(x['trial'])==trial}
++   before,after=found['baseline'],found['optimized']
++   assert before['checksum']==after['checksum'] and before['requests']==after['requests']
++   pairs.append(float(before['seconds'])/float(after['seconds']))
++  summary.append(dict(allocations=count,consecutive_requests_per_allocation=burst,paired_speedups=pairs,median_speedup=statistics.median(pairs)))
++result=dict(status='PASS_CPU_MICROBENCHMARK_SAME_RESULT_CHECKSUM',pairs=20,requests_per_trial=240*16384,cpu_affinity=cpu,
++ scope='48 SMs, 240 kernels switching 32/64/100 KiB; same CPU, alternating order; not exclusive host and not LLM timing',conditions=summary)
++with (OUT/'result.json').open('x') as f:json.dump(result,f,indent=2)
++print(json.dumps(result))
+diff --git a/research/r4_l1_filter/candidate_parameters.json b/research/r4_l1_filter/candidate_parameters.json
+new file mode 100644
+index 0000000..8dc66d1
+--- /dev/null
++++ b/research/r4_l1_filter/candidate_parameters.json
+@@ -0,0 +1,38 @@
++{
++  "status": "FROZEN_REFERENCE_CANDIDATE_NOT_DEPLOYED",
++  "config_id": "CLOCK_u128_s16_h2_c1062",
++  "policy": "CLOCK",
++  "allocation_unit_bytes": 128,
++  "sector_bytes": 32,
++  "set_hash": 2,
++  "capacity_scale_per_thousand": 1062,
++  "profiles": [
++    {
++      "observed_shared_kib": 32,
++      "nominal_l1_bytes": 98304,
++      "effective_l1_bytes": 102400,
++      "sets": 16,
++      "ways": 50
++    },
++    {
++      "observed_shared_kib": 64,
++      "nominal_l1_bytes": 65536,
++      "effective_l1_bytes": 67584,
++      "sets": 16,
++      "ways": 33
++    },
++    {
++      "observed_shared_kib": 100,
++      "nominal_l1_bytes": 28672,
++      "effective_l1_bytes": 28672,
++      "sets": 16,
++      "ways": 14
++    }
++  ],
++  "model_seeds": [
++    0
++  ],
++  "scope": "synchronous serial read filter; no cache timing, writes, concurrency, or physical geometry claim",
++  "source_sha256": "9319661e7abe613cc9bdb81ce488d1b3448aab6e87ad085e394fe92e8db042aa",
++  "frozen_selection_sha256": "f9ec786e7dbeb884f0e751d187692880969bc9a2648d1c4ca29f30a3e2161ca6"
++}
+\ No newline at end of file
+diff --git a/research/r4_l1_filter/collect_shared.py b/research/r4_l1_filter/collect_shared.py
+new file mode 100644
+index 0000000..ceee20b
+--- /dev/null
++++ b/research/r4_l1_filter/collect_shared.py
+@@ -0,0 +1,68 @@
++"""Measure per-launch shared carveout for the four frozen LLM workloads."""
++import collections,csv,fcntl,hashlib,importlib.util,json,os,pathlib,re,shlex,subprocess,time,traceback
++P=pathlib.Path
++H=P('/home/xmu/nvidiagds/codex-runs/memgen-llm-p128-d2d4-20260922-r2')
++OUT=P('/home/xmu/nvidiagds/codex-runs/memgen-r4-llm-shared-20260922-r2')
++spec=importlib.util.spec_from_file_location('hardware',H/'run_matrix.py');hw=importlib.util.module_from_spec(spec);spec.loader.exec_module(hw)
++OUT.mkdir(exist_ok=False)
++result={'status':'RUNNING','cases':[]};locks=[];secret=None
++try:
++    for path in [H.parent/'llm-footprint-v1/.locks'/('gpu-'+hw.GPU+'.lock'),H.parent/'l2-sglang-between-blocks-20260918-01a08d87-r2/ncu-serial.lock']:
++        f=path.open('a+');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
++    assert not hw.gpu_apps(),'GPU busy'
++    values=[re.sub(r'^\s*(?:export\s+)?root_sudo\s*=','',s) for s in P('/home/xmu/.bashrc').read_text().splitlines() if re.match(r'^\s*(?:export\s+)?root_sudo\s*=',s)]
++    tokens=shlex.split(values[-1],comments=True);assert len(tokens)==1;secret=tokens[0];values.clear();tokens.clear()
++    contract=hw.read(H/'contract.json')
++    driver=H/'driver.py';driver_sha=hw.sha(driver)
++    for workload in contract['workloads']:
++        assert not hw.gpu_apps();model=contract['models'][workload['model']];case=OUT/workload['id'];case.mkdir()
++        env=hw.read(H/workload['id']/'native-reference/command.json')['environment']
++        env={k:v for k,v in env.items() if k!='LD_PRELOAD' and not k.startswith(('SG_NVBIT_','SG_SAMPLE_'))}
++        app=[hw.PYTHON,'-B',str(driver),'--model-path',model['path'],'--output-dir',str(case/'artifacts'),'--decode-steps',str(workload['decode_steps']),'--expected-layers',str(model['layers']),'--expected-model-class',model['class'],'--traffic-scope','whole']
++        command=['sudo','-S','-p','','--','/usr/bin/env',*[k+'='+v for k,v in env.items()],'/usr/bin/timeout','--kill-after=20','600',hw.NCU,'--config-file','off','--target-processes','all','--profile-from-start','off','--replay-mode','kernel','--cache-control','none','--clock-control','none','--metrics','launch__shared_mem_config_size','--export',str(case/'capture'),*app]
++        hw.save(case/'command.json',{'args':command,'credential':'stdin only'})
++        previous=OUT.parent/'memgen-r4-llm-shared-20260922-r1'/workload['id']
++        if (previous/'process.json').exists():
++            assert hw.read(previous/'process.json')['returncode']==0
++            for name in ['artifacts','capture.ncu-rep']:(case/name).symlink_to(previous/name,target_is_directory=name=='artifacts')
++            hw.save(case/'process.json',dict(hw.read(previous/'process.json'),reused_from=str(previous)))
++        else:
++            start=time.monotonic()
++            with (case/'stdout.log').open('xb') as o,(case/'stderr.log').open('xb') as e:
++                child=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=o,stderr=e,env=env,start_new_session=True)
++                child.communicate((secret+'\n').encode(),timeout=660)
++            hw.save(case/'process.json',{'returncode':child.returncode,'seconds':time.monotonic()-start})
++            assert child.returncode==0 and not hw.gpu_apps()
++        hw.validate(case,model,workload['decode_steps'],'whole',driver_sha,hw.read(H/workload['id']/'reference.json'))
++        with (case/'raw.csv').open('x') as o,(case/'import.stderr').open('x') as e:
++            p=subprocess.run([hw.NCU,'--import',str(case/'capture.ncu-rep'),'--page','raw','--csv','--print-units','base','--print-kernel-base','mangled','--rename-kernels','off'],stdout=o,stderr=e,timeout=90)
++        assert p.returncode==0
++        data=list(csv.reader((case/'raw.csv').open()));start=next(i for i,r in enumerate(data) if r and r[0]=='ID')
++        header,units,*body=data[start:];rows=[dict(zip(header,r)) for r in body if r and r[0].isdigit()]
++        expected=hw.read(H/workload['id']/'launch-census.json')['kernels'];assert len(rows)==len(expected),(len(rows),len(expected))
++        joined=[]
++        demangled=subprocess.check_output(['c++filt'],input='\n'.join(r['Kernel Name'] for r in rows)+'\n',text=True).splitlines()
++        assert len(demangled)==len(rows)
++        for i,(row,launch) in enumerate(zip(rows,expected)):
++            assert int(row['ID'])==i
++            assert re.sub(r'\s+','',demangled[i])==re.sub(r'\s+','',launch['kernel']),(i,demangled[i],launch['kernel'])
++            def dims(text):return [int(v) for v in re.findall(r'\d+',text)]
++            assert dims(row['Grid Size'])==launch['grid'] and dims(row['Block Size'])==launch['block'],i
++            shared=int(row['launch__shared_mem_config_size'].replace(',',''));assert shared%1024==0
++            joined.append({'kernel_id':i+1,'phase':launch['phase'],'shared_kib':shared//1024,'kernel':launch['kernel'],'grid':launch['grid'],'block':launch['block']})
++        counts=dict(collections.Counter(r['shared_kib'] for r in joined))
++        hw.save(case/'shared-profiles.json',{'status':'PASS_SAME_SHAPE_LAUNCH_JOIN_NOT_ADDRESS_JOIN','report_sha256':hw.sha(case/'capture.ncu-rep'),'kernels':joined,'shared_counts':counts,'unmodeled_shared_profiles':sorted(set(counts)-{32,64,100})})
++        result['cases'].append({'workload':workload['id'],'launches':len(joined),'shared_counts':counts,'unmodeled_shared_profiles':sorted(set(counts)-{32,64,100})})
++        (OUT/'progress.json').write_text(json.dumps(result,indent=2));print(json.dumps(result['cases'][-1]),flush=True)
++    assert hw.sha(driver)==driver_sha
++    result['status']='PASS_FOUR_LLM_SHARED_PROFILES_NOT_TRAFFIC_ACCURACY'
++except BaseException:result.update(status='FAIL',error=traceback.format_exc())
++finally:
++    secret=None
++    # timeout supervises the root application; do not release a GPU lease with a live child.
++    if locks:
++        while hw.gpu_apps() or hw.owned_processes(OUT):time.sleep(1)
++    hw.save(OUT/'finish.json',result)
++    for f in reversed(locks):f.close()
++print(json.dumps(result),flush=True)
++if result['status']=='FAIL':raise SystemExit(1)
+diff --git a/research/r4_l1_filter/plan_completion_owner.py b/research/r4_l1_filter/plan_completion_owner.py
+new file mode 100644
+index 0000000..222bc26
+--- /dev/null
++++ b/research/r4_l1_filter/plan_completion_owner.py
+@@ -0,0 +1,40 @@
++"""Capture a bounded, schedule-dependent reduction domain, never full-model SASS."""
++import argparse,gzip,hashlib,json,pathlib,sys
++P=pathlib.Path;R=P('/home/xmu/nvidiagds/codex-runs')
++sys.path.insert(0,str(R/'l2-sglang-full-qualified-20260919-01a08d87-r1'))
++from sparse_profile_adapter import COMPLETION_OWNER_CODE
++import sglang_sample_to_packed as upstream
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--output',type=P,required=True);out=a.parse_args().output;out.mkdir();case=out/'qwen1p5b-P128D2';case.mkdir()
++ previous=R/'memgen-r4-source-plan-20260922-r4/qwen1p5b-P128D2/pilot.json';plan=json.loads(previous.read_text());audit=[]
++ for row in plan['launches']:
++  if not row['fit_ctas'] and not row['holdout_ctas']:continue
++  if row['code_sha256']==COMPLETION_OWNER_CODE:
++   n=row['grid'][0]*row['grid'][1]*row['grid'][2];assert n<=32
++   row.update(fit_ctas=list(range(n)),holdout_ctas=[])
++   audit.append(dict(epoch_id=row['epoch_id'],epoch_launch_ordinal=row['epoch_launch_ordinal'],ctas=n,scope='complete_small_domain_no_extrapolation_no_independent_CTA_holdout'))
++  elif row['code_sha256'].startswith(('62ee9483','d7d73af0','ee37b075')):row.update(fit_ctas=[],holdout_ctas=[])
++ assert len(audit)==6
++ with (case/'pilot.json').open('x') as f:json.dump(plan,f,indent=2)
++ sys.path.insert(0,str(R/'l2-sglang-full-qualified-20260919-01a08d87-r1/nvbit_sampler_r4'));from compile_plan import compile_header
++ header,compiled=compile_header(plan);(case/'compiled-plan.h').write_text(header)
++ observations={};evidence=[]
++ for trial in [3,5]:
++  path=R/('memgen-r4-source-pilot-20260922-r'+str(trial))/'qwen1p5b-P128D2/profiles/receipt.json';receipt=json.loads(path.read_text())
++  assert receipt['replay_closed'] and receipt['transport_qualified'];evidence.append(dict(path=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
++  for item in receipt['native_fixtures']:
++   raw=P(item['path']).read_bytes();assert hashlib.sha256(raw).hexdigest()==item['sha256'];f=json.loads(gzip.decompress(raw))
++   if f['begin']['code_sha256']!=COMPLETION_OWNER_CODE:continue
++   samples=upstream.normalize({(x['cta'],x['warp']):x['frames'] for x in f['collector']['samples']})
++   observations.setdefault(f['begin']['source_launch_key'],{})[trial]={c:len(v) for c,v in samples.items()}
++ changed=[dict(key=key,changed_common_ctas=[c for c in set(v[3])&set(v[5]) if v[3][c]!=v[5][c]],counts=v) for key,v in observations.items()]
++ assert any(x['changed_common_ctas'] for x in changed)
++ header_source=P('/home/xmu/sgl/lib/python3.10/site-packages/torch/include/ATen/native/cuda/Reduce.cuh')
++ result=dict(status='PASS_BOUNDED_COMPLETION_OWNER_PLAN',code_sha256=COMPLETION_OWNER_CODE,
++  reason='same launch has a different CTA performing extra global-memory instructions between qualified native captures',
++  selected_kernels=sum(bool(r['fit_ctas'] or r['holdout_ctas']) for r in plan['launches']),selected_ctas=sum(len(r['fit_ctas'])+len(r['holdout_ctas']) for r in plan['launches']),
++  full_model_trace_capture=False,launch_rows=len(plan['launches']),audit=audit,compiler=compiled,native_variation=changed,evidence=evidence,
++  implementation_reference=dict(path=str(header_source),sha256=hashlib.sha256(header_source.read_bytes()).hexdigest(),lines='682-693 and 798-812',scope='source behavior consistent with observation, not binary branch attribution proof'))
++ with (out/'decision.json').open('x') as f:json.dump(result,f,indent=2)
++ print(json.dumps({k:v for k,v in result.items() if k not in ['audit','compiler']}))
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/plan_sparse_boundaries.py b/research/r4_l1_filter/plan_sparse_boundaries.py
+new file mode 100644
+index 0000000..2f99339
+--- /dev/null
++++ b/research/r4_l1_filter/plan_sparse_boundaries.py
+@@ -0,0 +1,43 @@
++"""Freeze minimal boundary witnesses and fresh held-out CTAs before capture."""
++import argparse,copy,hashlib,json,pathlib,sys
++P=pathlib.Path;R=P('/home/xmu/nvidiagds/codex-runs');U=R/'l2-sglang-full-qualified-20260919-01a08d87-r1'
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--output',type=P,required=True);root=a.parse_args().output;root.mkdir()
++ case='qwen1p5b-P128D2';folder=root/case;folder.mkdir()
++ previous=R/'memgen-r4-source-plan-20260922-r2'/case/'pilot.json'
++ original=R/'memgen-llm-source-p128d2d4-20260922-r3'/case/'candidate-plan.json'
++ plan=json.loads(previous.read_text());old=json.loads(original.read_text());assert len(plan['launches'])==len(old['launches'])
++ audit=[];controls=0
++ for row,initial in zip(plan['launches'],old['launches']):
++  if not row['fit_ctas'] and not row['holdout_ctas']:continue
++  code=row['code_sha256'][:8];n=row['grid'][0]*row['grid'][1]*row['grid'][2]
++  target=code in ['62ee9483','d7d73af0','ee37b075','b90813cd']
++  if not target:
++   controls+=1
++   if controls>3:row.update(fit_ctas=[],holdout_ctas=[])
++   continue
++  prior=set(row['fit_ctas']+row['holdout_ctas']+initial['fit_ctas']+initial['holdout_ctas'])
++  fit=set(row['fit_ctas'])
++  if code in ['d7d73af0','b90813cd']:fit.update([0,1,n-2,n-1])
++  if code=='ee37b075':fit.update([9,10,11,12,n-2,n-1])
++  if code=='ee37b075':hold=[6,7,30,31]
++  else:
++   available=[c for c in range(n) if c not in prior|fit]
++   available.sort(key=lambda c:hashlib.sha256((row['code_sha256']+':boundary-validation-v1:'+str(c)).encode()).digest())
++   hold=sorted(available[:2 if code=='b90813cd' else 4])
++  assert len(hold)>=2 and set(hold).isdisjoint(prior|fit),'fresh holdout unavailable'
++  audit.append(dict(epoch_id=row['epoch_id'],epoch_launch_ordinal=row['epoch_launch_ordinal'],code=code,grid=row['grid'],training=sorted(fit),fresh_holdout=hold,prior_development=sorted(prior)))
++  row.update(fit_ctas=sorted(fit),holdout_ctas=hold)
++ assert len(audit)==18
++ plan['source_population_scope']='representative_subset'
++ with (folder/'pilot.json').open('x') as f:json.dump(plan,f,indent=2)
++ sys.path.insert(0,str(U/'nvbit_sampler_r4'));from compile_plan import compile_header
++ # Reuse the real compiler CLI contract through its inspected function API.
++ header,receipt=compile_header(plan)
++ (folder/'compiled-plan.h').write_text(header)
++ result=dict(status='PASS_FROZEN_TARGETED_SPARSE_PLAN_NOT_SOURCE_ACCEPTANCE',selected_kernels=sum(bool(x['fit_ctas'] or x['holdout_ctas']) for x in plan['launches']),
++  selected_ctas=sum(len(x['fit_ctas'])+len(x['holdout_ctas']) for x in plan['launches']),all_launch_rows=len(plan['launches']),
++  plan_sha256=hashlib.sha256((folder/'pilot.json').read_bytes()).hexdigest(),audit=audit,compiler=receipt)
++ with (root/'decision.json').open('x') as f:json.dump(result,f,indent=2)
++ print(json.dumps({k:v for k,v in result.items() if k not in ['audit','compiler']}))
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/profile_census.py b/research/r4_l1_filter/profile_census.py
+new file mode 100644
+index 0000000..798fdf4
+--- /dev/null
++++ b/research/r4_l1_filter/profile_census.py
+@@ -0,0 +1,60 @@
++"""Exact sector census without enumerating invariant address residues.
++
++This only aggregates already-fitted rules. It never relaxes native lane-address
++validation or changes the address stream sent to the C++ cache backend.
++"""
++from functools import lru_cache
++
++FIELDS=('mem_insts','lane_accesses','read_sector_requests','write_sector_requests',
++        'atomic_sector_requests','native_read_lane_bytes','native_write_lane_bytes','native_atomic_lane_bytes')
++
++def invariant_modulo(rule,grid,ctas):
++ kind=rule.get('kind')
++ if kind=='exact_cta_base_table':
++  values=rule['bases_by_cta']
++  assert all(str(c) in values for c in ctas),'exact rule omits a generated CTA'
++  return len({int(values[str(c)])%32 for c in ctas})==1
++ if kind=='coordinate_x_quotient_remainder_y_table_z_partition':
++  assert rule['cta_x_divisor']>0
++  strides=[rule['cta_x_quotient_stride'],rule['cta_x_remainder_stride'],rule['cta_z_stride']]
++  offsets=rule['cta_y_offsets'];assert len(offsets)==grid[1]
++ elif kind=='coordinate_x_axis_permutation':
++  # Validity of the geometry is also checked by predict_bases below.
++  strides=[rule['element_stride']];offsets=[0]
++ elif kind=='coordinate_x_floor_quotient':
++  assert rule['cta_x_divisor']>0
++  strides=[rule['cta_x_quotient_stride']];offsets=[0]
++ elif kind is None:
++  strides=[rule['cta_x_stride']];offsets=[0]
++  if any(k in rule for k in ['cta_y_stride','cta_y_offsets','cta_z_stride']):
++   strides.append(rule['cta_z_stride'])
++   if 'cta_y_offsets' in rule:offsets=rule['cta_y_offsets'];assert len(offsets)==grid[1]
++   else:strides.append(rule['cta_y_stride'])
++ else:return False
++ if 'cta_z_partition' in rule and rule['cta_z_partition'] is not None:strides.append(rule['cta_z_partition_stride'])
++ return all(value%32==0 for value in strides) and len({value%32 for value in offsets})==1
++
++def count_profile(profile,adapter,*,fast=True):
++ expected=dict.fromkeys(FIELDS,0);grid=tuple(profile['kernel']['grid_dims'])
++ domains={}
++ for c,template in enumerate(adapter.template_by_cta(profile)):
++  key=id(template)
++  if key not in domains:domains[key]=(template,[])
++  domains[key][1].append(c)
++ @lru_cache(maxsize=4096)
++ def counts(mask,pairs,width):
++  offsets=[off for lane,off in adapter.lane_offsets(mask,pairs)]
++  return len(offsets),tuple(len({sector for off in offsets for sector in range((mod+off)//32,(mod+off+width-1)//32+1)}) for mod in range(32))
++ for template,ctas in domains.values():
++  n=len(ctas)
++  for entry in template:
++   assert len(entry['groups'])==len(entry['address_rules'])==1
++   direction,width=adapter.direction_width(entry['opcode']);prefix={'R':'read','W':'write','A':'atomic'}[direction]
++   lanes,sectors=counts(entry['mask'],tuple(entry['groups'][0]['pairs']),width)
++   expected['mem_insts']+=n;expected['lane_accesses']+=n*lanes;expected['native_'+prefix+'_lane_bytes']+=n*lanes*width
++   rule=entry['address_rules'][0]
++   if fast and invariant_modulo(rule,grid,ctas):
++    total=n*sectors[adapter.rules.predict_bases(entry,ctas[0],grid)[0]%32]
++   else:total=sum(sectors[adapter.rules.predict_bases(entry,c,grid)[0]%32] for c in ctas)
++   expected[prefix+'_sector_requests']+=total
++ return expected
+diff --git a/research/r4_l1_filter/r4_frozen_reference.cpp b/research/r4_l1_filter/r4_frozen_reference.cpp
+new file mode 100644
+index 0000000..6a8c164
+--- /dev/null
++++ b/research/r4_l1_filter/r4_frozen_reference.cpp
+@@ -0,0 +1,66 @@
++// Serial read reference model. Misses fill synchronously; no timing or write claims.
++#include <algorithm>
++#include <cassert>
++#include <cstdint>
++#include <fstream>
++#include <iostream>
++#include <sstream>
++#include <string>
++#include <unordered_map>
++#include <vector>
++struct Config{std::string id,policy;unsigned unit,sets,hash,scale,seed;};
++struct Node{uint64_t key=0;unsigned mask=0,rrpv=3,ref=0;int prev=-1,next=-1;};
++struct Set{std::unordered_map<uint64_t,int> lookup;std::vector<Node> nodes;unsigned used=0,hand=0;int head=-1,tail=-1;explicit Set(unsigned ways):nodes(ways){lookup.reserve(ways*2);}};
++struct Cache{
++ Config cfg;unsigned ways,state;uint64_t hits=0,misses=0;std::vector<Set> sets;
++ Cache(Config c,unsigned nominal):cfg(c),ways((uint64_t(nominal)*c.scale/1000)/(c.unit*c.sets)),state(c.seed?c.seed:1){assert(ways);for(unsigned i=0;i<c.sets;i++)sets.emplace_back(ways);}
++ unsigned random(){state^=state<<13;state^=state>>17;state^=state<<5;return state;}
++ void unlink(Set& s,int i){auto& n=s.nodes[i];if(n.prev>=0)s.nodes[n.prev].next=n.next;else s.head=n.next;if(n.next>=0)s.nodes[n.next].prev=n.prev;else s.tail=n.prev;}
++ void front(Set& s,int i){auto& n=s.nodes[i];n.prev=-1;n.next=s.head;if(s.head>=0)s.nodes[s.head].prev=i;else s.tail=i;s.head=i;}
++ void access(uint32_t address){
++  uint64_t key=address/cfg.unit;unsigned lg=__builtin_ctz(cfg.sets);uint32_t mix=uint32_t(key);if(cfg.hash==1)mix^=mix>>lg;
++  if(cfg.hash==2){mix^=mix>>16;mix*=0x7feb352dU;mix^=mix>>15;mix*=0x846ca68bU;mix^=mix>>16;}
++  unsigned index=mix&(cfg.sets-1);auto& s=sets[index];unsigned bit=1u<<((address%cfg.unit)/32);
++  auto found=s.lookup.find(key);
++  if(found!=s.lookup.end()){
++   int i=found->second;auto& n=s.nodes[i];if(n.mask&bit)hits++;else{misses++;n.mask|=bit;}
++   if(cfg.policy=="LRU"){unlink(s,i);front(s,i);}n.rrpv=0;n.ref=1;return;
++  }
++  misses++;int slot;
++  if(s.used<ways){slot=s.used++;}
++  else{slot=s.tail;
++   if(cfg.policy=="RANDOM")slot=random()%ways;
++   else if(cfg.policy=="CLOCK"){
++    while(s.nodes[s.hand].ref){s.nodes[s.hand].ref=0;s.hand=(s.hand+1)%ways;}
++    slot=s.hand;s.hand=(s.hand+1)%ways;
++   }else if(cfg.policy=="SRRIP"||cfg.policy=="BRRIP"){
++    for(;;){slot=-1;for(unsigned j=0;j<ways;j++)if(s.nodes[j].rrpv==3){slot=j;break;}
++     if(slot>=0)break;for(auto& n:s.nodes)n.rrpv=std::min(3u,n.rrpv+1);
++    }
++   }
++   s.lookup.erase(s.nodes[slot].key);unlink(s,slot);}
++  s.nodes[slot].key=key;s.nodes[slot].mask=bit;s.nodes[slot].ref=1;
++  s.nodes[slot].rrpv=(cfg.policy=="BRRIP"&&random()%32!=0)?3:2;s.lookup[key]=slot;front(s,slot);
++ }
++};
++int main(int argc,char** argv){
++ if(argc==2&&std::string(argv[1])=="--self-test"){
++  Config c{"test","LRU",32,1,0,1000,11};Cache a(c,64);for(auto x:{0,32,0,64,0})a.access(x);assert(a.hits==2&&a.misses==3);
++  c.policy="FIFO";Cache b(c,64);for(auto x:{0,32,0,64,0})b.access(x);assert(b.hits==1&&b.misses==4);
++  c.policy="LRU";c.unit=128;Cache d(c,128);for(auto x:{0,32,0,128,32})d.access(x);assert(d.hits==1&&d.misses==4);
++  Cache e(c,128);for(auto x:{0,4,8,28,32,36})e.access(x);assert(e.hits==4&&e.misses==2);
++  c.policy="RANDOM";Cache f(c,256),g(c,256);for(unsigned i=0;i<10000;i++){unsigned addr=(i*73%41)*32;f.access(addr);g.access(addr);}assert(f.hits==g.hits&&f.misses==g.misses&&f.hits+f.misses==10000);
++  std::cout<<"SELF_TEST_PASS 5\n";return 0;
++ }
++ if(argc!=3){std::cerr<<"usage: cache_policy_replay CASES_TSV CONFIGS_TSV\n";return 2;}
++ std::ifstream cf(argv[2]);if(!cf)return 3;std::vector<Config> configs;Config cfg;
++ while(cf>>cfg.id>>cfg.policy>>cfg.unit>>cfg.sets>>cfg.hash>>cfg.scale>>cfg.seed){assert(cfg.unit==32||cfg.unit==128);assert(cfg.sets&&!(cfg.sets&(cfg.sets-1)));assert(cfg.hash<=2);assert(cfg.policy=="LRU"||cfg.policy=="FIFO"||cfg.policy=="RANDOM"||cfg.policy=="CLOCK"||cfg.policy=="SRRIP"||cfg.policy=="BRRIP");configs.push_back(cfg);}
++ assert(!configs.empty());std::ifstream cases(argv[1]);if(!cases)return 4;int id,cg;unsigned nominal,expected;std::string path;
++ std::cout<<"config_id,seed,case_id,allocation_unit,sets,hash,capacity_bytes,hits,misses,requests\n";
++ while(cases>>id>>nominal>>cg>>expected>>path){
++  std::ifstream f(path,std::ios::binary|std::ios::ate);if(!f)return 5;size_t bytes=f.tellg();assert(bytes==uint64_t(expected)*4);std::vector<uint32_t> req(expected);f.seekg(0);f.read(reinterpret_cast<char*>(req.data()),bytes);assert(f.good());
++  for(auto c:configs){Cache cache(c,nominal);if(!cg)for(auto addr:req)cache.access(addr);else cache.misses=req.size();assert(cache.hits+cache.misses==req.size());
++   std::cout<<c.id<<','<<c.seed<<','<<id<<','<<c.unit<<','<<c.sets<<','<<c.hash<<','<<cache.ways*c.unit*c.sets<<','<<cache.hits<<','<<cache.misses<<','<<req.size()<<'\n';
++  }
++ }
++}
+diff --git a/research/r4_l1_filter/r4_serial_backend.cpp b/research/r4_l1_filter/r4_serial_backend.cpp
+new file mode 100644
+index 0000000..a249ac7
+--- /dev/null
++++ b/research/r4_l1_filter/r4_serial_backend.cpp
+@@ -0,0 +1,31 @@
++#define HYFISS_REQUEST_TRACE_NO_MAIN
++#include "../../release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc"
++using namespace hyfiss_request_trace;
++int main(int argc,char **argv) {try {
++  if(argc!=5)throw std::runtime_error("usage: serial CASES CONFIG FRESH_OUTPUT r4|legacy");
++  BackendOptions o;o.hw_config=argv[2];o.output_dir=argv[3];o.output_format="summary";o.order="timestamp";
++  if(fs::exists(o.output_dir))throw std::runtime_error("output exists");
++  bool invalid_sm=std::string(argv[4])=="invalid-sm";
++  o.r4_l1_read_filter=std::string(argv[4])=="r4" || invalid_sm;
++  if(!o.r4_l1_read_filter && std::string(argv[4])!="legacy")throw std::runtime_error("invalid model");
++  o.preserve_l1=o.preserve_l2=false;o.l2_dirty_drain=false;
++  o.l1_fill_latency_set=o.l2_fill_latency_set=true;o.l1_fill_latency=o.l2_fill_latency=0;
++  std::ifstream cases(argv[1]),addresses;uint64_t seq=0;unsigned id,nominal,cg,count;std::string path;
++  if(!cases)throw std::runtime_error("cases missing");
++  return run_from_sm_trace_source(o,[&](KernelTraceRef &ref) {
++    if(!(cases>>id>>nominal>>cg>>count>>path)) {
++      if(!cases.eof())throw std::runtime_error("invalid cases");return false;
++    }
++    addresses.close();addresses.clear();addresses.open(path,std::ios::binary|std::ios::ate);
++    if(!addresses||uint64_t(addresses.tellg())!=uint64_t(count)*4)throw std::runtime_error("invalid addresses");
++    addresses.seekg(0);seq=0;ref=KernelTraceRef{};ref.kernel_id=id+1;ref.kernel_name="r4_case_"+std::to_string(id);
++    ref.r4_shared_kib=128-nominal/1024;ref.r4_allocations={{1,0x123456780000ULL,uint64_t{1}<<32}};
++    ref.next_ordered_inst=[&](OrderedMemoryInst &inst) {
++      if(seq==count)return false;
++      uint32_t offset;addresses.read(reinterpret_cast<char*>(&offset),4);if(!addresses)throw std::runtime_error("short addresses");
++      inst=OrderedMemoryInst{};inst.opcode=cg?"LDG.E.STRONG.GPU":"LDG.E.STRONG.SM";
++      inst.mask=1;inst.timestamp=++seq;inst.sequence=seq;inst.pc=16;
++      inst.sm_id=invalid_sm?48:0;inst.addr={0x123456780000ULL+offset};return true;
++    };return true;
++  });
++}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/research/r4_l1_filter/repair_source_plan.py b/research/r4_l1_filter/repair_source_plan.py
+new file mode 100644
+index 0000000..b142f83
+--- /dev/null
++++ b/research/r4_l1_filter/repair_source_plan.py
+@@ -0,0 +1,158 @@
++"""Compile diagnostic sampling proposals; do not deploy them as formal sources.
++
++The native launch census and identities remain intact, including unsampled
++launches. Old sampled CTAs are development evidence, never fresh holdouts.
++The enlarged complete-grid choices only diagnose unsupported rules. The formal
++workflow remains sparse NVBit samples -> HBServe profiles -> expanded SASS ->
++memgen. Repair sparse rules before adopting any proposal. No GPU runs here.
++"""
++import argparse, collections, copy, hashlib, json, math, pathlib, sys
++
++P = pathlib.Path
++R = P('/home/xmu/nvidiagds/codex-runs')
++SOURCE = R / 'memgen-llm-source-p128d2d4-20260922-r3'
++UPSTREAM = R / 'l2-sglang-full-qualified-20260919-01a08d87-r1'
++PREVIOUS = R / 'memgen-r4-source-plan-20260922-r2'
++
++
++def sha(p):
++    return hashlib.sha256(P(p).read_bytes()).hexdigest()
++
++
++def save(p, value):
++    with P(p).open('x') as f:
++        json.dump(value, f, indent=2)
++        f.write('\n')
++
++
++def revised(row):
++    gx, gy, gz = row['grid']
++    n = gx * gy * gz
++    name = row['function_name']
++    old = set(row['fit_ctas'] + row['holdout_ctas'])
++    # Small heterogeneous grids and data-dependent gather addresses are
++    # enumerated rather than inferred from an inadequate affine witness.
++    small_gemm = n <= 64 and (
++        'cutlass::Kernel2' in name or
++        name == 'ampere_bf16_s16816gemm_bf16_64x64_ldg8_f2f_stages_64x5_tn')
++    singleton_rope_rows = 'BatchQKApplyRotary' in name and gx == 1
++    observed_irregular_copy = 'direct_copy_kernel_cuda' in name and n <= 8192
++    variable_merge = 'PersistentVariableLengthMergeStatesKernel' in name and n <= 8192
++    if n <= 32 or small_gemm or singleton_rope_rows or observed_irregular_copy or variable_merge or ('indexSelectLargeIndex' in name and n <= 4096):
++        return list(range(n)), [], 'complete_grid_no_extrapolation'
++
++    train = set()
++    if 'BatchQKApplyRotary' in name and gy > 1 and gz == 1:
++        # Existing categorical-y schema needs both train and held-out data
++        # for every y category. This does not assert within-row homogeneity.
++        for y in range(gy):
++            train.update(y * gx + x for x in {0, 1, gx // 2, gx - 1} if x < gx)
++        categories = [[y * gx + x for x in range(gx)] for y in range(gy)]
++        wanted = 2
++        strategy = 'categorical_y_stratified'
++    else:
++        stride = 1
++        for dim in row['grid']:
++            train.update(k * stride for k in {0, 1, 2, 4, 8, dim // 4, dim // 2, dim - 1} if k < dim)
++            stride *= dim
++        # Cross-axis witnesses prevent a purely local affine fit from being
++        # admitted before mid/late x positions have constrained the model.
++        for y, z in {(gy - 1, 0), (0, gz - 1), (gy - 1, gz - 1)}:
++            train.update(x + gx * (y + gy * z) for x in {gx // 2, gx - 1})
++        categories = [list(range(n))]
++        wanted = 4
++        strategy = 'distributed_coordinate_training'
++
++    hold = []
++    for category in categories:
++        remaining = [c for c in category if c not in train and c not in old]
++        # Deterministic, address-independent ordering frozen before capture.
++        remaining.sort(key=lambda c: hashlib.sha256(
++            (row['code_sha256'] + repr(row['grid']) + ':fresh-holdout-v1:' + str(c)).encode()).digest())
++        assert len(remaining) >= wanted, (name, row['grid'], 'insufficient fresh holdout')
++        hold.extend(remaining[:wanted])
++    assert len(train) >= 7 or strategy == 'categorical_y_stratified'
++    assert set(hold).isdisjoint(old | train)
++    return sorted(train), sorted(hold), strategy
++
++
++def signature(row):
++    return (row['code_sha256'], tuple(row['grid']), tuple(row['block']),
++            row['dynamic_shared_bytes'], row['phase'], row['role'])
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--output', type=P, required=True)
++    args = parser.parse_args()
++    args.output.mkdir()
++    sys.path.insert(0, str(UPSTREAM / 'nvbit_sampler_r4'))
++    from compile_plan import compile_header
++    prior = next((R / 'memgen-r4-llm-samples-20260922-r3/qwen1p5b-P128D2/observer').glob('process-*/finish.json'))
++    observed = json.loads(prior.read_text())
++    ledger = {x[0]: dict(zip(observed['sampling_flush_ledger_columns'], x))
++              for x in observed['sampling_flush_ledger']}
++    result = {'status': 'PASS_DIAGNOSTIC_PLAN_COMPILATION_ONLY', 'GPU_run': False,
++              'formal_source_plan_accepted': False,
++              'prior_observer': {'path': str(prior), 'sha256': sha(prior)},
++              'old_samples_scope': 'development_evidence', 'cases': []}
++    for original in sorted(SOURCE.glob('*/candidate-plan.json')):
++        case = args.output / original.parent.name
++        case.mkdir()
++        plan = json.loads(original.read_text())
++        prior_plan_path = PREVIOUS / original.parent.name / 'full-proposal.json'
++        prior_plan = json.loads(prior_plan_path.read_text())
++        assert len(prior_plan['launches']) == len(plan['launches'])
++        audit, strategies = [], collections.Counter()
++        pilot = copy.deepcopy(plan)
++        selected = set()
++        estimate_full = estimate_pilot = 0.0
++        estimated_max_kernel = 0.0
++        for row, pr, previous in zip(plan['launches'], pilot['launches'], prior_plan['launches']):
++            fit, hold, strategy = revised(row)
++            key = f"epoch-{row['epoch_id']}-launch-{row['epoch_launch_ordinal']}"
++            count = len(fit) + len(hold)
++            assert count <= 8192
++            audit.append(dict(key=key, strategy=strategy, old_fit=row['fit_ctas'],
++                              old_hold=row['holdout_ctas'], revised_fit=fit, revised_hold=hold))
++            row.update(fit_ctas=fit, holdout_ctas=hold)
++            strategies[strategy] += 1
++            changed = fit != previous['fit_ctas'] or hold != previous['holdout_ctas']
++            keep = changed and signature(row) not in selected
++            if keep:
++                selected.add(signature(row))
++            pr.update(fit_ctas=fit if keep else [], holdout_ctas=hold if keep else [])
++            if original.parent.name == 'qwen1p5b-P128D2':
++                old = ledger[key]
++                estimate = old['selected_records'] * count / old['planned_cta_count']
++                estimate_full += estimate
++                if keep:
++                    estimate_pilot += estimate
++                    estimated_max_kernel = max(estimated_max_kernel, estimate)
++        pilot['max_selected_kernels'] = len(selected)
++        # Budget is an estimate using old average records/CTA, not an upper
++        # bound. Hard sampler and postprocessor caps are unchanged.
++        budget = dict(full_records_estimate=estimate_full or None,
++                      pilot_records_estimate=estimate_pilot or None,
++                      pilot_max_kernel_estimate=estimated_max_kernel or None,
++                      estimate_is_hard_bound=False, max_records=16000000,
++                      max_kernel_records=1000000, max_wire_bytes=12 << 30)
++        compiled = {}
++        for kind, payload in [('full-proposal', plan), ('pilot', pilot)]:
++            payload['source_population_scope'] = 'representative_subset' if kind == 'pilot' else 'all_native_launches'
++            target = case / (kind + '.json')
++            save(target, payload)
++            header, receipt = compile_header(payload)
++            (case / (kind + '.h')).write_text(header)
++            compiled[kind] = dict(receipt, file_sha256=sha(target))
++        save(case / 'selection-audit.json', audit)
++        result['cases'].append(dict(workload=case.name, original_sha256=sha(original),
++                                   previous_plan_sha256=sha(prior_plan_path),
++                                   pilot_scope='only_changed_sampling_strategies',
++                                   compiled=compiled, strategies=dict(strategies), budget=budget))
++    save(args.output / 'receipt.json', result)
++    print(json.dumps(result))
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/research/r4_l1_filter/replay_native_profiles.py b/research/r4_l1_filter/replay_native_profiles.py
+new file mode 100644
+index 0000000..74b3563
+--- /dev/null
++++ b/research/r4_l1_filter/replay_native_profiles.py
+@@ -0,0 +1,50 @@
++"""Candidate C++ replay of qualified source profiles; no hardware accuracy claim."""
++import argparse,collections,csv,hashlib,json,pathlib,subprocess,sys,time
++P=pathlib.Path
++U=P('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1')
++sys.path.insert(0,str(U))
++from sglang_sample_to_packed import F,rules,save
++def run_model(out,profile,binary,placements=None):
++ out.mkdir();pack=out/'profiles.pack';raw=rules.canonical_json(profile);pack.write_bytes(raw)
++ index=out/'profiles.index.jsonl'
++ index.write_text(json.dumps(dict(kernel_id=1,path=str(pack),offset=0,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=profile['status']))+'\n')
++ k=profile['kernel'];g=k['grid_dims'];fields={'kernel_name':k['name'],'llama_phase':k['phase'],'grid_dim_x':g[0],'grid_dim_y':g[1],'grid_dim_z':g[2],'grid_size':k['grid_size'],'block_size':k['block_size']}
++ app=out/'app.config';app.write_text(''.join('-kernel_1_%s %s\n'%(a,b) for a,b in fields.items()))
++ if placements is None:placements={c:(c%48,(c//48)*1000000) for c in range(k['grid_size'])}
++ assert set(placements)==set(range(k['grid_size']))
++ assert all(type(sm) is int and 0<=sm<48 and type(t) is int and 0<=t<(1<<63) for sm,t in placements.values())
++ by_sm=collections.defaultdict(list)
++ for c,(sm,t) in placements.items():by_sm[sm].append((t,c))
++ issue=out/'issue.config';issue.write_text(''.join('-trace_issued_sm_id_%d '%sm+' '.join('(1,%d,%x)'%(c,t) for t,c in sorted(by_sm[sm]))+'\n' for sm in sorted(by_sm)))
++ argv=[str(binary),'--mode','memgen','--profile-index',str(index),'--app-config',str(app),'--issue-config',str(issue),'--hw-config',str(F/'config/RTX4000Ada.paper-v1.config'),'--stats',str(out/'source-stats.json'),'--output-dir',str(out/'model'),'--include-local','false','--observe-cache','true']
++ save(out/'command.json',argv)
++ with (out/'stdout.log').open('x') as o,(out/'stderr.log').open('x') as e:p=subprocess.run(argv,stdout=o,stderr=e,timeout=180)
++ assert p.returncode==0,'frozen Memgen execution failed'
++ source=json.loads((out/'source-stats.json').read_text());assert source['status']=='PASS' and source['materialized_raw_sass_bytes']==0
++ expected=profile['independent_source_census']['mem_insts'];assert source['generated_memory_instructions']==expected
++ for field,value in profile.get('native_reference_digest',{}).items():assert source[field]==value,'C++ native-reference order/address digest mismatch: '+field
++ with (out/'model/kernel_summary.csv').open() as f:rows=list(csv.DictReader(f));assert len(rows)==1
++ census=profile['independent_source_census']
++ for field in ['mem_insts','lane_accesses','read_sector_requests','write_sector_requests','atomic_sector_requests']:assert int(rows[0][field])==census[field],field+' independent source census mismatch'
++ assert int(rows[0]['sector_requests'])==census['read_sector_requests']+census['write_sector_requests']+census['atomic_sector_requests']
++ observation=json.loads((out/'model/cache_observation.json').read_text())
++ for field in ['classification_residual_bytes','resident_residual_bytes','producer_trigger_emission_residual_bytes']:assert observation[field]==0
++ return {'source':source,'kernel_summary':rows[0],'expected_generated_instructions':expected,'independent_source_census':census,'source_sector_residual_B':0}
++
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--receipt',type=P,required=True);a.add_argument('--binary',type=P,required=True);a.add_argument('--output',type=P,required=True);args=a.parse_args();args.output.mkdir()
++ receipt=json.loads(args.receipt.read_text());assert receipt['transport_qualified'] and receipt['replay_closed']
++ rows=[];started=time.monotonic()
++ for row in receipt['packed_profiles']:
++  if row['status']!='PASS_PROFILE_EXACT_SAMPLES':continue
++  index=row['profile_index']
++  with P(index['path']).open('rb') as f:f.seek(index['offset']);raw=f.read(index['bytes'])
++  assert hashlib.sha256(raw).hexdigest()==index['sha256'];profile=json.loads(raw);profile['kernel']['id']=1
++  if 'original_isolated_reference_digest' in profile:profile['native_reference_digest']=profile['original_isolated_reference_digest']
++  value=run_model(args.output/row['source_launch_key'],profile,args.binary)
++  rows.append(dict(key=row['source_launch_key'],schema=profile['schema']['version'],instructions=value['expected_generated_instructions'],native_digest_checked='native_reference_digest' in profile,source_sector_residual_B=value['source_sector_residual_B']))
++ assert len(rows)==receipt['packed_models_accepted']
++ result=dict(status='PASS_CANDIDATE_CPP_ISOLATED_SOURCE_CENSUS_NOT_LLM_ACCURACY',profiles=len(rows),seconds=time.monotonic()-started,source_receipt=str(args.receipt),source_receipt_sha256=hashlib.sha256(args.receipt.read_bytes()).hexdigest(),binary=str(args.binary),binary_sha256=hashlib.sha256(args.binary.read_bytes()).hexdigest(),rows=rows)
++ with (args.output/'result.json').open('x') as f:json.dump(result,f,indent=2)
++ print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/replay_sparse_fixtures.py b/research/r4_l1_filter/replay_sparse_fixtures.py
+new file mode 100644
+index 0000000..3db91ad
+--- /dev/null
++++ b/research/r4_l1_filter/replay_sparse_fixtures.py
+@@ -0,0 +1,50 @@
++"""CPU-only differential fitting of retained, replay-qualified native samples."""
++import argparse,gzip,hashlib,json,pathlib,sys,time,types
++P=pathlib.Path
++U=P('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1')
++sys.path.insert(0,str(U))
++import sglang_sample_to_packed as p
++from sparse_rule_extensions import install
++from sparse_profile_adapter import install as install_structure
++
++def main():
++    args=argparse.ArgumentParser();args.add_argument('--receipt',type=P,required=True);args.add_argument('--output',type=P,required=True);a=args.parse_args()
++    receipt=json.loads(a.receipt.read_text())
++    assert receipt['replay_closed'] and receipt['transport_qualified']
++    a.output.mkdir();p.frozen_gate();baseline=p.rules.fit_x_quotient_remainder_y_table_z_partition;baseline_fit=p.fit;baseline_selector=p.template_by_cta
++    rows=[]
++    for item in receipt['native_fixtures']:
++        raw=P(item['path']).read_bytes();assert hashlib.sha256(raw).hexdigest()==item['sha256']
++        fixture=json.loads(gzip.decompress(raw));info=fixture['collector']
++        collector=types.SimpleNamespace(**{k:v for k,v in info.items() if k!='samples'})
++        collector.samples={(row['cta'],row['warp']):row['frames'] for row in info['samples']}
++        assert collector.count==sum(len(v) for v in collector.samples.values())
++        row=dict(source_launch_key=item['source_launch_key'],code_sha256=fixture['begin']['code_sha256'],grid=fixture['begin']['grid'],records=collector.count)
++        profiles={}
++        for variant in ['baseline','extended']:
++            p.rules.fit_x_quotient_remainder_y_table_z_partition=baseline
++            p.fit=baseline_fit;p.template_by_cta=baseline_selector
++            if variant=='extended':install(p.rules);install_structure(p)
++            started=time.perf_counter()
++            try:
++                profile=p.fit(collector,fixture['begin'],fixture['end'],fixture['transport'])
++                profiles[variant]=profile
++                row[variant]=dict(status='PASS_EXACT_SAMPLES',census=profile['independent_source_census'],sampling=profile['sampling'])
++                if variant=='extended':
++                    target=a.output/(item['source_launch_key']+'.profile.json')
++                    with target.open('xb') as f:f.write(p.rules.canonical_json(profile))
++            except (AssertionError,ValueError) as e:row[variant]=dict(status='REJECTED',reason=str(e))
++            row[variant]['seconds']=time.perf_counter()-started
++        if 'baseline' in profiles:
++            assert 'extended' in profiles,'regression of accepted native profile'
++            candidate=json.loads(p.rules.canonical_json(profiles['extended']))
++            candidate['sampling'].pop('runtime_completion_owner',None)
++            assert p.rules.canonical_json(profiles['baseline'])==p.rules.canonical_json(candidate),'baseline source changed'
++        rows.append(row)
++    result=dict(status='PASS_CPU_FIXTURE_DIFFERENTIAL_NOT_LLM_ACCURACY',source_receipt=str(a.receipt),source_receipt_sha256=hashlib.sha256(a.receipt.read_bytes()).hexdigest(),rows=rows,
++                recovered=sum(x['baseline']['status']=='REJECTED' and x['extended']['status']=='PASS_EXACT_SAMPLES' for x in rows),
++                unchanged_accepted=sum(x['baseline']['status']=='PASS_EXACT_SAMPLES' for x in rows))
++    with (a.output/'result.json').open('x') as f:json.dump(result,f,indent=2)
++    print(json.dumps({k:v for k,v in result.items() if k!='rows'}))
++
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/sample_llm.py b/research/r4_l1_filter/sample_llm.py
+new file mode 100644
+index 0000000..ec5734b
+--- /dev/null
++++ b/research/r4_l1_filter/sample_llm.py
+@@ -0,0 +1,137 @@
++"""Representative address-rule pilot with the frozen full-workload driver."""
++import argparse,fcntl,hashlib,importlib.util,json,os,pathlib,signal,subprocess,time,traceback
++P=pathlib.Path;REPO=P(__file__).resolve().parents[2]
++R=P('/home/xmu/nvidiagds/codex-runs');H=R/'memgen-llm-p128-d2d4-20260922-r2';S=R/'memgen-llm-source-p128d2d4-20260922-r3'
++# Exact upstream used by the already-qualified four plans, rather than the
++# older vendored sampler (which has a smaller wire-domain contract).
++U=R/'l2-sglang-full-qualified-20260919-01a08d87-r1'
++spec=importlib.util.spec_from_file_location('hardware',H/'run_matrix.py');hw=importlib.util.module_from_spec(spec);spec.loader.exec_module(hw)
++parser=argparse.ArgumentParser(description=__doc__)
++parser.add_argument('--output',type=P,required=True,help='Fresh evidence directory; existing paths are rejected')
++parser.add_argument('--plans',type=P,required=True,help='Frozen root containing WORKLOAD/pilot.json')
++parser.add_argument('--workload',required=True,choices=[w['id'] for w in hw.read(H/'contract.json')['workloads']])
++args=parser.parse_args();OUT=args.output;PLANS=args.plans
++OUT.mkdir();result={'status':'RUNNING','source_population_scope':'representative_subset','cases':[]}
++
++def cancel(signum, frame):
++    raise InterruptedError('controller interrupted by signal '+str(signum))
++for signum in (signal.SIGTERM,signal.SIGHUP):signal.signal(signum,cancel)
++
++def stop_group(child, signum):
++    try:os.killpg(child.pid,signum)
++    except ProcessLookupError:pass
++def birth(pid):return int(P('/proc',str(pid),'stat').read_text().rsplit(')',1)[1].split()[19])
++def run_case(workload):
++    case=OUT/workload['id'];case.mkdir();plan=PLANS/workload['id']/'pilot.json'
++    assert hw.read(plan)['source_population_scope']=='representative_subset'
++    with (case/'build.stdout').open('xb') as o,(case/'build.stderr').open('xb') as e:
++        p=subprocess.run(['python3','-B',str(U/'nvbit_sampler_r4/build.py'),'--plan',str(plan),'--output',str(case/'build')],stdout=o,stderr=e,timeout=600)
++    assert p.returncode==0,'sampler build failed'
++    assert hw.read(case/'build/build.json')['status']=='PASS_BUILD_ONLY_NO_GPU'
++    env=hw.read(S/workload['id']/'command.json')['environment'];env=dict(env)
++    for k in list(env):
++        if k=='LD_PRELOAD' or k.startswith(('SG_NVBIT_','SG_SAMPLE_')):env.pop(k)
++    env['CUDA_VISIBLE_DEVICES']=hw.GPU
++    dependencies=R/'hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r10/third_party'
++    env.update(SG_HBSERVE_SOURCE_ROOT=str(dependencies/'hbserve'),SG_MEMORYINST_CODEC=str(dependencies/'hbserve_memory_template.py'))
++    cpu=dict(env,CUDA_VISIBLE_DEVICES='')
++    preflight='import sys;sys.path.insert(0,'+repr(str(U))+');import sglang_sample_to_packed as p;p.frozen_gate();from hbserve_adapter import existing_core;existing_core();from entry_source_qualification import certificate;certificate();print("PASS_CPU_SOURCE_DEPENDENCIES")'
++    with (case/'preflight.log').open('x') as f:
++        p=subprocess.run([hw.PYTHON,'-B','-c',preflight],env=cpu,stdout=f,stderr=subprocess.STDOUT,timeout=90)
++    assert p.returncode==0,'CPU source dependency preflight failed'
++    driver=S/'driver.py';model=contract['models'][workload['model']]
++    postprocessor=REPO/'research/r4_l1_filter/source_pilot_postprocess.py'
++    pins={str(p):hw.sha(p) for p in [plan,driver,case/'build/sampler.so',postprocessor,postprocessor.with_name('sparse_rule_extensions.py'),postprocessor.with_name('sparse_profile_adapter.py'),postprocessor.with_name('profile_census.py'),P(__file__)]}
++    inputs=list(U.glob('*.py'))+list(U.glob('*.json'))
++    for sub in ['nvbit_sampler_r4','template_adapter_r4']:inputs.extend((U/sub).rglob('*'))
++    for p in inputs:
++        if p.is_file() and p.suffix in ['.py','.cu','.h','.json']:pins[str(p)]=hw.sha(p)
++    hw.save(case/'source-pins.json',pins)
++    raw_read,raw_write=os.pipe();proj_read,proj_write=os.pipe();children=[];logs=[];started=time.monotonic();marked=False;lease=None;peak_rss=0;last_progress=0
++    def spawn(name,argv,cenv,stdin=subprocess.DEVNULL,stdout=None,pass_fds=()):
++        err=(case/(name+'.stderr')).open('xb');logs.append(err)
++        if stdout is None:stdout=(case/(name+'.stdout')).open('xb');logs.append(stdout)
++        c=subprocess.Popen(argv,env=cenv,stdin=stdin,stdout=stdout,stderr=err,pass_fds=pass_fds,start_new_session=True)
++        children.append(c);hw.save(case/(name+'-command.json'),{'args':argv,'pid':c.pid,'start_ticks':birth(c.pid)})
++        return c
++    try:
++        lease=(R/'llm-footprint-v1/.locks'/('gpu-'+hw.GPU+'.lock')).open('a+')
++        deadline=time.monotonic()+180
++        while True:
++            try:fcntl.flock(lease,fcntl.LOCK_EX|fcntl.LOCK_NB);break
++            except BlockingIOError:
++                assert time.monotonic()<deadline,'GPU lease wait exceeded 180 seconds'
++                (case/'lease-wait.json').write_text(json.dumps({'status':'WAITING_FOR_EXISTING_GPU_OWNER','seconds':time.monotonic()-started}))
++                time.sleep(1)
++        assert not hw.gpu_apps()
++        post=spawn('profiles',[hw.PYTHON,'-B',str(postprocessor),'--output',str(case/'profiles'),'--transport-receipt',str(case/'consumer.json')],cpu,stdin=proj_read)
++        os.close(proj_read);proj_read=None
++        consume=spawn('consumer',[hw.PYTHON,'-B',str(U/'nvbit_sampler_r4/stream_consumer.py'),'--read-fd',str(raw_read),'--max-wire-bytes',str(hw.read(plan)['max_wire_bytes']),'--plan',str(plan),'--producer-exit',str(case/'producer-exit.json'),'--receipt',str(case/'consumer.json'),'--emit-projection-records'],cpu,stdout=proj_write,pass_fds=(raw_read,))
++        os.close(raw_read);raw_read=None;os.close(proj_write);proj_write=None
++        observer=case/'observer';observer.mkdir()
++        gen=dict(env,LD_PRELOAD=str(case/'build/sampler.so'),SG_NVBIT_SCOPE_ABI='1',SG_NVBIT_OUTPUT_ROOT=str(observer),SG_NVBIT_MAX_BYTES=str(256<<20),ACK_CTX_INIT_LIMITATION='1',SG_SAMPLE_PIPE_FD=str(raw_write))
++        gpu=spawn('host',[hw.PYTHON,'-B',str(driver),'--model-path',model['path'],'--output-dir',str(case/'artifacts'),'--decode-steps',str(workload['decode_steps']),'--expected-layers',str(model['layers']),'--expected-model-class',model['class'],'--traffic-scope','none'],gen,pass_fds=(raw_write,))
++        gpu_birth=birth(gpu.pid);os.close(raw_write);raw_write=None
++        while any(c.poll() is None for c in children):
++            assert time.monotonic()-started<7200,'pilot sample/fitting time budget'
++            rss=0
++            for child in children:
++                try:
++                    fields=dict(line.split(':',1) for line in P('/proc',str(child.pid),'status').read_text().splitlines() if ':' in line)
++                    rss+=int(fields.get('VmRSS','0 kB').split()[0])*1024
++                except FileNotFoundError:pass
++            peak_rss=max(peak_rss,rss)
++            assert rss<=48<<30,'sum of direct pipeline process RSS exceeds 48 GiB'
++            if time.monotonic()-last_progress>10:
++                (case/'resource-progress.json').write_text(json.dumps({'elapsed_seconds':time.monotonic()-started,'pipeline_process_rss_bytes':rss,'pipeline_process_peak_rss_bytes':peak_rss}))
++                last_progress=time.monotonic()
++            if gpu.poll() is not None and not marked:
++                assert gpu.returncode==0,'sampler application failed'
++                hw.validate(case,model,workload['decode_steps'],'none',hw.sha(driver),hw.read(H/workload['id']/'reference.json'))
++                finishes=[p for p in observer.glob('process-*/finish.json') if hw.read(p)['pid']==gpu.pid and hw.read(p)['start_ticks']==gpu_birth]
++                assert len(finishes)==1
++                assert all(hw.sha(p)==sha for p,sha in pins.items())
++                hw.save(case/'producer-exit.json',{'schema':'SG_SAMPLE_PRODUCER_EXIT_V1','returncode':gpu.returncode,'pid':gpu.pid,'start_ticks':gpu_birth,'observer_finish':str(finishes[0]),'source_pins_match':True});marked=True
++                # CPU fitting needs no GPU lease. Release only after our GPU
++                # child has exited and its source/numerical identity passed.
++                lease.close();lease=None
++                hw.save(case/'gpu-lease-released.json',{'producer_pid':gpu.pid,'producer_returncode':0,'elapsed_seconds':time.monotonic()-started})
++            for c in children:assert c.poll() in (None,0),('child failed',c.pid,c.returncode)
++            time.sleep(.3)
++        assert marked
++        transport=hw.read(case/'consumer.json');profiles=hw.read(case/'profiles/receipt.json')
++        assert transport['status']=='PASS_SAMPLED_TRANSPORT_ONLY'
++        assert profiles.get('transport_qualified') and profiles.get('replay_closed')
++        assert profiles['source_population_scope']=='representative_subset' and not profiles['full_launch_population_complete']
++        assert all(hw.sha(p)==sha for p,sha in pins.items())
++        summary={'workload':workload['id'],'source_population_scope':'representative_subset','selected_records':transport['selected_records'],'sampled_kernels':len(transport['kernels']),'profiles_accepted':profiles['packed_models_accepted'],'profiles_missing':profiles['packed_models_missing'],'seconds':time.monotonic()-started,'pipeline_process_peak_rss_bytes':peak_rss,'native_fixture_bytes':profiles['raw_memory_trace_bytes'],'hardware_accuracy_accepted':False}
++        hw.save(case/'finish.json',summary)
++        return summary
++    finally:
++        for fd in [raw_read,raw_write,proj_read,proj_write]:
++            if fd is not None:os.close(fd)
++        for c in children:
++            if c.poll() is None:stop_group(c,signal.SIGTERM)
++        for c in children:
++            try:c.wait(timeout=10)
++            except subprocess.TimeoutExpired:stop_group(c,signal.SIGKILL);c.wait(timeout=10)
++        for f in logs:f.close()
++        if lease is not None:lease.close()
++try:
++    contract=hw.read(H/'contract.json')
++    shared=R/'memgen-r4-llm-shared-20260922-r2/finish.json'
++    deadline=time.monotonic()+1200
++    while not shared.exists():
++        assert time.monotonic()<deadline,'shared-profile collection wait budget';time.sleep(2)
++    assert hw.read(shared)['status']=='PASS_FOUR_LLM_SHARED_PROFILES_NOT_TRAFFIC_ACCURACY'
++    selected=[w for w in contract['workloads'] if w['id']==args.workload]
++    assert len(selected)==1
++    for workload in selected:
++        summary=run_case(workload);result['cases'].append(summary)
++        (OUT/'progress.json').write_text(json.dumps(result,indent=2));print(json.dumps(summary),flush=True)
++    result['status']='PASS_PILOT_SOURCE_DIAGNOSTIC_NOT_LLM_ACCURACY' if not any(x['profiles_missing'] for x in result['cases']) else 'PILOT_ADDRESS_RULE_REJECTIONS'
++except BaseException:result.update(status='FAIL',error=traceback.format_exc())
++finally:
++    hw.save(OUT/'finish.json',result)
++print(json.dumps(result),flush=True)
++if result['status']=='FAIL':raise SystemExit(1)
+diff --git a/research/r4_l1_filter/small_shared_candidate_parameters.json b/research/r4_l1_filter/small_shared_candidate_parameters.json
+new file mode 100644
+index 0000000..e928ee1
+--- /dev/null
++++ b/research/r4_l1_filter/small_shared_candidate_parameters.json
+@@ -0,0 +1,253 @@
++{
++  "status": "FROZEN_SMALL_SHARED_SERIAL_EXTENSION_NOT_FULL_LLM_ACCEPTANCE",
++  "model_id": "r4-small-shared-20260922",
++  "existing_shared_ways": {
++    "32": 50,
++    "64": 33,
++    "100": 14
++  },
++  "added_shared_profiles": [
++    {
++      "shared_kib": 8,
++      "ways": 64,
++      "effective_capacity_kib": 128,
++      "development": {
++        "conditions": 56,
++        "wape_percent": 23.93805683114253,
++        "max_absolute_sectors": 8752,
++        "within_2pct_or_2sectors": 16
++      },
++      "selection": "development_only",
++      "r4_other_parameters_unchanged": true,
++      "holdout": {
++        "conditions": 28,
++        "wape_percent": 20.120429912063443,
++        "max_absolute_sectors": 6395,
++        "within_2pct_or_2sectors": 10
++      },
++      "repeats_stable": 36,
++      "hardware": {
++        "0": 2560,
++        "1": 2560,
++        "2": 2560,
++        "3": 2560,
++        "4": 2560,
++        "5": 2560,
++        "6": 640,
++        "7": 640,
++        "8": 640,
++        "9": 640,
++        "10": 640,
++        "11": 640,
++        "12": 3072,
++        "13": 3072,
++        "14": 3072,
++        "15": 3072,
++        "16": 3072,
++        "17": 3072,
++        "18": 768,
++        "19": 768,
++        "20": 768,
++        "21": 768,
++        "22": 768,
++        "23": 768,
++        "24": 3456,
++        "25": 3456,
++        "26": 3456,
++        "27": 3456,
++        "28": 3456,
++        "29": 3456,
++        "30": 864,
++        "31": 864,
++        "32": 864,
++        "33": 864,
++        "34": 864,
++        "35": 864,
++        "36": 8168,
++        "37": 8172,
++        "38": 4880,
++        "39": 4884,
++        "40": 7967,
++        "41": 8037,
++        "42": 2144,
++        "43": 2135,
++        "44": 1247,
++        "45": 1256,
++        "46": 1715,
++        "47": 1675,
++        "48": 22024,
++        "49": 21788,
++        "50": 7987,
++        "51": 8064,
++        "52": 18358,
++        "53": 17596,
++        "54": 4512,
++        "55": 4548,
++        "56": 2037,
++        "57": 2041,
++        "58": 2970,
++        "59": 2986,
++        "60": 31036,
++        "61": 27048,
++        "62": 9981,
++        "63": 9873,
++        "64": 24401,
++        "65": 23977,
++        "66": 6815,
++        "67": 6086,
++        "68": 2522,
++        "69": 2522,
++        "70": 5320,
++        "71": 4788,
++        "72": 35948,
++        "73": 35884,
++        "74": 12615,
++        "75": 12667,
++        "76": 31105,
++        "77": 31471,
++        "78": 8217,
++        "79": 8439,
++        "80": 3177,
++        "81": 3212,
++        "82": 7476,
++        "83": 7483
++      },
++      "source": [
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-8-r0/result.json",
++          "sha256": "dae115f45bd14d2276420e585c7dc0cc5cd243822c47abb98809d01cd2cb2a5c"
++        },
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-8-r1/result.json",
++          "sha256": "2c9019bd97ffe21e15845214bc3bdfc812400bcc7ce49e723abbbe16bcac91f7"
++        },
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-8-r2/result.json",
++          "sha256": "ca6c6218a18381b986543f81591c1bf40ade798c20c5921f0bcf55695b61e030"
++        }
++      ]
++    },
++    {
++      "shared_kib": 16,
++      "ways": 56,
++      "effective_capacity_kib": 112,
++      "development": {
++        "conditions": 56,
++        "wape_percent": 18.115332665243344,
++        "max_absolute_sectors": 5404,
++        "within_2pct_or_2sectors": 15
++      },
++      "selection": "development_only",
++      "r4_other_parameters_unchanged": true,
++      "holdout": {
++        "conditions": 28,
++        "wape_percent": 14.229491239629606,
++        "max_absolute_sectors": 4369,
++        "within_2pct_or_2sectors": 6
++      },
++      "repeats_stable": 28,
++      "hardware": {
++        "0": 2560,
++        "1": 2560,
++        "2": 2560,
++        "3": 2560,
++        "4": 2560,
++        "5": 2560,
++        "6": 640,
++        "7": 640,
++        "8": 640,
++        "9": 640,
++        "10": 640,
++        "11": 640,
++        "12": 3072,
++        "13": 3072,
++        "14": 3072,
++        "15": 3072,
++        "16": 3072,
++        "17": 3072,
++        "18": 768,
++        "19": 768,
++        "20": 768,
++        "21": 768,
++        "22": 768,
++        "23": 768,
++        "24": 7628,
++        "25": 7608,
++        "26": 4592,
++        "27": 4672,
++        "28": 7496,
++        "29": 7530,
++        "30": 1984,
++        "31": 2013,
++        "32": 1166,
++        "33": 1182,
++        "34": 1587,
++        "35": 1634,
++        "36": 20260,
++        "37": 20260,
++        "38": 8103,
++        "39": 8075,
++        "40": 17604,
++        "41": 17143,
++        "42": 4343,
++        "43": 4340,
++        "44": 2108,
++        "45": 2101,
++        "46": 2870,
++        "47": 2874,
++        "48": 27104,
++        "49": 26920,
++        "50": 10298,
++        "51": 10302,
++        "52": 24131,
++        "53": 24247,
++        "54": 5942,
++        "55": 6353,
++        "56": 2612,
++        "57": 2630,
++        "58": 4685,
++        "59": 4738,
++        "60": 33704,
++        "61": 30464,
++        "62": 11599,
++        "63": 11766,
++        "64": 28582,
++        "65": 27925,
++        "66": 7606,
++        "67": 7351,
++        "68": 2906,
++        "69": 2968,
++        "70": 5864,
++        "71": 6109,
++        "72": 36864,
++        "73": 36864,
++        "74": 14347,
++        "75": 14179,
++        "76": 33013,
++        "77": 33453,
++        "78": 9216,
++        "79": 9216,
++        "80": 4608,
++        "81": 4606,
++        "82": 8363,
++        "83": 8366
++      },
++      "source": [
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-16-r0/result.json",
++          "sha256": "f1eb7a3b0694aa4774acbc6d6d1d8b4281f4891608549a7162bfbe383408645a"
++        },
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-16-r1/result.json",
++          "sha256": "56927a579f095c2b558e3a7c462fadd2fe4185ba91a1f01c83f404a3ada87b2f"
++        },
++        {
++          "path": "/home/xmu/nvidiagds/codex-runs/memgen-small-shared-calibration-20260922-r3/shared-16-r2/result.json",
++          "sha256": "4f4d24aa6498664d3df945747be34d84c490d21baba1e80e44609debd6d82696"
++        }
++      ]
++    }
++  ],
++  "llm_data_used": false,
++  "physical_cache_capacity_claim": false
++}
+\ No newline at end of file
+diff --git a/research/r4_l1_filter/source_pilot_postprocess.py b/research/r4_l1_filter/source_pilot_postprocess.py
+new file mode 100644
+index 0000000..32521d3
+--- /dev/null
++++ b/research/r4_l1_filter/source_pilot_postprocess.py
+@@ -0,0 +1,100 @@
++"""Representative sparse-source diagnostic with bounded native fixtures.
++
++Fixture files are development evidence, qualified only by final replay closure.
++They permit CPU iteration without collecting a complete model memory trace.
++"""
++from pathlib import Path
++import argparse,gzip,hashlib,json,os,stat,sys,time,traceback
++UPSTREAM=Path('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1')
++assert hashlib.sha256((UPSTREAM/'full_source_postprocess.py').read_bytes()).hexdigest() == '58514bec7ed932d943bcca8d0dbbca9d4eb2926a2379ba8d6a66428321a3f31b'
++sys.path.insert(0,str(UPSTREAM))
++import sglang_sample_to_packed as p
++from sparse_rule_extensions import install
++install(p.rules)
++from sparse_profile_adapter import install as install_structure,UPSTREAM_SHA256
++assert hashlib.sha256((UPSTREAM/'sglang_sample_to_packed.py').read_bytes()).hexdigest()==UPSTREAM_SHA256
++install_structure(p)
++
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--output',type=Path,required=True);a.add_argument('--transport-receipt',type=Path,required=True);a=a.parse_args()
++ a.output.mkdir(parents=True);p.frozen_gate();rows=[];offset=0;profile_bytes=0;fixture_bytes=0;fixture_json_bytes=0;fixtures=[]
++ fixture_dir=a.output/'native-fixtures';fixture_dir.mkdir()
++ contract=p.HERE/'target-contract.json'
++ source_scope='representative_subset' # This executable is only a diagnostic pilot.
++ assert source_scope in ['all_native_launches','representative_subset']
++ pack=a.output/'profiles.pack';index=a.output/'profiles.index.jsonl'
++ # Every row retains an actual launch identity. No copy from another layer,
++ # zero filling rejected launches, or source-count-based traffic injection.
++ def decoded(collector,begin,end,transport):
++  nonlocal offset,profile_bytes,fixture_bytes,fixture_json_bytes
++  started=time.monotonic();key=begin['source_launch_key']
++  row=dict(source_launch_key=key,phase=begin['phase'],role=begin.get('role'),layer_id=begin['layer_id'],code_sha256=begin['code_sha256'],kernel_name=begin['kernel_name'],status='REJECTED',hardware_accuracy_accepted=False)
++  # Retain the four previously rejected code families plus three controls.
++  # These are the already selected sparse CTAs, never extra full-grid capture.
++  retain=begin['code_sha256'].startswith(('62ee9483','d7d73af0','ee37b075','b90813cd')) or len(rows)<3
++  if retain:
++   payload=dict(schema='HBSERVE_NATIVE_SPARSE_FIXTURE_V1',scope='development_samples_requires_parent_replay_closure',begin=begin,end=end,
++     transport=dict(status=transport['status'],kernels=[x for x in transport['kernels'] if x['source_launch_key']==key]),
++     collector=dict(count=collector.count,estimated_sites=list(collector.estimated_sites),shared_only_census=dict(getattr(collector,'shared_only_census',{})),async_source_census=dict(getattr(collector,'async_source_census',{})),
++       samples=[dict(cta=c,warp=w,frames=frames) for (c,w),frames in sorted(collector.samples.items())]))
++   path=fixture_dir/(key+'.json.gz');json_bytes=0
++   with path.open('xb') as raw, gzip.GzipFile(fileobj=raw,mode='wb',mtime=0) as f:
++    for chunk in json.JSONEncoder(separators=(',',':')).iterencode(payload):
++     data=chunk.encode();json_bytes+=len(data)
++     assert json_bytes<=128<<20 and fixture_json_bytes+json_bytes<=512<<20,'native fixture retention budget exceeded'
++     f.write(data)
++   n=path.stat().st_size;fixture_bytes+=n;fixture_json_bytes+=json_bytes
++   item=dict(path=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),compressed_bytes=n,json_bytes=json_bytes,records=collector.count,source_launch_key=key)
++   fixtures.append(item);row['native_fixture']=item
++  try:
++   timings={};v=p.fit(collector,begin,end,transport,timings=timings)
++   if retain:
++    v['source'].update(raw_trace_saved=True,raw_trace_scope='selected_decoded_native_CTA_projection_only',native_fixture=item)
++    v['projection_record_census']['raw_records_saved']=True
++   kid=next(i for i,x in enumerate(transport['kernels'],1) if x['source_launch_key']==key)
++   v['kernel']['id']=kid
++   if 'native_reference_digest' in v:v['original_isolated_reference_digest']=v.pop('native_reference_digest')
++   v['model'].update(cache_entry='REPRESENTATIVE_SOURCE_ONLY_NO_PREFIX_REPLAY',complete_model=False)
++   raw=p.rules.canonical_json(v);assert profile_bytes+len(raw)<=8<<30,'bounded packed profile bytes'
++   with pack.open('ab') as f:f.write(raw)
++   r=dict(kernel_id=kid,source_launch_key=key,path=str(pack),offset=offset,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=v['status'])
++   with index.open('a') as f:f.write(json.dumps(r)+'\n')
++   offset+=len(raw);profile_bytes+=len(raw)
++   row.update(status='PROVISIONAL_PROFILE_EXACT_SAMPLES',profile_index=r,census=v['independent_source_census'],sampling=v['sampling'],stage_timings=timings)
++  except Exception as e:row.update(error=traceback.format_exc(),rejection_reason=type(e).__name__+': '+str(e))
++  row['seconds']=time.monotonic()-started;rows.append(row)
++  print(json.dumps(dict(progress=len(rows),key=key,status=row['status'],seconds=row['seconds'],reason=row.get('rejection_reason'))),flush=True)
++ result={}
++ try:
++  assert stat.S_ISFIFO(os.fstat(0).st_mode)
++  from postprocess_samples import analyze
++  result=analyze(sys.stdin.buffer,a.transport_receipt,max_records=16000000,max_encoded_bytes=512<<20,max_kernel_records=1000000,max_decoded_bytes=24<<30,model_policy='certified_entry_ldg_source_predicate',on_decoded_capture=decoded,compile_native_templates=False)
++  assert result['replay_closed'] and result['transport_qualified']
++  from entry_source_qualification import certificate
++  before=certificate()
++  certificate.cache_clear()
++  assert certificate()==before, 'entry semantic evidence changed during replay'
++  for row in rows:
++   if row['status'].startswith('PROVISIONAL_'):row.update(status='PASS_PROFILE_EXACT_SAMPLES',replay_admitted=True)
++  allkeys=[x['source_launch_key'] for x in result['kernels']];mapped={x['source_launch_key'] for x in rows}
++  # Rejection before decoding is still a missing source launch, never zero.
++  for r in result['kernels']:
++   if r['source_launch_key'] not in mapped:rows.append(dict(source_launch_key=r['source_launch_key'],status='REJECTED_BEFORE_PACKING',reason=r['candidate_rejections'],phase=r['phase'],layer_id=r['layer_id'],kernel_name=r['kernel_name']))
++  accepted=sum(r['status']=='PASS_PROFILE_EXACT_SAMPLES' for r in rows)
++  assert len(rows)==len(allkeys) and {r['source_launch_key'] for r in rows}==set(allkeys)
++  result.update(packed_profiles=rows,packed_models_accepted=accepted,profile_bytes=profile_bytes,
++     packed_models_missing=len(allkeys)-accepted,
++     source_population_scope=source_scope,selected_launch_population_complete=accepted==len(allkeys),
++     full_launch_population_complete=accepted==len(allkeys) and source_scope=='all_native_launches',complete_inference_model_comparison=False,
++     full_source_hardware_qualification=False,raw_memory_trace_bytes=fixture_bytes,native_fixture_json_bytes=fixture_json_bytes,native_fixtures=fixtures,
++     fitter_extension='unique_1d_quotient_remainder_v1_and_schema12_linear_structure_and_exact_census',native_fixture_scope='selected_samples_per_sampling_contract_not_hardware_validation')
++  code=0
++ except Exception:
++  for row in rows:
++   if row['status'].startswith(('PROVISIONAL_','PASS_')):row.update(status='REJECTED_GLOBAL_REPLAY_CLOSURE',replay_admitted=False)
++  result=dict(status='FAIL',error=traceback.format_exc(),packed_models_accepted=0,packed_models_missing=None,coverage_status='UNDETERMINED_REPLAY_NOT_CLOSED',full_launch_population_complete=False,packed_profiles=rows,complete_inference_model_comparison=False);code=1
++ raw=(json.dumps(result,indent=2)+'\n').encode();assert len(raw)<=128<<20,'full source receipt cap'
++ with (a.output/'receipt.json').open('xb') as f:f.write(raw)
++ return code
++
++if __name__=='__main__':raise SystemExit(main())
+diff --git a/research/r4_l1_filter/sparse_profile_adapter.py b/research/r4_l1_filter/sparse_profile_adapter.py
+new file mode 100644
+index 0000000..ed8d084
+--- /dev/null
++++ b/research/r4_l1_filter/sparse_profile_adapter.py
+@@ -0,0 +1,194 @@
++"""Private sparse structures and exact census; unchanged source qualification.
++
++Schema 12 adds disjoint, covering linear-CTA intervals. Its current fitter only
++admits observed endpoint exceptions or an active prefix whose boundary is
++uniquely pinned by adjacent training CTAs. Independent interior class holdouts
++remain mandatory; complete exception domains do not claim holdout validation.
++"""
++import collections,math,time
++import sglang_sample_to_packed as upstream
++from profile_census import count_profile
++from sglang_sample_to_packed import (rules,projection_record_census,normalize,
++ validate_samples,direction_width,lane_offsets,global_opcode,captured_digest)
++UPSTREAM_SHA256='ffdede8a8c179d8bf3282a5ed5b33f05eb8186426199973b8ae6156b945afe95'
++_original_template_by_cta=upstream.template_by_cta
++COMPLETION_OWNER_CODE='b90813cd121a844dab28477a46e33d6fc028bcef666341c6e56aadb1437b91c8'
++
++def template_by_cta(profile):
++ if profile['schema']['version']!=12:return _original_template_by_cta(profile)
++ selector=profile['structural_class_selector'];assert selector['kind']=='linear_cta_intervals'
++ classes={x['class_id']:x for x in profile['structural_classes']}
++ assert len(classes)==len(profile['structural_classes']) and all(classes)
++ n=profile['kernel']['grid_size'];mapping=[];used=set()
++ for item in selector['intervals']:
++  lo,hi,cid=item['start'],item['stop'],item['class_id']
++  assert type(lo) is int and type(hi) is int and lo==len(mapping) and lo<hi<=n
++  assert cid in classes
++  mapping.extend([cid]*(hi-lo));used.add(cid)
++ assert len(mapping)==n and used==set(classes)
++ declared_train=profile['sampling']['training_ctas'];declared_hold=profile['sampling']['holdout_ctas']
++ assert len(set(declared_train))==len(declared_train) and len(set(declared_hold))==len(declared_hold) and set(declared_train).isdisjoint(declared_hold)
++ if 'source' in profile:
++  assert set(profile['source']['launch']['fit_ctas'])==set(declared_train) and set(profile['source']['launch']['holdout_ctas'])==set(declared_hold)
++ observed_train=set();observed_hold=set()
++ for cid,klass in classes.items():
++  training=klass['ctas'];held=klass['independent_holdout_ctas']
++  assert training and len(set(training))==len(training) and all(type(c) is int and 0<=c<n and mapping[c]==cid for c in training)
++  assert len(set(held))==len(held) and set(held).isdisjoint(training) and all(type(c) is int and 0<=c<n and mapping[c]==cid for c in held)
++  assert set(training)<=set(declared_train) and set(held)<=set(declared_hold)
++  observed_train.update(training);observed_hold.update(held)
++  domain={c for c,x in enumerate(mapping) if x==cid}
++  assert klass['domain_cta_count']==len(domain)
++  if klass['observed_domain_complete']:assert set(training)==domain and not held
++  else:assert len(training)>=2 and len(held)>=2
++ assert observed_train==set(declared_train) and observed_hold==set(declared_hold)
++ return [classes[cid]['template'] for cid in mapping]
++
++def build_linear_structure(profile,sampled,indexed,train,hold,grid):
++ profile['sampling']=dict(training_ctas=train,holdout_ctas=hold)
++ n=math.prod(grid);assert {0,1,n-2,n-1}<=set(train),'linear structure needs training at both boundaries and their neighbors'
++ structure={c:frozenset(slots) for c,(_,slots) in indexed.items()}
++ interior={structure[c] for c in train if 0<c<n-1}
++ if len(interior)==1:
++  middle=next(iter(interior));parts=[(0,1,structure[0]),(1,n-1,middle),(n-1,n,structure[n-1])]
++  family='observed_endpoint_exceptions'
++ else:
++  active=[c for c in train if structure[c]];empty=[c for c in train if not structure[c]]
++  assert active and empty and min(active)==0 and max(empty)==n-1,'unsupported linear structural family'
++  kinds={structure[c] for c in active};assert len(kinds)==1,'active prefix has heterogeneous structure'
++  cut=max(active)+1
++  assert cut==min(empty),'active prefix boundary is not uniquely identified by adjacent training CTAs'
++  parts=[(0,cut,next(iter(kinds))),(cut,n,frozenset())];family='adjacent_training_identified_active_prefix'
++ merged=[]
++ for lo,hi,key in parts:
++  if merged and merged[-1][2]==key:merged[-1]=(merged[-1][0],hi,key)
++  else:merged.append((lo,hi,key))
++ mapping=[key for lo,hi,key in merged for _ in range(lo,hi)]
++ assert len(mapping)==n and all(mapping[c]==structure[c] for c in train),'training structural selector mismatch'
++ # Training selects the family and boundary before holdout inspection.
++ assert all(mapping[c]==structure[c] for c in hold),'heldout linear structure differs'
++ keys=list(dict.fromkeys(mapping));ids={key:'class-%02d'%i for i,key in enumerate(keys)};classes=[]
++ for key in keys:
++  domain={c for c,k in enumerate(mapping) if k==key};ctas=sorted(set(train)&domain);held=sorted(set(hold)&domain)
++  complete=set(ctas)==domain
++  if not complete:assert len(ctas)>=2 and len(held)>=2,'extrapolated structural class lacks independent witnesses'
++  try:template=rules.build_template(sampled,indexed,ctas,grid,coordinate_rules=True,allow_exact_table=complete)
++  except ValueError:
++   assert not complete
++   template=rules.build_template(sampled,indexed,ctas,grid,coordinate_rules=False,allow_exact_table=False)
++  if complete:
++   for entry in template:
++    for rule in entry['address_rules']:
++     if rule.get('kind')=='exact_cta_base_table':rule['scope']='complete_observed_structural_class_domain'
++  classes.append(dict(class_id=ids[key],ctas=ctas,template=template,
++    cta_membership_scope='complete_observed_class_domain' if complete else 'training_samples_only',
++    domain_cta_count=len(domain),observed_domain_complete=complete,independent_holdout_ctas=[] if complete else held))
++ profile['schema']['version']=12
++ profile.update(structural_classes=classes,structural_class_selector=dict(kind='linear_cta_intervals',family=family,
++  intervals=[dict(start=lo,stop=hi,class_id=ids[key]) for lo,hi,key in merged]))
++
++def install(module):
++ module.template_by_cta=template_by_cta
++ module.fit=fit
++
++def fit(collector,begin,end=None,transport=None,timings=None):
++ timings={} if timings is None else timings;tick=time.perf_counter()
++ def mark(name):
++  nonlocal tick
++  now=time.perf_counter();timings[name]=now-tick;tick=now
++ assert not collector.estimated_sites,'estimated predicate template excluded'
++ record_census=projection_record_census(collector)
++ sampled=normalize(collector.samples);train=sorted(begin['fit_ctas']);hold=sorted(begin['holdout_ctas']);packetless=set()
++ if begin.get('entry_proof_schema'):
++  from cta_entry_contract import validate_entry_proof
++  assert transport is not None and transport['status']=='PASS_SAMPLED_TRANSPORT_ONLY'
++  proof=validate_entry_proof(begin,end,sorted({c for (c,w),frames in collector.samples.items() if frames}))
++  source=next(x for x in transport['kernels'] if x['source_launch_key']==begin['source_launch_key'])
++  assert source['entry_proof']==end['entry_proof'],'qualified transport entry proof differs'
++  packetless=set(proof['packetless_ctas'])
++  if packetless:
++   assert all(k in ['CONSTANT','SHARED'] or not v for k,v in end['omitted_static_memory_classes'].items()),'uncovered potential L2 client prevents packetless profile admission'
++  for c in packetless:assert c not in sampled;sampled[c]=[]
++ grid=tuple(begin['grid']);size=math.prod(grid);complete=set(sampled)==set(range(size))
++ if begin.get('code_sha256')==COMPLETION_OWNER_CODE:
++  assert size<=32 and complete,'runtime completion-owner reduction requires its entire bounded CTA domain; sparse structure extrapolation is unsafe'
++ assert set(sampled)==set(train+hold) and set(train).isdisjoint(hold)
++ if complete:train=sorted(sampled);hold=[]
++ else:assert hold
++ indexed={c:rules.indexed_records(v) for c,v in sampled.items()}
++ mark('normalize_and_index_seconds')
++ zero_global={c for c,v in sampled.items() if not v}
++ groups=collections.defaultdict(list)
++ for c,(_,slots) in indexed.items():
++  assert slots or c in zero_global,'empty/unobserved CTA cannot be invented'
++  groups[frozenset(slots)].append(c)
++ profile=dict(schema={'name':'hbserve.hyfiss_sampled_sass_profile','version':5 if complete else 4},kernel={'id':1,'name':begin['kernel_name'],'phase':begin['phase'],'grid_size':size,'grid_dims':list(grid),'block_size':math.prod(begin['block'])})
++ if len(groups)==1 and next(iter(groups)):
++  profile['template']=rules.build_template(sampled,indexed,train,grid,coordinate_rules=True,allow_exact_table=complete)
++ elif complete:
++  profile['schema']['version']=9;classes=[];mapping=[None]*size
++  for i,ctas in enumerate(sorted(groups.values(),key=min)):
++   ctas=sorted(ctas);cid=f'class-{i:02d}'
++   template=rules.build_template(sampled,indexed,ctas,grid,coordinate_rules=True,allow_exact_table=True)
++   classes.append(dict(class_id=cid,ctas=ctas,cta_membership_scope='complete_grid',template=template))
++   for c in ctas:assert mapping[c] is None;mapping[c]=cid
++  profile.update(structural_classes=classes,cta_class_by_id=mapping)
++ elif sum(d>1 for d in grid)==1:
++  build_linear_structure(profile,sampled,indexed,train,hold,grid)
++ else:
++  # Use the frozen backend's existing categorical-y schema. Every category
++  # must have training evidence and an independently held-out exact witness.
++  assert grid[1]>1,'sparse heterogeneous CTA structure has no categorical-y witness'
++  structures={c:frozenset(slots) for c,(_,slots) in indexed.items()}
++  class_by_y=[];training_groups=collections.defaultdict(list)
++  for c in train:training_groups[structures[c]].append(c)
++  for y in range(grid[1]):
++   candidates={structures[c] for c in train if (c//grid[0])%grid[1]==y}
++   held=[c for c in hold if (c//grid[0])%grid[1]==y]
++   assert len(candidates)==1 and held,'categorical-y training or independent holdout missing'
++   key=next(iter(candidates));assert all(structures[c]==key for c in held),'heldout categorical-y structure differs'
++   class_by_y.append(key)
++  assert set(class_by_y)==set(training_groups)
++  ids={};classes=[]
++  for i,(key,ctas) in enumerate(sorted(training_groups.items(),key=lambda x:min(x[1]))):
++   cid=f'class-{i:02d}';ids[key]=cid;ctas=sorted(ctas)
++   try:template=rules.build_template(sampled,indexed,ctas,grid,coordinate_rules=True,allow_exact_table=False,rule_ctas=train)
++   except ValueError:
++    # A slot confined to one categorical row has no y-axis observations.
++    # The existing linear-CTA affine rule is usable only when training fits;
++    # the independent held-out lane/address check below remains mandatory.
++    template=rules.build_template(sampled,indexed,ctas,grid,coordinate_rules=False,allow_exact_table=False)
++   classes.append(dict(class_id=cid,ctas=ctas,cta_membership_scope='training_samples_only',template=template))
++  profile['schema']['version']=11
++  profile.update(structural_classes=classes,structural_class_selector=dict(kind='categorical_y',class_by_y=[ids[k] for k in class_by_y],training_y_coverage=list(range(grid[1])),holdout_ctas_exact_structure_match=len(hold)))
++ mark('fit_rules_seconds')
++ checked=validate_samples(profile,sampled)
++ mark('validate_all_sample_addresses_seconds')
++ expected=count_profile(profile,upstream)
++ profile.update(status='PASS_NATIVE_CTA_PACKED_EXACT_SAMPLES',independent_source_census=expected,
++  source={'kind':'bounded_native_dynamic_CTA_pipe','launch':begin,'raw_trace_saved':False},sampling={'training_ctas':train,'holdout_ctas':hold,'complete_grid_no_extrapolation':complete,'checked_instructions':checked,'structural_class_count':len(groups),'certified_packetless_ctas':sorted(packetless),'packetless_scope':'instrumented memory classes only; not all hardware L2 clients'},model={'ordering':'CTA round robin across 48 SMs; canonical per-warp order; physical cross-warp arrival NOT captured','cache_entry':'COLD_ISOLATED_KERNEL_DIAGNOSTIC','prefix_replayed':False,'complete_model':False})
++ profile['shared_only_projection_census']=dict(getattr(collector,'shared_only_census',{}))
++ profile['shared_only_projection_census']['l2_requests']=0
++ profile['async_global_source_census']=dict(getattr(collector,'async_source_census',{}))
++ profile['sampling']['observed_zero_global_ctas']=sorted(zero_global)
++ if begin.get('code_sha256')==COMPLETION_OWNER_CODE:
++  profile['sampling']['runtime_completion_owner']='observed_each_launch_in_complete_small_domain_not_coordinate_inferred'
++ lowerings=collections.Counter((m['opcode'],global_opcode(m['opcode'])) for frames in collector.samples.values() for m in frames if m['lanes'] and global_opcode(m['opcode'])!=m['opcode'])
++ profile['observed_global_opcode_lowering']=[dict(raw_opcode=raw,lowered_opcode=lowered,observed_records=n) for (raw,lowered),n in sorted(lowerings.items())]
++ assert checked==record_census['active_global_records']
++ if complete:assert checked==expected['mem_insts']
++ profile['source_census_scope']='full_grid_observed' if complete else 'full_grid_predicted_from_exact_samples'
++ profile['projection_record_census']=record_census
++ if begin.get('entry_proof_schema'):profile['source']['entry_proof']=end['entry_proof']
++ mark('census_seconds')
++ if getattr(collector,'entry_ledger',None) is not None:
++  collector.entry_ledger.verify_decoded(collector.samples)
++  ledger=collector.entry_ledger.receipt(collector.count)
++  assert ledger['counts']['nonempty_events']==checked
++  if complete:
++   assert ledger['counts']['source_lanes']==expected['lane_accesses']
++   for direction in ['read','write']:assert ledger['counts'][direction+'_sectors']==expected[direction+'_sector_requests']
++  profile['entry_source_projection']=ledger
++ if complete:profile['native_reference_digest']=captured_digest(sampled)
++ mark('native_digest_seconds')
++ return profile
+diff --git a/research/r4_l1_filter/sparse_rule_extensions.py b/research/r4_l1_filter/sparse_rule_extensions.py
+new file mode 100644
+index 0000000..b111220
+--- /dev/null
++++ b/research/r4_l1_filter/sparse_rule_extensions.py
+@@ -0,0 +1,60 @@
++"""Private additions to the pinned HBServe fitter; no hardware parameters.
++
++The one-dimensional quotient/remainder rule uses the existing producer and
++consumer schema. Only training observations participate in model selection.
++Independent lane-exact held-out checking remains the caller's responsibility.
++"""
++from functools import lru_cache
++from math import isqrt
++
++@lru_cache(maxsize=256)
++def divisors(extent):
++    values=set()
++    for x in range(2,isqrt(extent)+1):
++        if extent%x==0:
++            values.update((x,extent//x))
++    return tuple(sorted(values))
++
++def fit_1d_quotient_remainder(points, grid_dims, label):
++    def require(ok, reason):
++        if not ok:
++            raise ValueError(label + ': ' + reason)
++    extent, gy, gz = grid_dims
++    require(gy == gz == 1 and extent > 1, 'one-dimensional grid required')
++    observed = dict(points)
++    require(len(observed) == len(points), 'duplicate training CTA')
++    require(all(type(x) is int and 0 <= x < extent for x in observed), 'training CTA outside grid')
++    require(len(observed) >= 5 and {0, 1, extent-1} <= observed.keys(),
++            'tiled 1D rule needs five training CTAs including 0, 1, and last')
++    base = observed[0]
++    candidates = []
++    # Divisors describe a geometry-constrained layout, not arbitrary change
++    # points. Exclude extent itself: its quotient coefficient is unobserved.
++    for divisor in divisors(extent):
++        remainder_stride = observed[1] - base
++        q, r = divmod(extent-1, divisor)
++        numerator = observed[extent-1] - base - remainder_stride*r
++        if numerator % q:
++            continue
++        quotient_stride = numerator // q
++        if all(base + quotient_stride*(x//divisor) + remainder_stride*(x%divisor) == addr
++               for x, addr in observed.items()):
++            candidates.append((divisor, quotient_stride, remainder_stride))
++    require(len(candidates) == 1,
++            'tiled 1D divisor is not uniquely identified by training CTAs (%d candidates)' % len(candidates))
++    divisor, quotient_stride, remainder_stride = candidates[0]
++    return dict(kind='coordinate_x_quotient_remainder_y_table_z_partition',
++                intercept=base, cta_x_divisor=divisor,
++                cta_x_quotient_stride=quotient_stride,
++                cta_x_remainder_stride=remainder_stride,
++                cta_y_offsets=[0], cta_z_stride=0,
++                scope='one_dimensional_unique_training_fit_requires_disjoint_holdout')
++
++
++def install(rules):
++    original = rules.fit_x_quotient_remainder_y_table_z_partition
++    def tiled(points, grid_dims, label):
++        if tuple(grid_dims[1:]) == (1, 1):
++            return fit_1d_quotient_remainder(points, grid_dims, label)
++        return original(points, grid_dims, label)
++    rules.fit_x_quotient_remainder_y_table_z_partition = tiled
+diff --git a/research/r4_l1_filter/test_profile_census.py b/research/r4_l1_filter/test_profile_census.py
+new file mode 100644
+index 0000000..a97f409
+--- /dev/null
++++ b/research/r4_l1_filter/test_profile_census.py
+@@ -0,0 +1,42 @@
++"""All retained profiles versus their old census, plus paired exact enumeration."""
++import argparse,hashlib,json,pathlib,sys,time,copy
++P=pathlib.Path;U=P('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1');sys.path.insert(0,str(U))
++import sglang_sample_to_packed as p
++from sparse_profile_adapter import install
++from profile_census import count_profile
++
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--receipt',type=P,required=True);a.add_argument('--output',type=P,required=True);args=a.parse_args();args.output.mkdir()
++ receipt=json.loads(args.receipt.read_text());assert receipt['replay_closed'] and receipt['transport_qualified'];install(p)
++ profiles=[];started=time.perf_counter()
++ for row in receipt['packed_profiles']:
++  if row['status']!='PASS_PROFILE_EXACT_SAMPLES':continue
++  idx=row['profile_index']
++  with P(idx['path']).open('rb') as f:f.seek(idx['offset']);raw=f.read(idx['bytes'])
++  assert hashlib.sha256(raw).hexdigest()==idx['sha256'];profile=json.loads(raw)
++  assert count_profile(profile,p)==profile['independent_source_census'],row['source_launch_key']
++  profiles.append((row,profile))
++ all_seconds=time.perf_counter()-started
++ # Select expensive cases using previously recorded baseline timings, before
++ # measuring this implementation. The slow path still evaluates every CTA.
++ chosen=sorted(profiles,key=lambda x:x[0]['stage_timings']['census_seconds'],reverse=True)[:3];timings=[]
++ for row,profile in chosen:
++  trials=[]
++  for trial in range(3):
++   measured={}
++   for fast in ([False,True] if trial%2==0 else [True,False]):
++    start=time.perf_counter();value=count_profile(profile,p,fast=fast);elapsed=time.perf_counter()-start
++    assert value==profile['independent_source_census'];measured['fast' if fast else 'enumerated']=elapsed
++   trials.append(measured)
++  timings.append(dict(key=row['source_launch_key'],grid=profile['kernel']['grid_size'],trials=trials))
++ # Residue-sensitive and byte-crossing cases must use the exact fallback.
++ seed=copy.deepcopy(profiles[0][1]);seed.pop('structural_classes',None);seed.pop('structural_class_selector',None);seed.pop('cta_class_by_id',None)
++ first=next(e for _,q in profiles for template in p.template_by_cta(q) for e in template)
++ seed['schema']['version']=4;seed['template']=[copy.deepcopy(first)];seed['kernel']['grid_dims']=[37,1,1];seed['kernel']['grid_size']=37
++ for stride in [1,2,4,16,31,32,64,-4]:
++  seed['template'][0]['address_rules']=[dict(intercept=0x1000001,cta_x_stride=stride)]
++  assert count_profile(seed,p)==count_profile(seed,p,fast=False)
++ result=dict(status='PASS_EXACT_CENSUS_AGGREGATION',profiles=len(profiles),all_profile_fast_seconds_including_io=all_seconds,paired_cases=timings,unaligned_stride_cases=8,hardware_accuracy_accepted=False)
++ with (args.output/'result.json').open('x') as f:json.dump(result,f,indent=2)
++ print(json.dumps(result))
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/test_r4.cpp b/research/r4_l1_filter/test_r4.cpp
+new file mode 100644
+index 0000000..0ba36f1
+--- /dev/null
++++ b/research/r4_l1_filter/test_r4.cpp
+@@ -0,0 +1,92 @@
++#include "../../release/source/tools/r4_l1_read_filter.h"
++#define main frozen_reference_main
++#include "r4_frozen_reference.cpp"
++#undef main
++#include <functional>
++using hyfiss_request_trace::R4L1ReadFilter;
++using hyfiss_request_trace::R4Allocation;
++static constexpr uint64_t base=0x123456780000ULL;
++void need(bool b) {if(!b)throw std::runtime_error("r4 differential assertion");}
++void check(const Cache &ref,const R4L1ReadFilter &model) {
++  need(ref.ways==model.ways());
++  for(unsigned i=0;i<16;++i) {
++    const auto &a=ref.sets[i];const auto &b=model.inspect(0,i);
++    need(a.hand==b.hand && a.used==b.nodes.size());
++    for(unsigned j=0;j<a.used;++j) {
++      need(a.nodes[j].key+base/128==b.nodes[j].tag);
++      need(a.nodes[j].mask==b.nodes[j].mask && bool(a.nodes[j].ref)==b.nodes[j].ref);
++    }
++  }
++}
++void rejects(std::function<void()> f){bool caught=false;try{f();}catch(const std::runtime_error&){caught=true;}need(caught);}
++int main(int argc,char **argv) {
++  uint64_t compared=0,cases=0;
++  for(auto shared:{8u,16u,32u,64u,100u}) {
++    unsigned nominal=(shared==8?128:shared==16?112:128-shared)*1024;
++    Cache ref(Config{"frozen","CLOCK",128,16,2,shared<32?1000u:1062u,0},nominal);
++    R4L1ReadFilter model(1);model.begin_kernel(shared,{{1,base,uint64_t{1}<<32}});
++    uint32_t x=11;
++    for(unsigned i=0;i<8000;++i) {
++      x^=x<<13;x^=x>>17;x^=x<<5;
++      uint32_t off=i<8?std::array<uint32_t,8>{0,32,64,96,0,128,160,128}[i]:
++          (i%3==0?(x&0xffffffe0u):((x%2400)*32));
++      uint64_t misses=ref.misses;ref.access(off);auto r=model.access(0,base+off);
++      need((r.outcome==0)==(ref.misses==misses));check(ref,model);++compared;
++    }
++  }
++  R4L1ReadFilter m(2);
++  rejects([&]{m.access(0,base);});
++  rejects([&]{m.begin_kernel(0,{{1,base,128}});});
++  rejects([&]{m.begin_kernel(32,{});});
++  rejects([&]{m.begin_kernel(32,{{1,base+32,128}});});
++  rejects([&]{m.begin_kernel(32,{{1,base,256},{2,base+128,256}});});
++  rejects([&]{m.begin_kernel(32,{{1,base,128},{1,base+256,128}});});
++  rejects([&]{m.begin_kernel(32,{{1,base,(uint64_t{1}<<32)+1}});});
++  m.begin_kernel(32,{{1,base,128},{2,base+4096,128}});
++  need(m.access(0,base).outcome==2 && m.access(0,base+4096).outcome==2);
++  need(m.access(0,base).outcome==0 && m.access(0,base+4096).outcome==0);
++  need(m.access(1,base).outcome==2);
++  rejects([&]{m.access(0,base+128);});rejects([&]{m.access(0,base+4);});rejects([&]{m.access(2,base);});
++  m.begin_kernel(32,{{1,base,128}});need(m.access(0,base).outcome==2);
++  // One instance must reset tags, sector bits, CLOCK hands and span cache
++  // when capacities or allocation generations change in either direction.
++  R4L1ReadFilter reused(1);
++  for(auto shared:{32u,100u,64u,32u,64u,100u}) {
++    Cache ref(Config{"frozen","CLOCK",128,16,2,1062,0},(128-shared)*1024);
++    reused.begin_kernel(shared,{{uint64_t(shared),base,uint64_t{1}<<32}});
++    check(ref,reused);
++    for(unsigned i=0;i<4096;++i) {
++      const uint32_t off=((i*997)%2700)*32;
++      auto misses=ref.misses;ref.access(off);auto r=reused.access(0,base+off);
++      need((r.outcome==0)==(ref.misses==misses));check(ref,reused);++compared;
++    }
++  }
++  reused.begin_kernel(64,{{101,base+4096,128},{102,base+8192,128}});
++  need(reused.access(0,base+8192).outcome==2);
++  rejects([&]{reused.access(0,base);});
++  rejects([&]{reused.access(0,base+4096+128);});
++  rejects([&]{reused.access(0,base+8192+128);});
++  reused.begin_kernel(100,{{103,base,128}});
++  need(reused.access(0,base).outcome==2);
++  rejects([&]{reused.access(0,base+8192);});
++  if(argc==2) {
++    std::ifstream f(argv[1]);unsigned id,nominal,cg,count;std::string path;
++    while(f>>id>>nominal>>cg>>count>>path) {
++      unsigned shared=128-nominal/1024;
++      Cache ref(Config{"frozen","CLOCK",128,16,2,1062,0},nominal);
++      R4L1ReadFilter model(1);model.begin_kernel(shared,{{1,base,uint64_t{1}<<32}});
++      std::ifstream addresses(path,std::ios::binary);need(bool(addresses));
++      for(unsigned i=0;i<count;++i) {
++        uint32_t off;addresses.read(reinterpret_cast<char*>(&off),4);need(bool(addresses));
++        if(cg)continue;
++        // The reference consumes scalar byte addresses; production receives
++        // coalesced 32 B sectors. Keep the original address in the reference.
++        auto misses=ref.misses;ref.access(off);auto r=model.access(0,base+(off&~31u));
++        need((r.outcome==0)==(ref.misses==misses));if(i%1024==0)check(ref,model);++compared;
++      }
++      check(ref,model);++cases;
++    }
++    need(f.eof() && cases==384);
++  }
++  std::cout<<"{\"status\":\"PASS\",\"compared_requests\":"<<compared<<",\"frozen_cases\":"<<cases<<"}\n";
++}
+diff --git a/research/r4_l1_filter/test_r4_backend_identity.cpp b/research/r4_l1_filter/test_r4_backend_identity.cpp
+new file mode 100644
+index 0000000..116eb89
+--- /dev/null
++++ b/research/r4_l1_filter/test_r4_backend_identity.cpp
+@@ -0,0 +1,18 @@
++#define HYFISS_REQUEST_TRACE_NO_MAIN
++#include "../../release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc"
++using namespace hyfiss_request_trace;
++int main(int argc,char **argv) {try {
++ if(argc!=7)throw std::runtime_error("config out model shared opcode invalid");
++ BackendOptions o;o.hw_config=argv[1];o.output_dir=argv[2];o.output_format="summary";o.order="timestamp";
++ o.r4_l1_read_filter=true;if(std::string(argv[3])!="default")o.r4_model_id=argv[3];
++ o.preserve_l1=false;o.preserve_l2=false;o.l2_dirty_drain=false;
++ o.l1_fill_latency_set=o.l2_fill_latency_set=true;o.l1_fill_latency=o.l2_fill_latency=0;
++ bool kernel=false,inst=false;unsigned shared=std::stoul(argv[4]);std::string opcode=argv[5];
++ return run_from_sm_trace_source(o,[&](KernelTraceRef &ref){
++  if(kernel)return false;kernel=true;ref=KernelTraceRef{};ref.kernel_id=1;ref.kernel_name="requested-byte-fixture";
++  ref.r4_shared_kib=shared;ref.r4_allocations={{1,4096,36}};
++  ref.next_ordered_inst=[&](OrderedMemoryInst &v){if(inst)return false;inst=true;
++   v=OrderedMemoryInst{};v.opcode=opcode;v.mask=1;v.timestamp=1;v.sequence=1;v.pc=16;v.sm_id=0;
++   v.addr={std::string(argv[6])=="invalid"?4132ull:4128ull};return true;};return true;
++ });
++}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/research/r4_l1_filter/test_r4_boundaries.cpp b/research/r4_l1_filter/test_r4_boundaries.cpp
+new file mode 100644
+index 0000000..ba872f4
+--- /dev/null
++++ b/research/r4_l1_filter/test_r4_boundaries.cpp
+@@ -0,0 +1,17 @@
++#include "../../release/source/tools/r4_l1_read_filter.h"
++#include <cassert>
++#include <iostream>
++using namespace hyfiss_request_trace;
++template<class F> void rejects(F f) { bool rejected=false;try{f();}catch(const std::runtime_error&){rejected=true;}assert(rejected); }
++int main(){
++ R4L1ReadFilter c(2);rejects([&]{c.require_sector(4096,1);});
++ c.begin_kernel(8,{{1,4096,36},{2,8192,128}});
++ c.require_sector(4128,15);assert(c.access(0,4128,15).outcome==2);assert(c.access(0,4128,1).outcome==0);
++ rejects([&]{c.require_sector(4128,16);});rejects([&]{c.require_sector(4128,UINT32_MAX);});
++ rejects([&]{c.require_sector(4160,1);});rejects([&]{c.require_sector(4080,1);});
++ rejects([&]{c.require_sector(4096,0);});rejects([&]{c.require_sector(UINT64_MAX-31,UINT32_MAX);});
++ c.require_sector(8192,UINT32_MAX);rejects([&]{c.require_sector(4128,16);});
++ c.begin_kernel(16,{{3,4096,36}});assert(c.access(0,4128,15).outcome==2);assert(c.access(1,4128,15).outcome==2);
++ rejects([&]{c.access(2,4128,15);});
++ std::cout<<"PASS_REQUESTED_BYTE_BOUNDARY_AND_GENERATION_RESET\n";
++}
+diff --git a/research/r4_l1_filter/test_r4_producer_cancel.cpp b/research/r4_l1_filter/test_r4_producer_cancel.cpp
+new file mode 100644
+index 0000000..fce80fa
+--- /dev/null
++++ b/research/r4_l1_filter/test_r4_producer_cancel.cpp
+@@ -0,0 +1,19 @@
++// Exercise backend initialization failure after the HBServe producer starts.
++#define main hbserve_existing_main
++#include "../../release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp"
++#undef main
++int main(int argc,char**argv) {try {
++  if(argc!=5)throw std::runtime_error("usage: test FIXTURE CONFIG CONTEXT FRESH_OUTPUT");
++  using namespace hbserve_profile_stream;
++  Arguments a;a.mode="memgen";a.profile_index=fs::path(argv[1])/"profiles.index.jsonl";
++  a.app_config=fs::path(argv[1])/"app.config";a.issue_config=fs::path(argv[1])/"issue.config";
++  a.hw_config=argv[2];a.r4_context=argv[3];a.output_dir=argv[4];
++  need(!fs::exists(a.output_dir),"fresh output required");fs::create_directory(a.output_dir);
++  {std::ofstream f(a.output_dir/"r4_l1_profiles.csv");f<<"existing evidence\n";}
++  WorkloadSource source(a.profile_index,a.app_config,a.issue_config,true);
++  need(run_memgen(a,source)!=0,"backend failure was swallowed");
++  std::ifstream f(a.output_dir/"r4_l1_profiles.csv");std::string line;std::getline(f,line);
++  need(line=="existing evidence","existing ledger overwritten");
++  need(!fs::exists(a.output_dir/"r4_context_identity.json"),"failure reported success");
++  std::cout<<"PASS_BACKEND_INITIALIZATION_CANCEL_AFTER_PRODUCER_START\n";
++}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/research/r4_l1_filter/test_sparse_cpp.py b/research/r4_l1_filter/test_sparse_cpp.py
+new file mode 100644
+index 0000000..2b76bd9
+--- /dev/null
++++ b/research/r4_l1_filter/test_sparse_cpp.py
+@@ -0,0 +1,35 @@
++"""Independent synthetic lane-address oracle through the existing C++ consumer."""
++import argparse,json,pathlib,sys,types
++P=pathlib.Path;U=P('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1')
++sys.path.insert(0,str(U))
++import sglang_sample_to_packed as p
++from sparse_rule_extensions import install
++
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--output',type=P,required=True);args=a.parse_args();args.output.mkdir()
++ p.frozen_gate();install(p.rules)
++ train=[0,1,2,4,7,8,9,16,32,63];hold=[3,15,31,47]
++ def record(c):
++  base=0x12000000+4096*(c//8)+64*(c%8)
++  return dict(mask=(1<<32)-1,op=ord('R'),opcode='LDG.E',mem_width=4,pc=0x100,
++              lanes=[dict(lane=i,addr=base+4*i,is_local=0) for i in range(32)])
++ samples={(c,0):[record(c)] for c in train+hold}
++ collector=types.SimpleNamespace(samples=samples,estimated_sites=[],count=len(samples))
++ begin=dict(fit_ctas=train,holdout_ctas=hold,grid=[64,1,1],block=[32,1,1],kernel_name='synthetic_1d_tiled',phase='Synthetic')
++ profile=p.fit(collector,begin)
++ # This digest is made independently from all literal lane addresses, never
++ # from the fitted rule or from C++ output; it tests all unsampled CTAs too.
++ full=p.normalize({(c,0):[record(c)] for c in range(64)})
++ profile['native_reference_digest']=p.captured_digest(full)
++ profile['source']['kind']='synthetic_exact_lane_oracle_not_hardware'
++ result=p.run_model(args.output/'cpp',profile)
++ samples[(hold[0],0)][0]['lanes'][5]['addr']+=1
++ try:p.validate_samples(profile,p.normalize(samples))
++ except AssertionError:pass
++ else:raise AssertionError('one-byte heldout lane mismatch admitted')
++ summary=dict(status='PASS_SYNTHETIC_CPP_FULL_GRID_AND_ONE_BYTE_REJECTION',ctas=64,lanes=2048,
++              source=result['source'],hardware_accuracy_accepted=False)
++ with (args.output/'result.json').open('x') as f:json.dump(summary,f,indent=2)
++ print(json.dumps({k:v for k,v in summary.items() if k!='source'}))
++
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/test_sparse_rules.py b/research/r4_l1_filter/test_sparse_rules.py
+new file mode 100644
+index 0000000..cf1a97b
+--- /dev/null
++++ b/research/r4_l1_filter/test_sparse_rules.py
+@@ -0,0 +1,27 @@
++"""Exact address and underdetermination checks for the sparse 1D addition."""
++import importlib.util,json,pathlib,sys
++from sparse_rule_extensions import install,fit_1d_quotient_remainder
++
++def main():
++    path=pathlib.Path(sys.argv[1])
++    spec=importlib.util.spec_from_file_location('r15_test',path)
++    rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
++    install(rules)
++    train=[0,1,2,4,7,8,9,16,32,63]
++    address=lambda x:0x12000000+4096*(x//8)+64*(x%8)
++    fitted=rules.fit_coordinate_rule([(x,address(x)) for x in train],(64,1,1),'test')
++    assert fitted['cta_x_divisor']==8
++    entry={'address_rules':[fitted]}
++    for x in range(64):
++        assert rules.predict_bases(entry,x,(64,1,1))==[address(x)]
++    rejected=0
++    for points in [list(zip([0,1,2,3,63],[0,64,128,192,4032])),
++                   [(x,address(x)) for x in train if x!=63],
++                   [(x,address(x)+(x==9)) for x in train]]:
++        try:fit_1d_quotient_remainder(points,(64,1,1),'negative')
++        except ValueError:rejected+=1
++        else:raise AssertionError('ambiguous, incomplete, or corrupt training admitted')
++    assert rejected==3
++    print(json.dumps(dict(status='PASS',all_grid_exact_addresses=64,negative_cases=rejected,hardware_accuracy_accepted=False)))
++
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/test_sparse_structures.py b/research/r4_l1_filter/test_sparse_structures.py
+new file mode 100644
+index 0000000..701adbb
+--- /dev/null
++++ b/research/r4_l1_filter/test_sparse_structures.py
+@@ -0,0 +1,78 @@
++"""Synthetic full-grid oracle, schema rejection and source-regression tests."""
++import argparse,copy,hashlib,json,pathlib,subprocess,sys,types
++P=pathlib.Path;SRC=P(__file__).resolve().parent;REPO=SRC.parents[1]
++U=P('/home/xmu/nvidiagds/codex-runs/l2-sglang-full-qualified-20260919-01a08d87-r1');sys.path.insert(0,str(U))
++import sglang_sample_to_packed as p
++from sparse_rule_extensions import install as install_rules
++from sparse_profile_adapter import install as install_structure,UPSTREAM_SHA256
++
++def main():
++ a=argparse.ArgumentParser();a.add_argument('--output',type=P,required=True);out=a.parse_args().output;out.mkdir()
++ assert hashlib.sha256((U/'sglang_sample_to_packed.py').read_bytes()).hexdigest()==UPSTREAM_SHA256
++ p.frozen_gate();install_rules(p.rules);install_structure(p)
++ binary=out/'hbserve'
++ argv=['mpic++','-std=c++17','-O2','-ffunction-sections','-fdata-sections','-Wl,--gc-sections',str(REPO/'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp'),'-l:libzstd.so.1','-lz','-lboost_mpi','-lboost_serialization','-lcrypto','-pthread','-o',str(binary)]
++ with (out/'build.log').open('x') as f:subprocess.run(argv,stdout=f,stderr=subprocess.STDOUT,check=True,timeout=180)
++ def run_profile(profile,name,rejection=None):
++  folder=out/name;folder.mkdir();pack=folder/'profiles.pack';raw=p.rules.canonical_json(profile);pack.write_bytes(raw)
++  index=folder/'profiles.index.jsonl';index.write_text(json.dumps(dict(kernel_id=1,path=str(pack),offset=0,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest(),status=profile['status']))+'\n')
++  k=profile['kernel'];gx,gy,gz=k['grid_dims'];app=folder/'app.config'
++  fields=dict(kernel_name=k['name'],llama_phase=k['phase'],grid_dim_x=gx,grid_dim_y=gy,grid_dim_z=gz,grid_size=k['grid_size'],block_size=k['block_size'])
++  app.write_text(''.join('-kernel_1_%s %s\n'%(key,value) for key,value in fields.items()))
++  issue=folder/'issue.config';issue.write_text(''.join('-trace_issued_sm_id_%d '%sm+' '.join('(1,%d,%x)'%(c,(c//48)*1000000) for c in range(sm,k['grid_size'],48))+'\n' for sm in range(min(48,k['grid_size']))))
++  proc=subprocess.run([str(binary),'--mode','memgen','--profile-index',str(index),'--app-config',str(app),'--issue-config',str(issue),'--hw-config',str(REPO/'release/config/RTX4000Ada.paper-v1.config'),'--stats',str(folder/'source.json'),'--output-dir',str(folder/'model')],capture_output=True,text=True,timeout=30)
++  (folder/'stdout').write_text(proc.stdout);(folder/'stderr').write_text(proc.stderr)
++  if rejection:
++   assert proc.returncode!=0 and rejection in proc.stderr,(name,proc.returncode,proc.stderr)
++  else:
++   assert proc.returncode==0,proc.stderr
++   stats=json.loads((folder/'source.json').read_text())
++   for key,value in profile['native_reference_digest'].items():assert stats[key]==value,key
++   assert stats['generated_memory_instructions']==profile['independent_source_census']['mem_insts']
++  return proc.returncode
++ profiles={};summary=[]
++ for name,n,grid,train,hold in [
++  ('copy',297,[297,1,1],[0,1,2,4,8,74,148,295,296],[15,19,23,250]),
++  ('argmax',19,[1,19,1],[0,1,2,4,8,9,17,18],[14,15]),
++  ('active',48,[48,1,1],[0,1,2,4,8,9,10,11,12,24,46,47],[6,7,30,31])]:
++  def records(c):
++   count=2
++   if name=='copy' and c==n-1:count=1
++   if name=='argmax':count=3 if c==0 else 1 if c==n-1 else 2
++   if name=='active' and c>=12:return [dict(mask=0,lanes=[])]
++   return [dict(mask=(1<<32)-1,op=ord('R'),opcode='LDG.E',mem_width=4,pc=0x100+4*j,
++     lanes=[dict(lane=i,addr=0x12000000+c*4096+j*128+i*4,is_local=0) for i in range(32)]) for j in range(count)]
++  samples={(c,0):records(c) for c in train+hold};collector=types.SimpleNamespace(samples=samples,estimated_sites=[],count=sum(map(len,samples.values())))
++  begin=dict(fit_ctas=train,holdout_ctas=hold,grid=grid,block=[32,1,1],kernel_name='synthetic_'+name,phase='Synthetic')
++  profile=p.fit(collector,begin);assert profile['schema']['version']==12
++  profile['source']['kind']='synthetic_full_lane_oracle_not_hardware'
++  full=p.normalize({(c,0):records(c) for c in range(n)});profile['native_reference_digest']=p.captured_digest(full)
++  run_profile(profile,name);profiles[name]=profile
++  summary.append(dict(name=name,ctas=n,exact_digest=True,sampled_ctas=len(samples),instructions=profile['independent_source_census']['mem_insts']))
++  changed=copy.deepcopy(samples);changed[(hold[0],0)][0]['lanes'][5]['addr']+=1
++  try:p.validate_samples(profile,p.normalize(changed))
++  except AssertionError:pass
++  else:raise AssertionError('one byte holdout corruption admitted')
++ # Proper SHA means these reach semantic validation, not the outer hash gate.
++ base=profiles['argmax'];negative=[]
++ for name,mutate,message in [
++  ('gap',lambda q:q['structural_class_selector']['intervals'][1].update(start=2),'intervals overlap'),
++  ('overlap',lambda q:q['structural_class_selector']['intervals'][1].update(start=0),'intervals overlap'),
++  ('unknown',lambda q:q['structural_class_selector']['intervals'][0].update(class_id='absent'),'unknown class'),
++  ('domain_count',lambda q:q['structural_classes'][0].update(domain_cta_count=2),'domain count differs'),
++  ('false_complete',lambda q:q['structural_classes'][1].update(observed_domain_complete=True),'not fully observed'),
++  ('duplicate_holdout',lambda q:q['structural_classes'][1].update(independent_holdout_ctas=[14,14]),'invalid structural holdout'),
++  ('train_hold_overlap',lambda q:q['structural_classes'][1].update(independent_holdout_ctas=[1,14]),'invalid structural holdout'),
++  ('duplicate_train',lambda q:q['structural_classes'][1]['ctas'].append(1),'invalid structural training'),
++  ('invented_holdout',lambda q:q['structural_classes'][1].update(independent_holdout_ctas=[3,5]),'invalid structural holdout'),
++  ('source_binding',lambda q:q['source']['launch'].update(holdout_ctas=[3,5]),'differ from source launch')]:
++  q=copy.deepcopy(base);mutate(q)
++  try:p.template_by_cta(q)
++  except AssertionError:pass
++  else:raise AssertionError('Python admitted invalid selector: '+name)
++  run_profile(q,'reject-'+name,message);negative.append(name)
++ result=dict(status='PASS_SCHEMA12_SYNTHETIC_FULL_GRID_AND_REJECTIONS',cases=summary,malformed_profiles_rejected=negative,hardware_accuracy_accepted=False)
++ with (out/'result.json').open('x') as f:json.dump(result,f,indent=2)
++ print(json.dumps(result))
++
++if __name__=='__main__':main()
+diff --git a/research/r4_l1_filter/validate_context.py b/research/r4_l1_filter/validate_context.py
+new file mode 100644
+index 0000000..cd52d0d
+--- /dev/null
++++ b/research/r4_l1_filter/validate_context.py
+@@ -0,0 +1,26 @@
++"""Verify HBServe context failures cancel its bounded producer promptly."""
++import hashlib,json,pathlib,subprocess,time
++P=pathlib.Path;repo=P(__file__).resolve().parents[2]
++root=P('/home/xmu/nvidiagds/codex-runs/memgen-r4-integration-20260922-r3');binary=root/'hbserve'
++assert json.loads((root/'validation.json').read_text())['status']=='PASS_R4_INTEGRATION_NOT_LLM_ACCURACY'
++out=root/'context-tests-v2';out.mkdir();fixture=repo/'release/fixtures/real-prefix2'
++def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
++context={'schema':'MEMGEN_R4_CONTEXT_V1','profile_index_sha256':sha(fixture/'profiles.index.jsonl'),'app_config_sha256':sha(fixture/'app.config'),'kernels':[{'kernel_id':i,'shared_kib':32,'shared_evidence':'SYNTHETIC_NEGATIVE_TEST_NOT_HARDWARE','allocations':[{'id':1,'base':4096,'bytes':128}]} for i in [1,2]]}
++rows=[]
++for name,message in [('ledger-exists','memgen output already exists'),('missing-allocation','r4 address lacks allocation base'),('unsupported-shared','small shared candidate requires explicit model identity'),('wrong-profile','r4 profile identity mismatch'),('missing-kernel','missing r4 kernel context')]:
++    case=out/name;case.mkdir();model=case/'model'
++    c=json.loads(json.dumps(context))
++    if name=='ledger-exists':model.mkdir();(model/'r4_l1_profiles.csv').write_text('existing evidence\n')
++    if name=='unsupported-shared':c['kernels'][0]['shared_kib']=8
++    if name=='wrong-profile':c['profile_index_sha256']='0'*64
++    if name=='missing-kernel':c['kernels']=c['kernels'][1:]
++    path=case/'context.json';path.write_text(json.dumps(c))
++    args=[str(binary),'--mode','memgen','--profile-index',str(fixture/'profiles.index.jsonl'),'--app-config',str(fixture/'app.config'),'--issue-config',str(fixture/'issue.config'),'--hw-config',str(repo/'release/config/RTX4000Ada.paper-v1.config'),'--stats',str(case/'stats.json'),'--output-dir',str(model),'--r4-context',str(path)]
++    start=time.monotonic()
++    with (case/'log.txt').open('x') as f:p=subprocess.run(args,stdout=f,stderr=subprocess.STDOUT,timeout=15)
++    assert p.returncode!=0 and message in (case/'log.txt').read_text(),name
++    assert not (case/'stats.json').exists() and not (model/'r4_context_identity.json').exists(),name
++    if name=='ledger-exists':assert (model/'r4_l1_profiles.csv').read_text()=='existing evidence\n'
++    rows.append({'name':name,'returncode':p.returncode,'seconds':time.monotonic()-start,'expected_error':message})
++result={'status':'PASS_CONTEXT_FAILURE_CANCELLATION','binary_sha256':sha(binary),'cases':rows}
++(out/'receipt.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))
+diff --git a/research/r4_l1_filter/validate_r4.py b/research/r4_l1_filter/validate_r4.py
+new file mode 100644
+index 0000000..d373fe5
+--- /dev/null
++++ b/research/r4_l1_filter/validate_r4.py
+@@ -0,0 +1,75 @@
++"""CPU-only r4 transfer, backend equivalence and unchanged-control validation."""
++import argparse,csv,hashlib,json,pathlib,subprocess,time,traceback
++P=pathlib.Path;SRC=P(__file__).resolve().parent;REPO=SRC.parents[1]
++parser=argparse.ArgumentParser();parser.add_argument('--output',type=P,required=True);OUT=parser.parse_args().output
++FROZEN=P('/home/xmu/nvidiagds/codex-runs/rtx4000-ada-cache-calibration-20260922-r4')
++MAIN=REPO.parents[1]/'memgen'
++OUT.mkdir(exist_ok=False)
++receipt={'status':'RUNNING','gpu_used':False,'steps':[]}
++def save(): (OUT/'validation.json').write_text(json.dumps(receipt,indent=2))
++def run(name,cmd,timeout=300,expected=0):
++    start=time.monotonic();row={'name':name,'argv':list(map(str,cmd))};receipt['steps'].append(row);save()
++    with (OUT/(name+'.log')).open('x') as f:
++        p=subprocess.run(['nice','-n','10']+row['argv'],stdout=f,stderr=subprocess.STDOUT,timeout=timeout)
++    row.update(returncode=p.returncode,seconds=time.monotonic()-start);save()
++    assert p.returncode==expected,(name,p.returncode,expected)
++    print(name,round(row['seconds'],3),flush=True)
++def build(name,source,sanitize=False):
++    flags=['-std=c++17','-O1' if sanitize else '-O2','-ffunction-sections','-fdata-sections','-Wl,--gc-sections']
++    if sanitize:flags+=['-fsanitize=address,undefined','-fno-omit-frame-pointer']
++    run('build-'+name,['mpic++',*flags,source,'-l:libzstd.so.1','-lz','-lboost_mpi','-lboost_serialization','-lcrypto','-pthread','-o',OUT/name],600)
++def rows(path):return list(csv.DictReader(path.open()))
++try:
++    frozen_sha=hashlib.sha256((FROZEN/'source/cache_policy_replay_r4.cpp').read_bytes()).hexdigest()
++    assert frozen_sha=='9319661e7abe613cc9bdb81ce488d1b3448aab6e87ad085e394fe92e8db042aa'
++    assert (SRC/'r4_frozen_reference.cpp').read_bytes()==(FROZEN/'source/cache_policy_replay_r4.cpp').read_bytes()
++    build('differential',SRC/'test_r4.cpp')
++    run('differential',[OUT/'differential',FROZEN/'analysis/evaluation_cases.tsv'])
++    receipt['differential']=json.loads((OUT/'differential.log').read_text())
++    build('differential-sanitized',SRC/'test_r4.cpp',True)
++    run('differential-sanitized',[OUT/'differential-sanitized',FROZEN/'analysis/evaluation_cases.tsv'],600)
++    build('serial',SRC/'r4_serial_backend.cpp')
++    run('serial',[OUT/'serial',FROZEN/'analysis/evaluation_cases.tsv',REPO/'release/config/RTX4000Ada.paper-v1.config',OUT/'serial-results','r4'],600)
++    candidate=FROZEN/'configs/frozen_grid.tsv'
++    run('reference',[FROZEN/'bin/cache_policy_replay',FROZEN/'analysis/evaluation_cases.tsv',candidate])
++    predictions={int(r['case_id']):r for r in rows(OUT/'reference.log') if r['config_id']=='CLOCK_u128_s16_h2_c1062'}
++    actual=rows(OUT/'serial-results/kernel_summary.csv');assert len(actual)==len(predictions)==384
++    for row in actual:
++        ref=predictions[int(row['kernel_id'])-1]
++        assert int(row['l1_hits'])==int(ref['hits'])
++        assert int(row['l2_read_requests'])==int(ref['misses'])
++        assert int(row['read_sector_requests'])==int(ref['requests'])
++        assert all(int(row[k])==0 for k in ['l1_pending_hits','write_sector_requests','atomic_sector_requests'])
++    receipt['backend_reference_cases']=384;save()
++    # This existing test expects incomplete dirty sectors to be drained, while
++    # the current baseline explicitly retains them. Preserve the baseline debt.
++    build('partial-original',MAIN/'release/source/tools/test_partial_validity.cpp')
++    run('partial-original',[OUT/'partial-original'],expected=1)
++    build('partial-current',REPO/'release/source/tools/test_partial_validity.cpp')
++    run('partial-current',[OUT/'partial-current'],expected=1)
++    assert (OUT/'partial-original.log').read_bytes()==(OUT/'partial-current.log').read_bytes()==b'partial dirty drain changed sectors\n'
++    receipt['existing_test_failure']='test_partial_validity: same failure on unchanged main and candidate';save()
++    for name in ['test_retained_observation','test_l2_occupancy']:
++        build(name,REPO/('release/source/tools/'+name+'.cpp'))
++        run(name,[OUT/name]+([OUT/'retained-output'] if name=='test_retained_observation' else []))
++    build('hbserve',REPO/'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp')
++    build('hbserve-original',MAIN/'release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp')
++    fixture=REPO/'release/fixtures/real-prefix2'
++    for label in ['hbserve','hbserve-original']:
++        dest=OUT/label; # binary occupies this name; output has its own directory
++        dest=OUT/(label+'-control');dest.mkdir()
++        run(label+'-control',[OUT/label,'--mode','memgen','--profile-index',fixture/'profiles.index.jsonl','--app-config',fixture/'app.config','--issue-config',fixture/'issue.config','--hw-config',REPO/'release/config/RTX4000Ada.paper-v1.config','--stats',dest/'source-stats.json','--output-dir',dest/'model'],600)
++    a=OUT/'hbserve-control';b=OUT/'hbserve-original-control'
++    assert (a/'model/kernel_summary.csv').read_bytes()==(b/'model/kernel_summary.csv').read_bytes()
++    x=json.loads((a/'source-stats.json').read_text());y=json.loads((b/'source-stats.json').read_text())
++    for k in ['kernel_count','placement_tuples','generated_memory_instructions','generated_lane_addresses','semantic_digest_a','semantic_digest_b']:assert x[k]==y[k],k
++    run('reject-invalid-sm',[OUT/'serial',FROZEN/'analysis/evaluation_cases.tsv',REPO/'release/config/RTX4000Ada.paper-v1.config',OUT/'invalid-sm','invalid-sm'],expected=1)
++    assert 'r4 SM id outside hardware configuration' in (OUT/'reject-invalid-sm.log').read_text()
++    assert not (OUT/'invalid-sm/kernel_summary.csv').exists()
++    receipt.update(status='PASS_R4_INTEGRATION_NOT_LLM_ACCURACY',legacy_prefix_exact=True,hardware_accuracy_accepted=False)
++except BaseException:
++    receipt.update(status='FAIL',error=traceback.format_exc())
++finally:
++    save()
++print(json.dumps(receipt),flush=True)
++if receipt['status']=='FAIL':raise SystemExit(1)

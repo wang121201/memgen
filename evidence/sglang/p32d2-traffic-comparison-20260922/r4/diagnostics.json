@@ -1,0 +1,47 @@
+{
+  "fresh_hardware_repeat_wape_vs_own_median_percent": 0.3745933605396421,
+  "repeat_noise_denominator": "360 fresh ca conditions x 5 repetitions; sum abs(repeat-median)/sum median",
+  "development_only_matched_ablations": [
+    {
+      "config_id": "CLOCK_u128_s16_h2_c1062",
+      "conditions": 288,
+      "wape_percent": 13.860111677436096,
+      "within_2pct_or_2sectors": 68,
+      "max_absolute_sectors": 6748.0
+    },
+    {
+      "config_id": "CLOCK_u128_s16_h2_c1000",
+      "conditions": 288,
+      "wape_percent": 15.30128240039212,
+      "within_2pct_or_2sectors": 65,
+      "max_absolute_sectors": 7336.0
+    },
+    {
+      "config_id": "LRU_u128_s16_h2_c1062",
+      "conditions": 288,
+      "wape_percent": 18.105520120199007,
+      "within_2pct_or_2sectors": 66,
+      "max_absolute_sectors": 6748.0
+    },
+    {
+      "config_id": "CLOCK_u128_s16_h0_c1062",
+      "conditions": 288,
+      "wape_percent": 19.88274830289381,
+      "within_2pct_or_2sectors": 119,
+      "max_absolute_sectors": 9619.0
+    },
+    {
+      "config_id": "CLOCK_u128_s16_h1_c1062",
+      "conditions": 288,
+      "wape_percent": 19.95412447260763,
+      "within_2pct_or_2sectors": 119,
+      "max_absolute_sectors": 9619.0
+    }
+  ],
+  "interpretation": "The 12% frozen-model residual is substantially larger than 0.4% weighted repeat variation. Mapping and replacement both matter in development data. These ablations do not identify physical hardware. No new candidate selected from fresh results.",
+  "next_hypotheses": [
+    "Distinguish replacement-state updates on valid sector hits from resident-tag sector misses.",
+    "Test mapping and allocation granularity using new layouts, offsets, and sparse strides.",
+    "Retain frozen CLOCK and FIFO controls, with explicit new holdout data."
+  ]
+}

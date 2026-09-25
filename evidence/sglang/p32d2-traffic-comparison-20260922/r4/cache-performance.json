@@ -1,0 +1,57 @@
+{
+  "status": "PASS_CPU_MICROBENCHMARK_SAME_RESULT_CHECKSUM",
+  "pairs": 20,
+  "requests_per_trial": 3932160,
+  "cpu_affinity": 47,
+  "scope": "48 SMs, 240 kernels switching 32/64/100 KiB; same CPU, alternating order; not exclusive host and not LLM timing",
+  "conditions": [
+    {
+      "allocations": 1,
+      "consecutive_requests_per_allocation": 1,
+      "paired_speedups": [
+        1.5404080496311148,
+        1.5370819287148214,
+        1.8470584509017853,
+        1.543156444912265,
+        1.541708164575172
+      ],
+      "median_speedup": 1.541708164575172
+    },
+    {
+      "allocations": 1,
+      "consecutive_requests_per_allocation": 64,
+      "paired_speedups": [
+        1.5348664896632633,
+        1.5328454153332405,
+        1.5875106010063889,
+        1.5459568501615486,
+        1.5535038115731705
+      ],
+      "median_speedup": 1.5459568501615486
+    },
+    {
+      "allocations": 256,
+      "consecutive_requests_per_allocation": 1,
+      "paired_speedups": [
+        1.4463185916811048,
+        1.4175207281341562,
+        1.3924991917232459,
+        1.3937331185803874,
+        1.4204244031830238
+      ],
+      "median_speedup": 1.4175207281341562
+    },
+    {
+      "allocations": 256,
+      "consecutive_requests_per_allocation": 64,
+      "paired_speedups": [
+        1.6273789243124848,
+        1.6324119744103138,
+        1.6886328093672307,
+        1.6075141498309882,
+        1.7124575752517668
+      ],
+      "median_speedup": 1.6324119744103138
+    }
+  ]
+}

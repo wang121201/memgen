@@ -1,0 +1,67 @@
+{
+  "r4/hardware_aggregates.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/rtx4000-ada-cache-calibration-20260922-r4/analysis/hardware_aggregates.json",
+    "bytes": 834433,
+    "sha256": "3e46e1988998a62c1a2850b293bea5256f70f98a9e4b2c7c2d4ffa4cd9a60748"
+  },
+  "r4/frozen_predictions.csv": {
+    "source": "/home/xmu/nvidiagds/codex-runs/rtx4000-ada-cache-calibration-20260922-r4/analysis/frozen_predictions.csv",
+    "bytes": 294680,
+    "sha256": "ff6686d44c8169e4a3d81e05f918bed684bb54d70a734ec1a8365ec9f67e3c18"
+  },
+  "r4/summary_r4.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/rtx4000-ada-cache-calibration-20260922-r4/analysis/summary_r4.json",
+    "bytes": 23454,
+    "sha256": "4b55b4125f4e9521cce6f792890ef3a01094e6d069d5b3ff2685830fc775aead"
+  },
+  "r4/diagnostics.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/rtx4000-ada-cache-calibration-20260922-r4/analysis/diagnostics.json",
+    "bytes": 1794,
+    "sha256": "1edb66699328fe4824b224bef6aebaecee89099889a07141b85624fb711e01c7"
+  },
+  "r4/cache-performance.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-r4-cache-performance-20260922-r1/result.json",
+    "bytes": 1495,
+    "sha256": "a1fbe21e1717be698de24e48e90efd43c48475eb1c09b7ed6f34293f4f7c8309"
+  },
+  "configuration/paper-v1.config": {
+    "source": "/home/xmu/nvidiagds/simulators/hbserve-hyfiss-integration-20260911-r1/memgen-worktrees/llm-traffic-calibration/release/config/RTX4000Ada.paper-v1.config",
+    "bytes": 6408,
+    "sha256": "75aecac4fa003b71fec12a9d4c42e604969aa9aa932742093b1bcad875e96974"
+  },
+  "configuration/small_shared_candidate_parameters.json": {
+    "source": "/home/xmu/nvidiagds/simulators/hbserve-hyfiss-integration-20260911-r1/memgen-worktrees/llm-traffic-calibration/research/r4_l1_filter/small_shared_candidate_parameters.json",
+    "bytes": 6228,
+    "sha256": "ce36ac2e0d208a80cbe2c06bbc49151477184b1ea23acd53f0924c8ee8f3fae0"
+  },
+  "configuration/tuner-gpgpusim.config": {
+    "source": "/home/xmu/nvidiagds/simulators/accelsim2.0/util/tuner/NVIDIA_RTX_4000_Ada_Generation/gpgpusim.config",
+    "bytes": 5417,
+    "sha256": "e09511b9d168632e975422b19a9557ff5ed4482ace160fa428f9c70455f5a891"
+  },
+  "p32d2/source-finish.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-samples/finish.json",
+    "bytes": 930,
+    "sha256": "2a661c39f3c01587b5fd859395ed17dfd7905d8b5d6f7f67a36e7c29697948c5"
+  },
+  "p32d2/source-process.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-source.process.json",
+    "bytes": 437,
+    "sha256": "f9f91175025480d1e76e0aeb6988a5874982a296ca52aa5c2c9e9bb884b16230"
+  },
+  "p32d2/profiles.index.jsonl": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-samples/qwen1p5b-P32D2/profiles/profiles.index.jsonl",
+    "bytes": 761430,
+    "sha256": "9533e666c71179aeecb0d9a3410cff0afe88ac11ee757bd1fa4b3f10730059f2"
+  },
+  "snapshot/progress.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/progress.json",
+    "bytes": 2063,
+    "sha256": "0378a17770a918122394e8a95077d445a8d5cdd03b37339d66afb276a41c70d9"
+  },
+  "snapshot/comparison.json": {
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/traffic-comparison/comparison.json",
+    "bytes": 1130,
+    "sha256": "eda848f19fa38837fd8fd26603871f29d616e6b8f2a21b46357b14c66aa7ec9f"
+  }
+}

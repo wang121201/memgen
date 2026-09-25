@@ -1,0 +1,62 @@
+{
+  "status": "RUNNING",
+  "cases": [
+    {
+      "workload": "qwen1p5b-P32D2",
+      "status": "CACHE_REPLAY_RUNNING",
+      "source_process": {
+        "argv": [
+          "python3",
+          "-B",
+          "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-runtime-20260922-r2/sample_full.py",
+          "--output",
+          "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-samples",
+          "--plans",
+          "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/plans",
+          "--workload",
+          "qwen1p5b-P32D2"
+        ],
+        "returncode": 0,
+        "seconds": 5961.712291808799
+      },
+      "source": {
+        "status": "PASS_FULL_SOURCE_NOT_LLM_ACCURACY",
+        "source_population_scope": "all_native_launches",
+        "cases": [
+          {
+            "workload": "qwen1p5b-P32D2",
+            "source_population_scope": "all_native_launches",
+            "selected_records": 40956470,
+            "sampled_kernels": 2062,
+            "profiles_accepted": 2062,
+            "profiles_missing": 0,
+            "seconds": 5951.336683202535,
+            "pipeline_process_peak_rss_bytes": 11323891712,
+            "native_fixture_bytes": 343733,
+            "sparse_spool": {
+              "buffer_bytes": 1048576,
+              "bytes": 26242149040,
+              "full_model_memory_trace": false,
+              "limit_bytes": 103079215104,
+              "path": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-samples/qwen1p5b-P32D2/selected-cta.samples.bin",
+              "retained_on_failure": true,
+              "scope": "selected_CTA_wire_only"
+            },
+            "hardware_accuracy_accepted": false
+          }
+        ]
+      }
+    },
+    {
+      "workload": "qwen1p5b-P32D4",
+      "status": "SOURCE_RUNNING"
+    }
+  ],
+  "schedule": {
+    "max_source_pipelines": 1,
+    "max_cpu_replays": 1,
+    "overlap": true,
+    "mem_available_at_start": 526109659136,
+    "source_direct_process_rss_limit_bytes": 51539607552
+  }
+}

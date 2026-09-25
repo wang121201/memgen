@@ -1,0 +1,75 @@
+{
+  "status": "PASS_INDEPENDENT_PAIRED_CALIBRATION_RECOMPUTATION_NOT_LLM_ACCEPTANCE",
+  "observed_utc": "2026-09-22T12:44:18.388467+00:00",
+  "code_commit": "ace70256950ff436ed9457a9eb6b8bcb9b1290d0",
+  "scores": {
+    "fresh_ca": {
+      "r2": {
+        "conditions": 360,
+        "hardware_denominator": 2473936.0,
+        "absolute_error_sum": 532580.0,
+        "wape_percent": 21.527638548450728,
+        "within_2pct_or_2sectors": 78
+      },
+      "r3": {
+        "conditions": 360,
+        "hardware_denominator": 2473936.0,
+        "absolute_error_sum": 448798.0,
+        "wape_percent": 18.141051344901403,
+        "within_2pct_or_2sectors": 82
+      },
+      "r4": {
+        "conditions": 360,
+        "hardware_denominator": 2473936.0,
+        "absolute_error_sum": 297194.0,
+        "wape_percent": 12.013002761591245,
+        "within_2pct_or_2sectors": 98
+      }
+    },
+    "anchors": {
+      "r2": {
+        "conditions": 12,
+        "hardware_denominator": 54004.0,
+        "absolute_error_sum": 16124.0,
+        "wape_percent": 29.85704762610177,
+        "within_2pct_or_2sectors": 6
+      },
+      "r3": {
+        "conditions": 12,
+        "hardware_denominator": 54004.0,
+        "absolute_error_sum": 13584.0,
+        "wape_percent": 25.153692319087476,
+        "within_2pct_or_2sectors": 6
+      },
+      "r4": {
+        "conditions": 12,
+        "hardware_denominator": 54004.0,
+        "absolute_error_sum": 20009.0,
+        "wape_percent": 37.05095918820828,
+        "within_2pct_or_2sectors": 0
+      }
+    }
+  },
+  "profile_summary": {
+    "source_launches": 2062,
+    "selected_records": 40956470,
+    "packed_models_accepted": 2062,
+    "packed_models_missing": 0,
+    "unlowered_launches": 0,
+    "transport_qualified": true,
+    "replay_closed": true,
+    "full_launch_population_complete": true,
+    "total_seconds": 5950.22817649506,
+    "profile_bytes": 330976111,
+    "hardware_timing_qualified": false,
+    "complete_inference_model_comparison": false,
+    "source": "/home/xmu/nvidiagds/codex-runs/memgen-qwen-six-evaluation-20260922-r3/qwen1p5b-P32D2-samples/qwen1p5b-P32D2/profiles/receipt.json",
+    "source_sha256": "14de1fb75722611646e7005530be785aca3b17264637178131223fabcd309c72"
+  },
+  "hardware_accuracy_accepted": false,
+  "copy_verification": {
+    "files": 13,
+    "bytes": 1939899,
+    "manifest_sha256": "973e2f0c5d3ef00df7cf1e90856bd4fa424771cb5bd548bc48a53e7615549978"
+  }
+}
