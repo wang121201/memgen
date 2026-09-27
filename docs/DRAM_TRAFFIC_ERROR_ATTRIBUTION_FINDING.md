@@ -118,3 +118,40 @@ configurable (`release/source/tools/memgen_hardware_config.h`,
 store path, `-memgen_write_sector_policy` and `-memgen_dram_store_policy` select
 the write-sector emission and the DRAM store attribution, and an unset key leaves
 the frozen behaviour byte-identical.
+
+## 5. The allocating store path does not restore the merge (measured)
+
+Measured on the same Decode subset, same profile stream, only the store policy
+changed:
+
+| Quantity | `bypass` | `allocate` | Change |
+| --- | ---: | ---: | ---: |
+| L1 store sectors, full/partial, covered bytes | 1,112,888 / 301,480 / 811,408 / 12,721,012 | identical | 0.00% |
+| `l1_requests` | 308,259,667 | 309,372,555 | **+1,112,888** (stores now touch L1) |
+| `l1_hits` | 71,544,843 | 71,779,437 | +234,594 (21% of store sectors hit a resident line) |
+| **`l2_write_requests`** | **1,112,888** | **1,112,888** | **0.00%** |
+| DRAM store bytes, writeback events, dirty sectors | 4,339,936 / 33,914 / 135,623 | identical | 0.00% |
+| DRAM read bytes | 5,999,704,704 | 5,999,704,704 | 0.00% |
+
+So the merge factor stays `1.0000` against hardware's `1.4402`, and the negative
+result has a name in the code rather than an explanation: the L2 lookup is
+
+```cpp
+const bool l2_lookup = write_like || bypass_l1 || !l1_hit;
+```
+
+and `write_like` is true for every store, so a store always performs its L2 access
+whatever the L1 says. This engine's allocating store path is a **write-through L1
+with store-allocate**: it counts store hits — which is why the excluded metric
+`l1tex_global_store_lookup_hit` has no NCU counterpart, the candidate's own
+documentation says it bypasses L1 stores — and absorbs nothing. The knob is
+therefore harmless (reads are unchanged, +448 L2 read requests out of 236.7M) but
+it cannot be the fix.
+
+Two things follow. First, the merge axis needs a mechanism that does not exist
+yet: a bounded write-combining buffer before the L2 access, which merges partial
+writes to one sector within a window and issues one L2 write per merged sector.
+Second, the opportunity is real and the model already measures its size: 21% of
+Decode store sectors hit a line that is already L1-resident, against the 30.6% of
+store sectors hardware merges — the same order, which is what a bounded window
+would recover.
