@@ -43,7 +43,8 @@ struct HardwareProfile {
   static bool write_path_policy_key(const std::string &key) {
     return key=="-memgen_l1_store_policy"||key=="-memgen_write_sector_policy"||
            key=="-memgen_dram_store_policy"||key=="-memgen_l2_dirty_drain"||
-           key=="-memgen_l2_streaming_fill"||key=="-memgen_l2_clean_first_k";
+           key=="-memgen_l2_streaming_fill"||key=="-memgen_l2_clean_first_k"||
+           key=="-memgen_store_merge_window";
   }
   static std::shared_ptr<const HardwareProfile> load(const std::string &path) {
     std::ifstream in(path,std::ios::binary|std::ios::ate);

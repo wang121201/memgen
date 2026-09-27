@@ -136,6 +136,9 @@ struct Options {
   // Victim-selection window that prefers a clean line among the k least
   // recently used entries. Zero keeps plain LRU, which is the frozen default.
   unsigned l2_clean_first_k = 0;
+  // Bounded write-combining window for the store path (see HwParams). Zero
+  // disables it and keeps the frozen store path.
+  unsigned store_merge_window = 0;
   uint64_t l2_dirty_drain_latency = 0;
   bool l2_dirty_drain_latency_set = false;
   uint64_t l2_dirty_drain_max_sectors_per_kernel = 0;
@@ -220,6 +223,9 @@ struct HwParams {
   std::string l2_dirty_drain;
   std::string l2_streaming_fill;
   std::string l2_clean_first_k;
+  // Bounded write-combining window for the store path (see Options). Zero
+  // disables it and keeps the frozen store path byte for byte.
+  std::string store_merge_window;
 };
 
 struct LaneAddress {
@@ -612,6 +618,7 @@ HwParams read_hw_params(const fs::path &path,
   hw.l2_dirty_drain = get_string(cfg, "-memgen_l2_dirty_drain", "");
   hw.l2_streaming_fill = get_string(cfg, "-memgen_l2_streaming_fill", "");
   hw.l2_clean_first_k = get_string(cfg, "-memgen_l2_clean_first_k", "");
+  hw.store_merge_window = get_string(cfg, "-memgen_store_merge_window", "");
   return hw;
 }
 
@@ -4336,6 +4343,14 @@ void apply_hw_options(Options &opt, const HwParams &hw) {
           "-memgen_l2_clean_first_k must be an integer between 0 and 64");
     opt.l2_clean_first_k = static_cast<unsigned>(k);
   }
+  if (!hw.store_merge_window.empty()) {
+    char *end = nullptr;
+    const long k = std::strtol(hw.store_merge_window.c_str(), &end, 10);
+    if (end == hw.store_merge_window.c_str() || *end != '\0' || k < 0 || k > (1 << 20))
+      throw std::runtime_error(
+          "-memgen_store_merge_window must be an integer between 0 and 1048576");
+    opt.store_merge_window = static_cast<unsigned>(k);
+  }
   if (opt.l1_store_policy != "bypass" && opt.l1_store_policy != "allocate")
     throw std::runtime_error("-memgen_l1_store_policy must be bypass or allocate");
   if (opt.write_sector_policy != "line-miss-only" && opt.write_sector_policy != "all")
@@ -4674,6 +4689,13 @@ int run_from_sm_trace_source(
     };
 
     std::vector<SectorRequest> reusable_sector_requests;
+    // Per-SM write-combining buffer for the store path. A partial store sector
+    // (byte_mask != 0xFFFFFFFF) is held here and merged with later stores to the
+    // same 32-byte sector before the L2 access. Only used when
+    // opt.store_merge_window > 0; otherwise the frozen store path is unchanged.
+    // Keyed by SM id, then by sector address -> merged byte_mask.
+    std::vector<std::map<uint64_t, uint32_t>> store_merge_pending(
+        std::max(1u, opt.num_sms));
     auto process_inst = [&](const KernelMeta &meta, MemoryInst &inst,
                             std::vector<uint64_t> &last_ts,
                             uint64_t &kernel_max_ts) {
@@ -4725,6 +4747,30 @@ int run_from_sm_trace_source(
         if (g_semantic_traffic_ledger)
           g_semantic_traffic_ledger->add_source(
               meta.id, meta.llm_phase, req_sem, inst.op, req.size);
+        // Store write-combining: a partial store sector is merged with later
+        // stores to the same sector before the L2 access, so the number of L2
+        // write requests matches hardware's store-buffer behaviour instead of
+        // being one per store sector. Disabled when store_merge_window is 0.
+        SectorRequest merged_req;
+        const SectorRequest *l2_req = &req;
+        if (inst.op == 'W' && opt.store_merge_window > 0 &&
+            req.byte_mask != UINT32_MAX) {
+          auto &mask = store_merge_pending[inst.sm_id][req.addr];
+          const uint32_t before = mask;
+          mask |= req.byte_mask;
+          if (mask != UINT32_MAX &&
+              store_merge_pending[inst.sm_id].size() < opt.store_merge_window) {
+            // Still partial and the buffer has room: defer this store sector.
+            continue;
+          }
+          // The sector is now full, or the buffer is full: flush it as one L2
+          // write with the merged byte mask.
+          merged_req = req;
+          merged_req.byte_mask = mask;
+          l2_req = &merged_req;
+          store_merge_pending[inst.sm_id].erase(req.addr);
+        }
+        const auto &r = *l2_req;
         bool l1_hit = false;
         bool l2_hit = false;
         CacheAccess l1_access, l2_access;
@@ -4737,23 +4783,23 @@ int run_from_sm_trace_source(
           ks.l1_requests++;
           if (bypass_l1_read(inst)) l1_access.result=CacheResult::SectorMiss;
           else if (r4) {
-            if(inst.op!='R' || req.size!=32)
+            if(inst.op!='R' || r.size!=32)
               throw std::runtime_error("r4 accepts read sectors only");
-            auto a=r4->access(inst.sm_id,req.addr,req.byte_mask);
+            auto a=r4->access(inst.sm_id,r.addr,r.byte_mask);
             l1_access.result=a.outcome==0?CacheResult::Hit:
                              a.outcome==2?CacheResult::LineMiss:CacheResult::SectorMiss;
             l1_access.valid_before=a.before;l1_access.valid_after=a.after;
             l1_access.evicted.present=a.victim;l1_access.evicted.addr=a.victim_addr;
             l1_access.evicted.valid_sectors=a.victim_valid;
           }
-          else l1_access=l1_caches[inst.sm_id].access(req.addr, req.size, opt.sector_size, ts,
+          else l1_access=l1_caches[inst.sm_id].access(r.addr, r.size, opt.sector_size, ts,
                           opt.l1_fill_latency, cache_operation(inst.op),
-                          false, 0, false, false, req.byte_mask);
+                          false, 0, false, false, r.byte_mask);
           l1_result=l1_access.result;
           if (backend_opt.observe_l1_access && !bypass_l1_read(inst)) {
             const auto &a=l1_access; const auto &v=a.evicted;
             const int outcome=a.result==CacheResult::Hit?0:a.result==CacheResult::HitReserved?1:a.result==CacheResult::LineMiss?2:3;
-            backend_opt.observe_l1_access(L2AccessObservation{meta.id,inst.sm_id,req.addr,req.addr,inst.op,req.byte_mask,outcome,
+            backend_opt.observe_l1_access(L2AccessObservation{meta.id,inst.sm_id,r.addr,r.addr,inst.op,r.byte_mask,outcome,
               a.valid_before,a.dirty_before,a.valid_after,a.dirty_after,v.present,v.addr,v.valid_sectors,v.dirty_sectors});
           }
           l1_hit = l1_result == CacheResult::Hit ||
@@ -4771,7 +4817,7 @@ int run_from_sm_trace_source(
           }
           if (wants_csv(opt) && should_emit(opt, "L1") &&
               should_emit_phase(opt, meta)) {
-            write_request(req_out, ts, meta, inst, req, "L1", l1_hit, false,
+            write_request(req_out, ts, meta, inst, r, "L1", l1_hit, false,
                           opt, &req_sem);
             ++total_records;
           }
@@ -4783,20 +4829,20 @@ int run_from_sm_trace_source(
         EvictedLine l2_evicted;
         if (l2_lookup) {
           const unsigned l2_partition =
-              dram_partition_index(req.addr, opt) % l2_partitions;
-          const uint64_t l2_index_addr = l2_cache_index_addr(req.addr, opt);
+              dram_partition_index(r.addr, opt) % l2_partitions;
+          const uint64_t l2_index_addr = l2_cache_index_addr(r.addr, opt);
           const bool stream_l2 = opt.l2_streaming_fill &&
                                  should_stream_l2_fill(meta, inst, req_sem);
           l2_access = l2_caches[l2_partition].access(
-              req.addr, req.size, opt.sector_size, ts, opt.l2_fill_latency,
+              r.addr, r.size, opt.sector_size, ts, opt.l2_fill_latency,
               cache_operation(inst.op), opt.dram_store_policy == "writeback" && write_like,
-              l2_index_addr, true, stream_l2, req.byte_mask);
+              l2_index_addr, true, stream_l2, r.byte_mask);
           l2_result = l2_access.result;
           l2_evicted = l2_access.evicted;
           if (backend_opt.observe_l2_access) {
             const auto &a=l2_access; const auto &v=a.evicted;
             const int outcome=a.result==CacheResult::Hit?0:a.result==CacheResult::HitReserved?1:a.result==CacheResult::LineMiss?2:3;
-            backend_opt.observe_l2_access(L2AccessObservation{meta.id,l2_partition,req.addr,l2_index_addr,inst.op,req.byte_mask,outcome,
+            backend_opt.observe_l2_access(L2AccessObservation{meta.id,l2_partition,r.addr,l2_index_addr,inst.op,r.byte_mask,outcome,
               a.valid_before,a.dirty_before,a.valid_after,a.dirty_after,v.present,v.addr,v.valid_sectors,v.dirty_sectors});
           }
           l2_hit = l2_result == CacheResult::Hit ||
@@ -4804,21 +4850,21 @@ int run_from_sm_trace_source(
           account_l2_lookup(ks, inst.op, l2_result);
           if (wants_csv(opt) && should_emit(opt, "L2") &&
               should_emit_phase(opt, meta)) {
-            write_request(req_out, ts, meta, inst, req, "L2", l1_hit, l2_hit,
+            write_request(req_out, ts, meta, inst, r, "L2", l1_hit, l2_hit,
                           opt, &req_sem);
             ++total_records;
           }
         }
 
         if (backend_opt.observe_cache)
-          observation.access(meta,inst,req,req_sem.id,!bypass_l1,l1_access,l2_lookup,l2_access);
+          observation.access(meta,inst,r,req_sem.id,!bypass_l1,l1_access,l2_lookup,l2_access);
         if (g_semantic_traffic_ledger) {
           g_semantic_traffic_ledger->add_cache(
               meta.id, meta.llm_phase, req_sem, !bypass_l1, l1_result,
-              l2_lookup, l2_result, req.size);
+              l2_lookup, l2_result, r.size);
           if (opt.dram_store_policy == "writeback" && write_like)
             g_semantic_traffic_ledger->mark_dirty(
-                meta.id, meta.llm_phase, req_sem, req.addr, req.size,
+                meta.id, meta.llm_phase, req_sem, r.addr, r.size,
                 opt.sector_size);
         }
 
@@ -4830,24 +4876,24 @@ int run_from_sm_trace_source(
             const MemoryInst &transfer = atomic_read ? *atomic_read : inst;
             ks.dram_requests++;
             ks.dram_load_requests++;
-            ks.dram_load_bytes += req.size;
-            ks.dram_load_sectors += sectors_for_bytes(req.size, opt.sector_size);
+            ks.dram_load_bytes += r.size;
+            ks.dram_load_sectors += sectors_for_bytes(r.size, opt.sector_size);
             if (g_semantic_traffic_ledger)
               g_semantic_traffic_ledger->add_dram_read(
-                  meta.id, meta.llm_phase, req_sem, req.size);
+                  meta.id, meta.llm_phase, req_sem, r.size);
             if (wants_csv(opt) && should_emit(opt, "DRAM") &&
                 should_emit_phase(opt, meta)) {
-              write_request(req_out, ts, meta, transfer, req, "DRAM", l1_hit,
+              write_request(req_out, ts, meta, transfer, r, "DRAM", l1_hit,
                             l2_hit, opt, &req_sem);
               ++total_records;
             }
             if (wants_accelsim(opt) && should_emit_phase(opt, meta)) {
               write_accelsim_request(accel_out, accelsim_uid++, ts, meta, transfer,
-                                     req, opt, &req_sem);
+                                     r, opt, &req_sem);
               ++accelsim_records;
             }
             if (wants_footprint(opt) && should_emit_phase(opt, meta)) {
-              footprint_out.write_request(ts, meta, transfer, req, opt, &req_sem);
+              footprint_out.write_request(ts, meta, transfer, r, opt, &req_sem);
             }
           }
           emit_l2_writeback(l2_evicted, ts, meta, inst, l1_hit, l2_hit, opt,
@@ -4862,32 +4908,32 @@ int run_from_sm_trace_source(
             ks.dram_requests++;
             if (write_like) {
               ks.dram_store_requests++;
-              ks.dram_store_bytes += req.size;
-              ks.dram_store_sectors += sectors_for_bytes(req.size, opt.sector_size);
+              ks.dram_store_bytes += r.size;
+              ks.dram_store_sectors += sectors_for_bytes(r.size, opt.sector_size);
               if (g_semantic_traffic_ledger)
                 g_semantic_traffic_ledger->add_dram_write(
-                    meta.id, meta.llm_phase, req_sem, req.size);
+                    meta.id, meta.llm_phase, req_sem, r.size);
             } else {
               ks.dram_load_requests++;
-              ks.dram_load_bytes += req.size;
-              ks.dram_load_sectors += sectors_for_bytes(req.size, opt.sector_size);
+              ks.dram_load_bytes += r.size;
+              ks.dram_load_sectors += sectors_for_bytes(r.size, opt.sector_size);
               if (g_semantic_traffic_ledger)
                 g_semantic_traffic_ledger->add_dram_read(
-                    meta.id, meta.llm_phase, req_sem, req.size);
+                    meta.id, meta.llm_phase, req_sem, r.size);
             }
             if (wants_csv(opt) && should_emit(opt, "DRAM") &&
                 should_emit_phase(opt, meta)) {
-              write_request(req_out, ts, meta, inst, req, "DRAM", l1_hit,
+              write_request(req_out, ts, meta, inst, r, "DRAM", l1_hit,
                             l2_hit, opt, &req_sem);
               ++total_records;
             }
             if (wants_accelsim(opt) && should_emit_phase(opt, meta)) {
               write_accelsim_request(accel_out, accelsim_uid++, ts, meta, inst,
-                                     req, opt, &req_sem);
+                                     r, opt, &req_sem);
               ++accelsim_records;
             }
             if (wants_footprint(opt) && should_emit_phase(opt, meta)) {
-              footprint_out.write_request(ts, meta, inst, req, opt, &req_sem);
+              footprint_out.write_request(ts, meta, inst, r, opt, &req_sem);
             }
           }
         }
@@ -5007,6 +5053,38 @@ int run_from_sm_trace_source(
               process_inst(meta, inst, last_ts, kernel_max_ts);
           }
         }
+      }
+
+      // Flush any partial store sectors still held in the write-combining
+      // buffer, so no store is dropped at a kernel boundary. Each pending
+      // sector becomes one L2 write with its merged byte mask.
+      if (opt.store_merge_window > 0) {
+        auto &ks = stats[meta.id];
+        MemoryInst flush_inst;
+        flush_inst.kernel_id = meta.id;
+        flush_inst.opcode = "STG_MERGE_FLUSH";
+        flush_inst.op = 'W';
+        flush_inst.timestamp = kernel_max_ts;
+        for (unsigned sm = 0; sm < store_merge_pending.size(); ++sm) {
+          for (const auto &entry : store_merge_pending[sm]) {
+            const uint64_t addr = entry.first;
+            const uint32_t mask = entry.second;
+            const unsigned l2_partition =
+                dram_partition_index(addr, opt) % l2_partitions;
+            const uint64_t l2_index_addr = l2_cache_index_addr(addr, opt);
+            const SemanticInfo &req_sem = semantic_db.lookup(addr);
+            CacheAccess l2_access = l2_caches[l2_partition].access(
+                addr, opt.sector_size, opt.sector_size, kernel_max_ts,
+                opt.l2_fill_latency, CacheOperation::Store, true,
+                l2_index_addr, true, false, mask);
+            account_l2_lookup(ks, 'W', l2_access.result);
+            emit_l2_writeback(l2_access.evicted, kernel_max_ts, meta, flush_inst,
+                false, false, opt, semantic_db, &req_sem, ks, req_out, accel_out,
+                footprint_out, total_records, accelsim_records, accelsim_uid);
+          }
+        }
+        for (auto &pending : store_merge_pending)
+          pending.clear();
       }
 
       drain_l2_dirty(meta, kernel_max_ts + 1);

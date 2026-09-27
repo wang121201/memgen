@@ -22,13 +22,13 @@
   },
   {
    "path": "release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
-   "bytes": 241066,
-   "sha256": "1591e59ec82e4bdb1f55c3cf22a6d8b92e090620d6b7ec0524650d1a3e3e9318"
+   "bytes": 245094,
+   "sha256": "8a1c8b344d59722054ed5cf4d473a9bec2e265d18e01d9082f5e2a05df3a5de1"
   },
   {
    "path": "release/source/tools/memgen_hardware_config.h",
-   "bytes": 9026,
-   "sha256": "ff7e1cd1a073e1c324f39cc302516844e9e00e22bf70a118e494618ff8bb8688"
+   "bytes": 9073,
+   "sha256": "3631f0b3936bedc126608e734c1c2aebc52786537fe14955af12ad2e240264b9"
   },
   {
    "path": "release/source/tools/r4_l1_read_filter.h",
@@ -37,5 +37,5 @@
   }
  ],
  "scope": "identity of the six extracted or modified cache source/config files; not a full build-dependency manifest",
- "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested. Make the write-path policies configurable: -memgen_l1_store_policy, -memgen_write_sector_policy and -memgen_dram_store_policy are read from the hardware configuration and applied after the profile block, with validated values and no effect when unset, so the store path can be measured instead of assumed while the frozen default (L1 bypass) stays byte-identical. Make the L2 victim preference measurable as well: -memgen_l2_clean_first_k selects a clean victim inside a window of the k least recently used entries (0 = plain LRU, the frozen default), is validated to 0..64, and leaves the request stream and counters untouched when unset."
+ "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested. Make the write-path policies configurable: -memgen_l1_store_policy, -memgen_write_sector_policy and -memgen_dram_store_policy are read from the hardware configuration and applied after the profile block, with validated values and no effect when unset, so the store path can be measured instead of assumed while the frozen default (L1 bypass) stays byte-identical. Make the L2 victim preference measurable as well: -memgen_l2_clean_first_k selects a clean victim inside a window of the k least recently used entries (0 = plain LRU, the frozen default), is validated to 0..64, and leaves the request stream and counters untouched when unset. Add a bounded store write-combining window: -memgen_store_merge_window holds a partial store sector (byte_mask != 0xFFFFFFFF) in a per-SM buffer and merges it with later stores to the same 32-byte sector before the L2 access, flushing on full or on window overflow and at every kernel boundary; zero disables it and keeps the frozen store path byte-identical."
 }
