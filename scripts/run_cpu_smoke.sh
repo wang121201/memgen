@@ -49,5 +49,55 @@ if [[ "$actual" != "$expected" ]]; then
   echo "kernel summary SHA-256 mismatch: $actual" >&2
   exit 1
 fi
+
+# The write-path policies are configurable, and that knob has three properties
+# worth pinning: it is inert unless a config asks for it (the hash above), a
+# policy change is visible as a different store path rather than a different
+# request stream, and an invalid policy is refused instead of silently defaulted.
+mkdir -p "$out/wc" "$out/bad"
+cp "$root/release/config/RTX4000Ada.paper-v1.config" "$out/wc.config"
+printf -- '-memgen_l1_store_policy allocate\n' >> "$out/wc.config"
+"$out/build/hbserve" "${common[@]}" --hw-config "$out/wc.config" \
+  --stats "$out/wc/source-stats.json" --output-dir "$out/wc/model" --observe-cache false
+
+cp "$root/release/config/RTX4000Ada.paper-v1.config" "$out/bad.config"
+printf -- '-memgen_l1_store_policy write-through\n' >> "$out/bad.config"
+if "$out/build/hbserve" "${common[@]}" --hw-config "$out/bad.config" \
+     --stats "$out/bad/source-stats.json" --output-dir "$out/bad/model" --observe-cache false \
+     >/dev/null 2>&1; then
+  echo "an invalid write-path policy was accepted" >&2
+  exit 1
+fi
+
+python3 - "$out" <<'PY'
+import csv, pathlib, sys
+out = pathlib.Path(sys.argv[1])
+
+def totals(path):
+    rows = list(csv.DictReader(path.open()))
+    return {name: sum(int(float(row[name])) for row in rows if row.get(name))
+            for name in ('l1_requests', 'write_sector_requests', 'l2_write_requests', 'dram_load_bytes')}
+
+default = totals(out / 'off' / 'model' / 'kernel_summary.csv')
+configured = totals(out / 'wc' / 'model' / 'kernel_summary.csv')
+failures = []
+# The LSU-level store stream must not move: only its path through the caches may.
+if configured['write_sector_requests'] != default['write_sector_requests']:
+    failures.append('store sector count moved with the store policy')
+# Stores must never fetch: reads are not allowed to move either.
+if configured['dram_load_bytes'] != default['dram_load_bytes']:
+    failures.append('DRAM read moved with the store policy')
+# Bypass skips the L1 access for stores; allocating must show up there.
+if configured['l1_requests'] <= default['l1_requests']:
+    failures.append('allocating stores did not access L1')
+if configured['l2_write_requests'] > default['l2_write_requests']:
+    failures.append('allocating stores increased L2 write requests')
+if failures:
+    raise SystemExit('write-path policy check failed: ' + '; '.join(failures))
+print('PASS_WRITE_PATH_POLICY: l1_requests {} -> {}, l2_write_requests {} -> {}, '
+      'dram_load_bytes unchanged'.format(default['l1_requests'], configured['l1_requests'],
+                                         default['l2_write_requests'], configured['l2_write_requests']))
+PY
+
 python3 "$root/scripts/verify_archive.py"
 echo "PASS_FROZEN_CPU_SMOKE output=$out"

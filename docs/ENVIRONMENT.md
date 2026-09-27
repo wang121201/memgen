@@ -353,3 +353,32 @@ Re-verified after all three passes: `scripts/verify_archive.py`,
 `bootstrap_vendor.py --check`, `preflight.py` and `tool_identity.py` all pass.
 Nothing added here is a hardware-accuracy claim, and no evidence table was
 changed.
+
+**Pass 4, measurable write path.** The archived comparison shows the DRAM write
+error concentrated in the store path while the request stream already matches
+hardware; see
+[the attribution finding](DRAM_TRAFFIC_ERROR_ATTRIBUTION_FINDING.md). Two core
+files changed so that the store path can be *measured* instead of assumed:
+
+| File | Change |
+| --- | --- |
+| `release/source/tools/memgen_hardware_config.h` | `l1_store_policy` is a profile field validated as `bypass` or `allocate` instead of a pinned `bypass`; the three `-memgen_*_policy` keys are accepted by both readers, so a legacy config may carry them without becoming a unified profile |
+| `release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc` | the legacy reader reads the three policy keys, the profile branch uses `p.l1_store_policy` instead of hard-coding `bypass`, and the values are validated after both branches |
+
+`release/current-core-manifest.json` was re-derived for both files, so
+`PASS_CURRENT_CACHE_CORE_IDENTITY` and `PASS_FROZEN_CPU_SMOKE` still pass: with an
+unset key the engine is byte-identical, which the smoke proves by its own frozen
+`kernel_summary.csv` hash. The smoke also gained `PASS_WRITE_PATH_POLICY`, which
+requires an allocating store path to show up in `l1_requests`, to leave the store
+sector count and DRAM read bytes untouched, and an invalid policy value to be
+refused rather than silently defaulted.
+
+No candidate is promoted by this pass: the frozen default stays `bypass`, no
+`release/config/*.config` value changed, and no accuracy claim is made. What
+changed is that a write-path candidate can now be run and compared.
+
+`scripts/subset_expansion_phases.py` was added beside it: a filtered copy of a
+packed expansion for one phase, with renumbered kernel ids and the source id
+recorded per row, so a policy question costs minutes instead of a full-model
+replay. It is a diagnostic tool, never a full-model stream, and its receipt says
+so.

@@ -22,13 +22,13 @@
     },
     {
       "path": "release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
-      "bytes": 236967,
-      "sha256": "f0c546124a825d8aeb9107a77c908f8d533ebde8167b30f0eeafcfa17592fadf"
+      "bytes": 238600,
+      "sha256": "0a5fdca340249a755356e0b76a8bae0e3b44a2f33d1310ac4f4ed4f278260019"
     },
     {
       "path": "release/source/tools/memgen_hardware_config.h",
-      "bytes": 8254,
-      "sha256": "fc5c283f1b78b366df40d93e929b55985b8a4b929409e827e970273a2c0ef62e"
+      "bytes": 8916,
+      "sha256": "5f940a3468b14e04e6d786f4c3c24b2b34c674fd15a2f008fee43d5415ad3631"
     },
     {
       "path": "release/source/tools/r4_l1_read_filter.h",
@@ -37,5 +37,5 @@
     }
   ],
   "scope": "identity of the six extracted or modified cache source/config files; not a full build-dependency manifest",
-  "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested."
+  "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested. Make the write-path policies configurable: -memgen_l1_store_policy, -memgen_write_sector_policy and -memgen_dram_store_policy are read from the hardware configuration and applied after the profile block, with validated values and no effect when unset, so the store path can be measured instead of assumed while the frozen default (L1 bypass) stays byte-identical."
 }

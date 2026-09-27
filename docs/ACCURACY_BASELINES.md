@@ -65,6 +65,8 @@ worst of the three, is archived under
 [the calibration evidence
 finding](P32D2_CALIBRATION_EVIDENCE_FINDING.md).
 
+Where that error lives is now separable: the request stream matches hardware to 1e-5, the read residual is downstream of the L1 read hit count, and the write error decomposes into a missing store merge before L2 and an early dirty writeback; see [the attribution finding](DRAM_TRAFFIC_ERROR_ATTRIBUTION_FINDING.md). The store path is now configurable, so a write-path candidate can be measured with `-memgen_l1_store_policy allocate` instead of assumed away.
+
 The admission gate itself is normative in
 [branch contract](BRANCH_AND_ACCEPTANCE_CONTRACT.md) section 6, and the
 per-range reporting rules are in

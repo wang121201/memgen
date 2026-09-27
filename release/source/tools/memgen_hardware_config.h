@@ -21,7 +21,7 @@ struct HardwareProfile {
   uint64_t l2_bytes=0;
   unsigned issue_interval=0, kernel_gap=0;
   bool preserve_l2=true;
-  std::string write_sector_policy, dram_store_policy, l2_index;
+  std::string l1_store_policy, write_sector_policy, dram_store_policy, l2_index;
 
   static void require(bool ok,const std::string &why) {
     if(!ok)throw std::runtime_error("hardware config: "+why);
@@ -40,6 +40,10 @@ struct HardwareProfile {
     require(it!=shared_ways.end(),"unconfigured shared partition: "+std::to_string(shared));
     return it->second;
   }
+  static bool write_path_policy_key(const std::string &key) {
+    return key=="-memgen_l1_store_policy"||key=="-memgen_write_sector_policy"||
+           key=="-memgen_dram_store_policy";
+  }
   static std::shared_ptr<const HardwareProfile> load(const std::string &path) {
     std::ifstream in(path,std::ios::binary|std::ios::ate);
     require(bool(in),"cannot open "+path);
@@ -50,7 +54,10 @@ struct HardwareProfile {
     bool unified=false;std::istringstream probe(raw);std::string line;
     while(std::getline(probe,line)) {
       line=line.substr(0,line.find('#'));std::istringstream row(line);std::string key;row>>key;
-      if(key.rfind("-memgen_",0)==0)unified=true;
+      // The three write-path policy keys are accepted by both readers: a legacy
+      // config may carry them without becoming a unified profile, which is what
+      // lets a policy be measured against the frozen default instead of assumed.
+      if(key.rfind("-memgen_",0)==0&&!write_path_policy_key(key))unified=true;
     }
     if(!unified)return {}; // Legacy reader remains behavior-compatible.
     auto p=std::make_shared<HardwareProfile>();p->source_text=raw;
@@ -64,7 +71,7 @@ struct HardwareProfile {
       {"l1_sets",""},{"l1_line_bytes","128"},{"sector_bytes","32"},
       {"l1_shared_kib_to_ways",""},{"l1_replacement","CLOCK"},
       {"l1_index","allocation_relative_hash2_u32"},{"l1_tag","absolute"},
-      {"l1_read_policy","ldg_strong_gpu_bypass_v1"},{"l1_store_policy","bypass"},
+      {"l1_read_policy","ldg_strong_gpu_bypass_v1"},{"l1_store_policy",""},
       {"l1_preserve_across_kernels","0"},{"l1_fill_latency","0"},
       {"l2_sets_per_partition",""},{"l2_ways",""},{"l2_line_bytes","128"},
       {"l2_index",""},{"l2_replacement","LRU"},{"l2_clean_first_k","0"},
@@ -116,6 +123,9 @@ struct HardwareProfile {
     p->l2_bytes=uint64_t(p->channels)*p->subpartitions*p->l2_sets*p->l2_ways*128;
     require(p->l2_bytes<=UINT32_MAX,"L2 exceeds current backend byte-count representation");
     p->l2_index=v.at("l2_index");require(p->l2_index=="L"||p->l2_index=="X","L2 index must be L or X");
+    p->l1_store_policy=v.at("l1_store_policy");
+    require(p->l1_store_policy=="bypass"||p->l1_store_policy=="allocate",
+            "unsupported L1 store policy: "+p->l1_store_policy);
     p->write_sector_policy=v.at("write_sector_policy");
     require(p->write_sector_policy=="line-miss-only"||p->write_sector_policy=="all","unsupported write sector policy");
     p->dram_store_policy=v.at("dram_store_policy");

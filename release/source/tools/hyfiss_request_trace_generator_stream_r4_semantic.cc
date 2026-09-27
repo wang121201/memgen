@@ -204,6 +204,14 @@ struct HwParams {
   uint64_t l1_fill_latency = 0;
   uint64_t l2_fill_latency = 0;
   unsigned kernel_gap = 5000;
+  // Write-path policy overrides. Empty means "the model default", so a config
+  // that does not mention them keeps the frozen behaviour byte for byte. They
+  // exist because the store path was hard-coded to L1 bypass, which no config
+  // could change even though the backend implements an allocating L1 store path;
+  // a candidate that wants to absorb store sectors in L1 can now say so.
+  std::string l1_store_policy;
+  std::string write_sector_policy;
+  std::string dram_store_policy;
 };
 
 struct LaneAddress {
@@ -590,6 +598,9 @@ HwParams read_hw_params(const fs::path &path,
   hw.l2_fill_latency = get_uint(
       cfg, "-gpgpu_dram_mem_access_latency",
       get_uint(cfg, "-dram_latency", get_uint(cfg, "-gpgpu_dram_latency", 0)));
+  hw.l1_store_policy = get_string(cfg, "-memgen_l1_store_policy", "");
+  hw.write_sector_policy = get_string(cfg, "-memgen_write_sector_policy", "");
+  hw.dram_store_policy = get_string(cfg, "-memgen_dram_store_policy", "");
   return hw;
 }
 
@@ -4247,7 +4258,7 @@ void apply_hw_options(Options &opt, const HwParams &hw) {
   if(hw.profile) {
     const auto &p=*hw.profile;
     opt.sector_size=32;opt.num_banks=p.banks;opt.partition_index_bit=p.partition_bit;
-    opt.l1_store_policy="bypass";opt.write_sector_policy=p.write_sector_policy;
+    opt.l1_store_policy=p.l1_store_policy;opt.write_sector_policy=p.write_sector_policy;
     opt.dram_store_policy=p.dram_store_policy;opt.preserve_l1=false;
     opt.preserve_l2=p.preserve_l2;opt.flush_l2_on_reset=false;
     opt.l2_dirty_drain=false;opt.l2_streaming_fill=false;
@@ -4275,6 +4286,17 @@ void apply_hw_options(Options &opt, const HwParams &hw) {
   opt.l1_set_index = hw.l1_set_index;
   opt.l2_set_index = hw.l2_set_index;
   opt.kernel_gap = hw.kernel_gap;
+  // A config may name the write-path policies; it is applied last so it is the
+  // only thing that can move them, and an unset key changes nothing.
+  if (!hw.l1_store_policy.empty()) opt.l1_store_policy = hw.l1_store_policy;
+  if (!hw.write_sector_policy.empty()) opt.write_sector_policy = hw.write_sector_policy;
+  if (!hw.dram_store_policy.empty()) opt.dram_store_policy = hw.dram_store_policy;
+  if (opt.l1_store_policy != "bypass" && opt.l1_store_policy != "allocate")
+    throw std::runtime_error("-memgen_l1_store_policy must be bypass or allocate");
+  if (opt.write_sector_policy != "line-miss-only" && opt.write_sector_policy != "all")
+    throw std::runtime_error("-memgen_write_sector_policy must be line-miss-only or all");
+  if (opt.dram_store_policy != "request" && opt.dram_store_policy != "writeback")
+    throw std::runtime_error("-memgen_dram_store_policy must be request or writeback");
   if (!opt.l1_fill_latency_set)
     opt.l1_fill_latency = hw.l1_fill_latency;
   if (!opt.l2_fill_latency_set)
