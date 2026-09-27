@@ -262,3 +262,55 @@ Three consequences, and only the third is actionable here:
    subset, equal to `write_sector_requests` and to `l2_write_requests`, so the
    extra store sectors arrive in the generated address stream and are passed
    through unchanged.
+
+## 8. The sector angle belongs to the expansion, and a fifth of it is modeled
+
+Section 7 named the layer; this section measures it, because "the input does not
+match the hardware counter" is only useful once it is split by *which launches*
+the input came from. The expansion manifest declares that split: of 2,060 launches,
+1,360 are `exact` and 700 are `numeric_modeled` (34.0%), the latter from
+`missing_template_profile` (350) and `ambiguous_address_binding` (350), calibrated
+as `run_calibrated_records_per_cta` at 128 bytes per record for both decode steps.
+Its `not_claimed` list already says what a modeled class does not promise:
+"exact access width, lane mapping, or predicate mask of a modeled class" — the
+three quantities that decide a store instruction's sector count.
+
+Joining that split with the full-model replay gives, for the measurement ranges:
+
+| Range | Mode | Launches | Store sectors | Read sectors | DRAM store bytes |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `Decode1` | exact | 222 | 429,404 | 152,681,657 | 2,182,048 |
+| `Decode1` | `numeric_modeled` | 99 | 127,040 | 1,448,176 | **0** |
+| `Decode2` | exact | 222 | 429,404 | 152,681,658 | 2,182,464 |
+| `Decode2` | `numeric_modeled` | 99 | 127,040 | 1,448,176 | 1,408 |
+| `Prefill` | exact | 249 | 2,188,652 | 136,737,562 | 63,699,136 |
+| `Prefill` | `numeric_modeled` | 139 | 430,592 | 15,589,392 | 1,408 |
+
+The modeled classes are 22.8% of the `Decode` store stream and 0.9% of its read
+stream, which is the whole reason the read side looks healthy and the write side
+does not: load sectors are dominated by launches with native addresses, store
+sectors are not. Two consequences follow.
+
+First, the modeled classes are a *pressure* source rather than a traffic source.
+They contribute 127,040 store sectors per step and are charged 0 bytes of DRAM
+write traffic, because their synthetic sectors land on lines that the exact
+launches already made resident and their own dirty data never leaves the cache
+inside the range. What they do instead is allocate: 22.8% more store sectors means
+22.8% more allocations, and the evictions they cause are charged to the exact
+launches' dirty data. That is why the DRAM write residual (×1.4152) is larger than
+the store-stream residual (×1.1745) even though the cache model itself only adds
+the dirty fraction ×1.2049.
+
+Second, no cache-side change can absorb this, and no sector-level calibration is
+available for those launches either: the archive records hardware counters per
+range, not per launch, and only 42 of the 642 subset profiles carry an
+`independent_source_census` (those 42 match the engine exactly, so the census is
+self-consistent, not an independent hardware reference). The fix is therefore where
+the manifest points: replace `missing_template_profile` and
+`ambiguous_address_binding` with native address coverage for those 700 launches, or
+calibrate the modeled classes against per-launch NCU sector counters once such a
+reference exists. Until one of those happens, the honest acceptance scope is the
+exact launches for the sector angle, with the modeled share reported next to it —
+which is what the manifest already encodes as
+`allow_full_NCU_accuracy_comparison: false` with
+`allow_declared_estimate_NCU_comparison: true`.
