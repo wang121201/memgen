@@ -155,3 +155,47 @@ Second, the opportunity is real and the model already measures its size: 21% of
 Decode store sectors hit a line that is already L1-resident, against the 30.6% of
 store sectors hardware merges — the same order, which is what a bounded window
 would recover.
+
+## 6. The write residual is per range, and each range has two factors
+
+The hardware protocol records `Decode1`, `Decode2` and the whole `Decode` range as
+separate measurements, so a whole-range residual can hide two opposite errors.
+Splitting the 642-kernel Decode subset by `-kernel_<n>_llama_phase`
+(`scripts/phase_write_split.py`, `scripts/write_acceptance.py`) shows exactly that,
+with this replay's frozen default:
+
+| Range | Model write | Hardware write | Signed error | Store sectors | Dirty fraction |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `Decode1` | 2,156,064 | 2,288,768 | −5.80% | ×1.1745 | **×0.8021** |
+| `Decode2` | 2,183,872 | 828,160 | **+163.70%** | ×1.1745 | **×2.2453** |
+| `Decode` | 4,339,936 | 3,066,880 | +41.50% | ×1.1745 | ×1.2049 |
+
+The last two columns are an identity, not an approximation: write traffic is the
+store sectors the model sent times the fraction of them it evicted dirty, and
+`1.1745 × 1.2049 = 1.4152` reproduces the +41.5% of the whole range. Every range
+shares the same store-sector factor, because the store stream is upstream of the
+cache model: `write_sector_requests` is the expansion's output, and the archived
+comparison's own model column sent **947,558** store sectors where hardware sent
+947,560 — a match in every range, including `Prefill` at 2,753,475 exactly. This
+replay sends 1,112,888 for the same 642 launches (+17.45%), so the stream factor
+belongs to the expansion, not to the cache decision, and no cache candidate can
+remove it.
+
+The dirty fraction is the cache decision, and it is not one error but a split:
+`Decode1` retains *more* than hardware (×0.8021) while `Decode2` retains *less*
+(×2.2453). The model evicts 12.19% of the store sectors it sent, in both steps
+almost identically (12.11% and 12.26%), because a steady-state replay with a cold
+start makes the two steps symmetric. Hardware is not symmetric: its `Decode1`
+rate is 15.10% and its `Decode2` rate 5.46% of 473,780 store sectors per step,
+which is the signature of a transient — the first decode step also drains whatever
+the prefill left dirty, and by the second step the dirty footprint fits. A
+per-range match therefore cannot be reached by a single steady-state rate; the
+combined range (`Decode`) is the range a retention policy can be tuned against,
+and the per-step split is where the residue goes.
+
+`-memgen_l2_clean_first_k` is the lever for the dirty fraction: it prefers a clean
+victim inside a window of the `k` least recently used entries of a set, so dirty
+lines survive longer. Its floor is set by the stream factor — with the dirty
+fraction at hardware's 1.0000 the combined range would be 1.1745 × 3,066,880 =
+3,602,000 bytes, still +17.45% — which is the boundary of what any cache-model
+change can claim on this replay.
