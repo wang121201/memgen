@@ -369,7 +369,13 @@ A third axis is measurable with the same rules: dirty data that survives inside 
 range is what decides DRAM write bytes per range, so
 `-memgen_l2_clean_first_k` selects a clean victim inside a window of the `k` least
 recently used entries of a cache set (0 keeps plain LRU, nothing is clamped above
-64, and L1 is not affected). It is off by default and inert when unset.
+64, and L1 is not affected). It is off by default and inert when unset. It was
+measured too, and it is **degenerate**: on the Decode subset `k=1` is the frozen
+default's 4,339,936 bytes, `k=2` is 88,544 and `k=4` is 0, so the hardware value
+3,066,880 falls inside a gap the knob cannot address (see
+[section 7 of the attribution finding](DRAM_TRAFFIC_ERROR_ATTRIBUTION_FINDING.md)).
+No candidate is promoted for it; it stays available as a documented, measured
+switch rather than a tuning opportunity.
 
 Two levers were measured before assuming them. The dirty-drain knob
 (`-memgen_l2_dirty_drain`) is **inert on this workload**: the high watermark is

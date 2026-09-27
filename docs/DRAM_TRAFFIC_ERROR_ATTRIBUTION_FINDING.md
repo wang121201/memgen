@@ -199,3 +199,57 @@ lines survive longer. Its floor is set by the stream factor — with the dirty
 fraction at hardware's 1.0000 the combined range would be 1.1745 × 3,066,880 =
 3,602,000 bytes, still +17.45% — which is the boundary of what any cache-model
 change can claim on this replay.
+
+## 7. The retention lever is degenerate, so the knob cannot land on hardware
+
+Measured on the same Decode subset, same profile stream, one window per run, with
+everything else at the frozen default:
+
+| Window `k` | `l2_write_requests` | L2 write hits | L2 write misses | Dirty sectors evicted | DRAM store bytes (Decode) |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 (frozen) | 1,112,888 | 988,321 | 124,567 | 135,623 | 4,339,936 (+41.50%) |
+| 2 | 1,112,888 | 1,089,755 | 23,133 | 2,767 | 88,544 (−97.11%) |
+| 4 | 1,112,888 | 1,089,787 | 23,101 | **0** | **0** (−100.00%) |
+| hardware | 657,937 | — | — | 95,840 | 3,066,880 |
+
+The store stream and the L2 write requests are identical in all three runs, so the
+knob changes only the victim choice: DRAM read moves by 0.02%. What it does not do
+is move gradually. A two-entry window already changes the *composition* of the set
+rather than its recency order — dirty lines stay resident, later stores to them
+become hits, allocating misses fall 81.4%, and with less allocation pressure there
+is less eviction, which keeps the next dirty line resident in turn. The self
+reinforcing loop is real (it is why any write-retention policy helps), but its
+response to this knob is a step: the achievable values on this replay are
+{4,339,936 (k≤1), 88,544 (k=2), 0 (k≥4)}, and the hardware value 3,066,880 sits
+inside the gap. **No value of `k` reaches hardware's number.**
+
+That negative result is informative. Reads outnumber store sectors in a Decode
+step by roughly 168 to 1 (3.0 GB of read bytes against 17.8 MB of stores), so the
+least recently used end of every set is nearly always clean; a two-entry clean
+preference is therefore already enough to make dirty lines almost never leave, and
+any larger window pins them completely. Hardware does *not* behave that way — it
+evicts 95,840 dirty sectors in the same read-dominated regime — so its victim
+choice is close to recency based, which is what the frozen default already models.
+On the rate axis the default is within 2.6% of hardware after the stream factor is
+taken out (`1.2049 / 1.1745`), and in `Prefill`, where the store stream is 4.87%
+below hardware, the rate factor is 0.993 — the evicted dirty count tracks the store
+stream rather than fighting it.
+
+Three consequences, and only the third is actionable here:
+
+1. The per-step asymmetry is not reachable by a steady-state retention rule. The
+   model evicts 12.11% and 12.26% of its store sectors in the two steps; hardware's
+   15.10% and 5.46% are a transient — the first step also drains what the prefill
+   left dirty — and a cold-start continuous replay has no boundary to carry that
+   residue across. The documented limit ("scope selection does not recreate
+   physical range synchronization") is the right place to record this.
+2. `Decode2` alone cannot be matched by any cache-model change, because its
+   hardware value is smaller than a proportional share of a steady-state rate.
+3. The combined `Decode` range is the range that can be matched in principle, and
+   the gap there is dominated by the store stream, which is upstream of the cache
+   model: the archived comparison's own model column matched hardware's store
+   sectors in every range (947,558 against 947,560 in `Decode`, 2,753,475 exactly
+   in `Prefill`), while this replay sends 1,112,888 for the same 642 launches. An
+   expansion whose store stream matches hardware's is the prerequisite for the
+   per-range write acceptance; until then the write residual has a floor of
+   +17.45% that no cache candidate can claim to remove.
