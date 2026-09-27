@@ -341,7 +341,10 @@ def main():
         help='refuse keeps a class with no admitted template unpacked; modeled gives it '
              'a numeric_modeled object-volume profile from the target allocation context')
     a=p.parse_args();sample=a.sample_output
-    finish=json.loads((sample/'finish.json').read_text());need(finish['status']=='PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING','Sample pipeline incomplete')
+    finish=json.loads((sample/'finish.json').read_text());native_full=finish['status']=='PASS_NATIVE_FULL_MODEL_SAMPLES_AND_PROFILE_FITTING';need(
+        finish['status'] in ('PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING',
+                             'PASS_NATIVE_FULL_MODEL_SAMPLES_AND_PROFILE_FITTING'),
+        'Sample pipeline incomplete')
     modeling=a.model_uncovered=='modeled'
     calibration=None;evidence_by_shape={}
     if modeling:
@@ -441,7 +444,9 @@ def main():
         modeled_completion=a.model_uncovered,fully_exact=(complete and not modeled_rows),
         exact_cross_layer_identity_claimed=False,not_claimed=list(model_uncovered.NOT_CLAIMED),
         modeled_calibration=calibration,
-        complete_declared_profile_stream=complete,complete_full_model=complete,full_native_address_coverage=False,
+        capture_mode='native-full' if native_full else 'sparse',
+        native_full_model=native_full,complete_declared_profile_stream=complete,complete_full_model=complete,
+        full_native_address_coverage=(native_full and complete and not modeled_rows and not binder.unknown_allocations),
         hardware_accuracy_accepted=False,postcache_counts_multiplied=False,
         scheduling='CTA round robin across 48 SMs; fixed per-SM CTA time spacing, modeled not measured',
         cache_state='cold before warmup, L1 resets per kernel, L2 persists all layers/phases, no final dirty drain',

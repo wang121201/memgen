@@ -25,7 +25,7 @@ class Dispatch(unittest.TestCase):
     def test_no_arguments_prints_usage(self):
         result = run()
         self.assertEqual(result.returncode, 0)
-        for verb in ('check', 'cases', 'gpus', 'plan', 'collect', 'replay', 'smoke', 'test',
+        for verb in ('check', 'cases', 'gpus', 'plan', 'collect', 'replay', 'smoke', 'audit-full-model', 'test',
                      'capabilities'):
             self.assertIn(verb, result.stdout)
 
@@ -38,6 +38,36 @@ class Dispatch(unittest.TestCase):
         result = run('frobnicate')
         self.assertEqual(result.returncode, 2)
         self.assertIn('unknown command', result.stderr)
+
+    def test_prefix_fixture_is_not_admitted_as_full_model(self):
+        result = run('audit-full-model', 'release/fixtures/real-prefix2')
+        self.assertEqual(result.returncode, 2)
+        payload = json.loads(result.stdout[result.stdout.index('{'):])
+        self.assertEqual(payload['status'], 'BLOCKED_NOT_NATIVE_FULL_MODEL')
+        self.assertFalse(payload['accepted'])
+        self.assertTrue(any('prefix' in reason for reason in payload['blocking_reasons']))
+
+    def test_modeled_expansion_is_not_admitted_as_full_model(self):
+        fixture = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, fixture, ignore_errors=True)
+        (fixture / 'manifest.json').write_text(json.dumps({
+            'schema': 'SGLANG_SAMPLED_LAYER_PACKED_EXPANSION_V1',
+            'complete_full_model': True,
+            'fully_exact': False,
+            'full_native_address_coverage': False,
+            'modeled_launches': 1,
+            'unsupported_launches': 0,
+            'unknown_private_allocations': 1,
+            'hardware_accuracy_accepted': False,
+        }))
+        (fixture / 'profiles.index.jsonl').write_text('')
+        (fixture / 'app.config').write_text('')
+        (fixture / 'issue.config').write_text('')
+        result = run('audit-full-model', str(fixture))
+        self.assertEqual(result.returncode, 2)
+        payload = json.loads(result.stdout[result.stdout.index('{'):])
+        self.assertEqual(payload['fixture_kind'], 'expanded')
+        self.assertTrue(any('modeled_launches' in reason for reason in payload['blocking_reasons']))
 
     def test_collect_refuses_dry_run(self):
         result = run('collect', '--model', 'qwen25_1p5b', '--prefill-length', '32',

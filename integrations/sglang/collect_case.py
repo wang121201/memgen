@@ -187,6 +187,7 @@ def collect_spec(case: str, work: Path, args, journal: str, host: str,
             '--stop-after', 'memgen',
             '--python', args.python,
             '--model-uncovered', args.model_uncovered,
+            '--capture-mode', getattr(args, 'capture_mode', 'sparse'),
             '--sample-seconds', str(args.sample_seconds)]
     sources = source_pins(['followthrough.py', 'make_sample_plan.py', 'sample_pipeline.py',
                            'expand_profiles.py', 'model_uncovered.py', 'run_memgen.py', 'profile_cache.py',
@@ -573,6 +574,8 @@ def main() -> int:
     parser.add_argument('--model-uncovered', choices=('refuse', 'modeled'), default='refuse',
                         help='refuse stops when a class has no admitted template (default); '
                              'modeled completes the full model with an explicit numeric_modeled label')
+    parser.add_argument('--capture-mode', choices=('sparse', 'native-full'), default='sparse',
+                        help='native-full samples every launch and CTA; modeled continuation is explicit')
     parser.add_argument('--model-policy', choices=MODEL_POLICIES, default='strict',
                         help='which sampled memory records the projection admits; strict '
                              '(default) refuses predicated global reads, the two ldg_source_predicate '

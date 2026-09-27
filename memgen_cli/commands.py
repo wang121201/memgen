@@ -152,6 +152,15 @@ def smoke(argv: list[str]) -> int:
     return _run(['bash', str(SCRIPTS / 'run_cpu_smoke.sh'), str(target)])
 
 
+def audit_full_model(argv: list[str]) -> int:
+    """Reject prefix or modeled fixtures before full-model evaluation."""
+    parser = argparse.ArgumentParser(prog='memgen audit-full-model',
+                                     description='Audit a native full-model fixture.')
+    parser.add_argument('fixture', type=Path)
+    args = parser.parse_args(argv)
+    return _forward([str(args.fixture)], SCRIPTS / 'audit_full_model_fixture.py')
+
+
 def test(argv: list[str]) -> int:
     """Portable regression tests. No GPU, no model, no NVBit."""
     parser = argparse.ArgumentParser(prog='memgen test',

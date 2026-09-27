@@ -16,6 +16,7 @@ commands:
   collect       collect one declared case: census, sample, expand, replay
   replay        run an admitted profile stream through the cache model
   smoke         replay the frozen engine's synthetic fixture on the CPU
+    audit-full-model  reject fixtures that are not native full-model inputs
   test          portable regression tests
   capabilities  print the machine-readable claim boundary
 
@@ -39,10 +40,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         from memgen_cli.capabilities import main as capabilities_main
 
         return capabilities_main(rest)
-    if command in {'check', 'cases', 'gpus', 'plan', 'collect', 'replay', 'smoke', 'test'}:
+    if command in {'check', 'cases', 'gpus', 'plan', 'collect', 'replay', 'smoke', 'audit-full-model', 'test'}:
         from memgen_cli import commands
 
-        return getattr(commands, command)(rest)
+        return getattr(commands, command.replace('-', '_'))(rest)
 
     print(f'unknown command: {command}', file=sys.stderr)
     print(USAGE, end='', file=sys.stderr)

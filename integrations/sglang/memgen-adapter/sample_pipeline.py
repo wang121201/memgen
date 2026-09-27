@@ -40,6 +40,7 @@ def main():
     p.add_argument('--python',default='/home/xmu/sgl/bin/python')
     workload.add_arguments(p)
     p.add_argument('--seconds',type=int,default=3600)
+    p.add_argument('--capture-mode',choices=('sparse','native-full'),default='sparse')
     a=p.parse_args()
     # Reject an undeclared (model, prefill, decode) triple here, in the parent.
     # Per-axis argparse choices alone cannot see a pair such as P32D128, and
@@ -50,7 +51,14 @@ def main():
     a.output.mkdir(parents=True,exist_ok=False)
     observer=a.output/'observer';observer.mkdir()
     plan=json.loads(a.plan.read_text())
-    if not 0<sum(bool(r['fit_ctas']) for r in plan['launches'])<len(plan['launches']):
+    native_full=plan.get('capture_mode')=='native-full'
+    if plan.get('capture_mode', 'sparse') != a.capture_mode:
+        raise ValueError('capture mode differs between plan and sampler')
+    selected=sum(bool(r['fit_ctas']) for r in plan['launches'])
+    if native_full:
+        if selected != len(plan['launches']) or any(r['holdout_ctas'] for r in plan['launches']):
+            raise ValueError('native-full requires every launch and CTA grid, with no holdout')
+    elif not 0<selected<len(plan['launches']):
         raise ValueError('Requires sparse single-layer plan, never all-launch memory sampling')
     paths=list(HERE.glob('*.py'))+[HERE/'contract.json',a.sampler_lib,a.plan]
     paths+=list((a.upstream/'nvbit_sampler_r4').glob('*.py'))
@@ -80,7 +88,8 @@ def main():
     env.update(SG_HBSERVE_SOURCE_ROOT=str(upstream_base/'hbserve'),SG_MEMORYINST_CODEC=str(upstream_base/'hbserve_memory_template.py'))
     child_env=dict(env,CUDA_VISIBLE_DEVICES='')
     raw_read,raw_write=os.pipe();projection_read,projection_write=os.pipe()
-    children=[];files=[];owned_births={};start=time.monotonic();result=dict(status='STARTED',full_raw_trace_bytes=0)
+    children=[];files=[];owned_births={};start=time.monotonic();result=dict(status='STARTED',full_raw_trace_bytes=0,
+        capture_mode=a.capture_mode,native_full_model=native_full,full_native_address_coverage=False)
     old={s:signal.signal(s,lambda sig,frame:(_ for _ in ()).throw(InterruptedError(str(sig)))) for s in (signal.SIGTERM,signal.SIGHUP,signal.SIGINT)}
     def spawn(name,argv,cenv,stdin=subprocess.DEVNULL,stdout=None,pass_fds=()):
         stderr=(a.output/(name+'.stderr')).open('xb');files.append(stderr)
@@ -126,10 +135,11 @@ def main():
         transport=json.loads((a.output/'consumer.json').read_text())
         if transport['status']!='PASS_SAMPLED_TRANSPORT_ONLY':raise RuntimeError('Transport did not qualify')
         profiles=json.loads((a.output/'profiles/receipt.json').read_text())
-        result.update(status='PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING',transport_status=transport['status'],
+        result.update(status='PASS_NATIVE_FULL_MODEL_SAMPLES_AND_PROFILE_FITTING' if native_full else 'PASS_SINGLE_LAYER_SAMPLES_AND_PROFILE_FITTING',transport_status=transport['status'],
             selected_kernels=len(transport['kernels']),selected_records=transport['selected_records'],
             profiles_accepted=profiles['packed_models_accepted'],profiles_rejected=profiles['packed_models_missing'],
-            full_layer_expansion_executed=False,cache_replay_executed=False,hardware_accuracy_accepted=False)
+            full_layer_expansion_executed=False,cache_replay_executed=False,hardware_accuracy_accepted=False,
+            full_native_address_coverage=native_full and not profiles['packed_models_missing'])
     except BaseException as e:
         result.update(status='FAIL',error=type(e).__name__+': '+str(e))
     finally:

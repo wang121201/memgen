@@ -159,6 +159,7 @@ def current_capabilities() -> dict[str, Any]:
             'plan': 'write the job specs for a case and print the plan',
             'collect': 'run census, sample, expand and replay for a case',
             'replay': 'run an admitted profile stream through the functional cache filter',            'smoke': 'replay the frozen engine fixture on the CPU',
+            'audit-full-model': 'fail closed unless a fixture is a native full-model input',
             'test': 'portable regression tests',
         },
         'entry_points': {

@@ -4,6 +4,8 @@
 
 当前基线为 NVIDIA RTX 4000 Ada Generation 的 `r4-small-shared-20260922`：r4 指第四轮缓存候选，额外包含实际共享划分为 8/16 KiB 的扩展。此配置复现之前受测候选，**未升级为硬件准确度验收通过**。旧 `RTX4000Ada.paper-v1.config` 及既有实验冻结副本继续保留。
 
+`RTX4000Ada.accelsim.config` 是一份 legacy（`-gpgpu_*`）配置，用于把功能缓存模型的**分区/集合/存储体分解与 Accel-Sim 2.0 的 RTX 4000 Ada 参考对齐**：48 SM、10 个内存控制器 × 每控制器 2 个子分区（= 20 个 L2 分区）、L1 为 4 集合 × 64 路 × 128 B（32 KiB）、L2 为 1024 集合 × 16 路 × 128 B（40 MiB），DRAM 地址分解使用 Accel-Sim 的 `dramid@8` 映射（`-gpgpu_mem_addr_mapping`、`-gpgpu_mem_address_mask 1`、`-gpgpu_memory_partition_indexing 0`）。它只统一流量几何，不引入 MSHR/DRAM 时序，也不改变“写流量尚未校准”的结论。用 `--hw-config release/config/RTX4000Ada.accelsim.config` 指定；其 10×2 分区与受测 memgen 的 5×4 分区都得到 20 个分区，但 `dramid@8` 的通道位宽不同，L2 集合分布因此不同，不能因总容量相同而互换。
+
 ## 读取和使用
 
 ```bash

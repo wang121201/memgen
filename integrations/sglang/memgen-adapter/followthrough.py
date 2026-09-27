@@ -73,6 +73,8 @@ def main():
  p.add_argument('--stop-after',choices=('plan','build','sample','expand','memgen'),default='memgen')
  p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
   help='modeled lets a class with no admitted template complete the full model with an explicit numeric_modeled label')
+ p.add_argument('--capture-mode',choices=('sparse','native-full'),default='sparse',
+  help='native-full captures every launch and CTA; it never uses layer expansion')
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
  p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600,
   help='accepted for compatibility; the replay has no wall-clock deadline')
@@ -102,16 +104,26 @@ def main():
   return a.stop_after==name
  try:
   done=run('plan',[a.python,'-B',str(HERE/'make_sample_plan.py'),'--journal',str(a.journal),
-   '--host-finish',str(a.host_finish),'--output',str(a.output/'plan')],300)
+   '--host-finish',str(a.host_finish),'--output',str(a.output/'plan'),
+   '--capture-mode',a.capture_mode],300)
   if not done:
    done=run('build',[a.python,'-B',str(a.sources/'upstream/nvbit_sampler_r4/build.py'),
     '--plan',str(a.output/'plan/sample-plan.json'),'--output',str(a.output/'sampler-build')],900)
   if not done:
-   done=run('sample',[a.python,'-B',str(HERE/'sample_pipeline.py'),'--upstream',str(a.sources/'upstream'),
+    done=run('sample',[a.python,'-B',str(HERE/'sample_pipeline.py'),'--upstream',str(a.sources/'upstream'),
     '--sampler-lib',str(a.output/'sampler-build/sampler.so'),'--plan',str(a.output/'plan/sample-plan.json'),
+   '--capture-mode',a.capture_mode,
     '--model',contract['model_key'],'--prefill-length',str(contract['prefill_length']),
     '--decode-steps',str(contract['decode_steps']),'--output',str(a.output/'sample'),
     '--seconds',str(a.sample_seconds),'--python',a.python],a.sample_seconds+120)
+  if not done and a.capture_mode=='native-full' and a.model_uncovered=='refuse':
+   sample=json.loads((a.output/'sample/finish.json').read_text())
+   result.update(status='PASS_NATIVE_FULL_MODEL_SAMPLES_NOT_REPLAYED',
+    capture_mode='native-full',native_full_model=sample.get('native_full_model',False),
+    full_native_address_coverage=sample.get('full_native_address_coverage',False),
+    profiles_accepted=sample.get('profiles_accepted'),profiles_rejected=sample.get('profiles_rejected'),
+    hardware_accuracy_accepted=False)
+  done=True
   if not done:
    done=run('expand',[a.python,'-B',str(HERE/'expand_profiles.py'),'--sample-output',str(a.output/'sample'),
     '--layer-bindings',str(a.output/'plan/layer-bindings.json'),'--output',str(a.output/'expanded'),

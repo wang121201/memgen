@@ -39,10 +39,23 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d",
       "historical_bytes": 8431,
-      "current_sha256": "b7e864b06fe6beaa787b34c9d2e693f075168e83354ff2a4c388f6806418b818",
-      "current_bytes": 9574,
-      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child. Later revision: read SG_TEMPLATE_MODEL_POLICY, validate it against the adapter's own MODEL_POLICIES list, drop it from the child environment and pass it to the fitter as an explicit --model-policy. The stage environment is allow-listed, so the value travels in the job spec written by collect_case.py and the receipt records model_policy; the default stays strict, which is the policy every archived sample was taken with.",
+      "current_sha256": "50e5558be73de144f8e8e7f4526a260bca9d370ba890212f729d02f7b5353fcc",
+      "current_bytes": 10361,
+      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child. Later revision: read SG_TEMPLATE_MODEL_POLICY, validate it against the adapter's own MODEL_POLICIES list, drop it from the child environment and pass it to the fitter as an explicit --model-policy. Later revision: add opt-in native-full capture, requiring every launch and every CTA with no holdout; sparse remains the default and unchanged.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1; docs/EXPANSION_MECHANISM_AND_REFUSALS.md section 1"
+    },
+    {
+      "name": "make_sample_plan.py",
+      "paths": [
+        "memgen-adapter/make_sample_plan.py"
+      ],
+      "historical_manifest": "memgen-adapter/deployment-files.json",
+      "historical_sha256": "61a52e7e50b132e860c8a67fed84d5e2aaa8f68bcb6567303d63428d7ddb9234",
+      "historical_bytes": 6708,
+      "current_sha256": "d2c2e8c9b6ad3d38d318a6c71b1953b8ab9eb49211e11785e7a2c542b191d80c",
+      "current_bytes": 7260,
+      "reason": "Add opt-in native-full capture planning: every launch receives its complete CTA grid and no holdout, while the default sparse single-layer plan remains unchanged.",
+      "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md native full-model capture"
     },
     {
       "name": "full_source_postprocess.py",
@@ -78,9 +91,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "f5fb611e0ba739c3ec668d24f50030cb37488658a5438f9ac2501a6b9dc09c91",
       "historical_bytes": 4336,
-      "current_sha256": "8d6c6fdf4c93065653832c16d2577ec0361b26315dfc07ac23acca1ac8ef96b8",
-      "current_bytes": 5531,
-      "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run. Later revision: accept --engine and pass it to run_memgen.py as --binary. The cache stage used to be started with neither flag, so run_memgen.py fell back to its own machine-local default binary and the replay did not use the engine built from this repository`s source; collect_case.py builds that engine and now names it in job 2`s spec, exactly as its partial path already did. Without --engine the fallback is still available for old callers, but it now says so on stderr instead of being silent.",
+      "current_sha256": "bcd3419141beb2e0ce30f5183c758d751e762babfc510d0c13f492373216a672",
+      "current_bytes": 9112,
+      "reason": "Accept --model-uncovered and forward it to expand_profiles.py, and record the coverage of the expansion in the stage finish receipt before the memgen stage is allowed to run. Later revision: accept --engine and pass it to run_memgen.py as --binary. Later revision: accept capture-mode native-full; with refuse it stops after native sampling, while explicit modeled continuation proceeds to expansion/replay and retains native-full provenance without claiming native coverage for modeled rows.",
       "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section The same revision moves the frozen-engine build into followthrough.py as build_engine(target): the cache stage builds the binary from release/source/tools/ when it actually replays and names it with --binary, and collect_case.py imports that one function for its partial path instead of repeating the command. Before it, the replay named no binary at all and run_memgen.py fell back to a machine-local build this repository cannot hash."
     },
     {
@@ -104,8 +117,8 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "2f19e3804f28a001e21cd33544ac7fd949b9a1ce3f9bbc063a66d38cad5089e3",
       "historical_bytes": 19155,
-      "current_sha256": "75cbee5cbb0e4b1ca320a73dde9a996fb3305a2e30674e02d2d1ec2e70f20bf2",
-      "current_bytes": 28227,
+      "current_sha256": "b42f0a64085cc97489c05049647e4986eda642398b9cff24656e43ccbd98b275",
+      "current_bytes": 28596,
       "reason": "Add --model-uncovered modeled, which completes a class with no admitted template as an explicit numeric_modeled object-volume profile (memgen-adapter/model_uncovered.py) instead of refusing its launches. The default stays refuse: a missing profile is still never a zero-traffic kernel. Modeled rows are counted separately (exact_launches, modeled_launches, modeled_fraction, modeled_by_cause), carry status PASS_MODELED_UNCOVERED_CLASS with model.target_addresses_hardware_observed false so the r4 original-allocation guard can still refuse them without a release re-pin, and the manifest now states fully_exact, exact_cross_layer_identity_claimed false and the HBServe-style not_claimed list. Later revision: also publish which evidence sized the modeled traffic (modeled_volume_basis with per-basis launch counts and per-CTA bytes, modeled_measured_bytes_per_cta, modeled_estimated_bytes_per_cta, modeled_estimated_share), so the share resting on the single run-wide bytes-per-instruction estimate is a recorded number and not something a reader has to re-derive. Later revision: attribute an ambiguous rule to the launch's own operand view. The context of a launch was walked up its parent modules, so an ancestor that inherited the same buffer contributed candidate views whose counterpart in the target layer lies elsewhere; the union of containing views then held more than one delta and the target was refused even though the kernel's own operand was not in doubt. rebind() now keeps, when the containing views disagree, only the views reached in the fewest call hops and requires their delta to be unique, refusing the rule when it is not, so nothing is guessed. Measured on the archived P32D2 sample with no new GPU work: 35544 ambiguous rules resolve, every one of them at hop 0, while 548718 already-unique rules keep their delta; the expansion moves from 1360 of 2060 packed launches to 1710, unsupported from 700 to 350, and every hardware-bound address of every binding that was already accepted is unchanged. The only addresses that move are the explicitly synthetic private-arena bases, whose run-wide cursor advances with the number of accepted bindings.",
       "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md modeled completion section; docs/AMBIGUOUS_BINDING_RESOLUTION_FINDING.md"
     },

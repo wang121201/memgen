@@ -60,7 +60,7 @@ def ctas(grid):
     return sorted(train),sorted(hold)
 
 
-def select(rows,layer=0):
+def select(rows,layer=0,capture_mode='sparse'):
     occurrences=Counter();keys=[]
     for r in rows:
         sig=signature(r);key=(r['layer_id'],sig)
@@ -76,8 +76,12 @@ def select(rows,layer=0):
             source=sources[keys[i]];why='primary_layer_sample' if source==i else 'same_signature_layer_profile_expansion'
         else:
             source=i;sources[keys[i]]=i;why='boundary_or_kernel_shape_exception_own_sample'
+        if capture_mode=='native-full':
+            source=i;why='native_full_launch_capture'
+            fit,hold=list(range(math.prod(r['grid']))),[]
+        else:
+            fit,hold=ctas(r['grid']) if source==i else ([],[])
         counts[why]+=1
-        fit,hold=ctas(r['grid']) if source==i else ([],[])
         plan.append({k:v for k,v in r.items() if k!='source_launch_id'}|dict(fit_ctas=fit,holdout_ctas=hold))
         bindings.append(dict(target_launch_id=r['source_launch_id'],template_launch_id=rows[source]['source_launch_id'],
             target_layer=r['layer_id'],template_layer=rows[source]['layer_id'],role=r['role'],phase=r['phase'],
@@ -92,6 +96,7 @@ def main():
     p.add_argument('--host-finish',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--layer',type=int,default=0)
+    p.add_argument('--capture-mode',choices=('sparse','native-full'),default='sparse')
     a=p.parse_args()
     host=json.loads(a.host_finish.read_text());need(host['status']=='PASS_NATIVE_HOST_PENDING_OBSERVER_OR_SAMPLER_CLOSURE','Host incomplete')
     contract=host['input_contract'];need(0<=a.layer<contract['layers'],'Selected layer out of range')
@@ -100,15 +105,17 @@ def main():
     need(seen==expected,'Complete warmup/measurement phase population required')
     for role,phase in expected:
         need({r['layer_id'] for r in rows if r['role']==role and r['phase']==phase and r['layer_id']>=0}==set(range(contract['layers'])),'Original layer census incomplete')
-    plan,bindings,counts=select(rows,a.layer);selected=sum(bool(r['fit_ctas']) for r in plan)
+    plan,bindings,counts=select(rows,a.layer,a.capture_mode);selected=sum(bool(r['fit_ctas']) for r in plan)
     need(selected<=32768,'Task-private sampler supports at most 32768 selected kernels per process')
-    result=dict(schema='SG_NATIVE_PACKET_SAMPLE_PLAN_V1',source_observer_receipt_sha256=sha(a.journal/'finish.json'),
+    result=dict(schema='SG_NATIVE_PACKET_SAMPLE_PLAN_V1',capture_mode=a.capture_mode,
+        native_full_model=a.capture_mode=='native-full',source_observer_receipt_sha256=sha(a.journal/'finish.json'),
         max_wire_bytes=8<<30,max_received_records=12_000_000,max_selected_kernels=selected,launches=plan)
     a.output.mkdir(parents=True,exist_ok=False)
     for n,v in [('sample-plan.json',result),('layer-bindings.json',dict(schema='SGLANG_LAYER_PROFILE_BINDINGS_V1',input_contract=contract,
+        capture_mode=a.capture_mode,native_full_model=a.capture_mode=='native-full',
         primary_layer=a.layer,bindings=bindings,source_census_launches=len(rows),selected_launches=selected,counts=counts,
         full_raw_capture=False,cache_traffic_multiplication=False,profile_expansion_executed=False,
-        full_model_accuracy_accepted=False)),('census.json',dict(status='PASS_NATIVE_CENSUS_AND_ONE_LAYER_SAMPLE_SELECTION',
+        full_model_accuracy_accepted=False)),('census.json',dict(status='PASS_NATIVE_CENSUS_AND_NATIVE_FULL_CAPTURE_PLAN' if a.capture_mode=='native-full' else 'PASS_NATIVE_CENSUS_AND_ONE_LAYER_SAMPLE_SELECTION',
         source_journal=str(a.journal),observer_finish_sha256=sha(a.journal/'finish.json'),host_finish_sha256=sha(a.host_finish),
         input_contract=contract,launches=len(rows),selected_launches=selected,counts=counts,
         selected_ctas=sum(len(r['fit_ctas'])+len(r['holdout_ctas']) for r in plan),warm_prefix_preserved=True))]:

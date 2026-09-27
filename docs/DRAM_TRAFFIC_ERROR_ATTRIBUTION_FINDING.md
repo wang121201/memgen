@@ -314,3 +314,102 @@ exact launches for the sector angle, with the modeled share reported next to it 
 which is what the manifest already encodes as
 `allow_full_NCU_accuracy_comparison: false` with
 `allow_declared_estimate_NCU_comparison: true`.
+
+## 9. The three write factors are not independent, and Accel-Sim does not close them
+
+The write residual decomposes into three factors, but they are **arithmetically
+coupled, not three independent knobs**. Write traffic is the store sector count
+times the fraction that survives to L2 times the fraction that is evicted dirty,
+so a change in the store stream moves the denominator of the merge ratio and the
+dirty fraction, not only its own term. Concretely:
+
+- **Store-sector count (expansion, +17.45% on this replay).** The 700 modeled
+  launches contribute 127,040 store sectors per Decode step that hardware does not
+  have. Removing them (native coverage) shrinks the stream, but it also changes
+  which lines are resident and therefore which exact launches' dirty data is
+  evicted, so the dirty-fraction residual is re-measured, not preserved.
+- **Store merge (cache, ×1.44).** Hardware merges ~30.6% of Decode store sectors
+  before L2; this model merges none. This factor is real hardware behaviour, not a
+  fitting artefact: NVIDIA write-combining / store buffers coalesce narrow
+  partial-sector stores to the same 32 B sector, and the archived comparison's
+  `L1 store → L2 write ratio = 1.4402` is measured from NCU, not invented. It is
+  workload-dependent, not a constant: Prefill merges only 0.9% because its stores
+  are wide and contiguous, so a merge window calibrated on Decode does not
+  transfer to Prefill or to another model's store pattern.
+- **Dirty fraction / early writeback (cache, ×1.28).** The model evicts dirty
+  lines sooner than hardware. This is the least solid of the three: the
+  `-memgen_l2_clean_first_k` sweep saturates at `k=4` with exactly three reachable
+  values, none of which is hardware's, and the per-step split (Decode1 ×0.8021,
+  Decode2 ×2.2453) is a cold-start transient, not a steady-state rate, so no
+  single retention parameter can land on it.
+
+The three factors multiply into the observed error (`1.1745 × 1.44 × 1.28 ≈ 2.16`
+on the combined Decode range), but they are **not orthogonal**: the merge ratio is
+computed over the store stream that the expansion produced, and the dirty fraction
+is computed over the post-merge L2 write stream, so any fix re-defines the other
+two factors' baselines rather than leaving them untouched. Eliminating one factor
+does not remove the others; it only re-baselines them.
+
+**Accel-Sim 2.0 does not close the write gap either.** Its Ada configuration's L2
+coalescer is read-only: `l2cache.cc` documents and enforces
+`// For write request, it is not coalesced with LRC` with
+`if (m_lrc && !(req->is_write()))`, so Accel-Sim's L2 issue path passes each store
+sector through un-merged exactly like this model. Its L1 is write-through
+(`dl1 ... T ...`), and its store path has no write-combining buffer before L2.
+Accel-Sim models the same two write mechanisms this model already models
+(write-back L2, sector-level dirty byte masks) plus full DRAM/MSHR timing, but the
+write *traffic* mismatch is a store-merge and dirty-release question that neither
+the functional model nor Accel-Sim's current Ada config answers. Matching the
+address decomposition (section on `RTX4000Ada.accelsim.config`) removes a
+partition/set-distribution term, but it does not introduce the missing merge
+mechanism, so it cannot by itself move the +39% / +648% Decode write figures.
+
+## 10. Store merge is a real, workload-independent mechanism, and it is portable to Accel-Sim
+
+The store merge is not a fitting artefact invented to close one workload's write
+gap. It is NVIDIA write-combining: narrow partial-sector stores to the same 32 B
+sector are merged in a bounded store buffer before the L2 access, so the number of
+L2 write requests is lower than the number of store sectors. The mechanism is
+workload-independent — the *merge count* varies with the store pattern (Prefill
+merges 0.9% because its stores are wide, Decode merges 30.6% because its stores
+are narrow), but the *mechanism* (merge same-sector partial byte masks within a
+window, flush on full or on window overflow) is one fixed component.
+
+The correct implementation is therefore a per-SM bounded write-combining buffer
+keyed by 32 B sector address, not a per-workload calibration:
+
+- a full-sector store (byte_mask == 0xFFFFFFFF) passes through immediately;
+- a partial-sector store merges its byte_mask into the buffer entry for that
+  sector; when the entry becomes full, or when the buffer reaches its capacity
+  (the window), the entry is flushed as one L2 write request;
+- the buffer flushes at every kernel boundary.
+
+The window is a mechanism capacity (buffer size), not a fitted parameter: the
+measured merge ratio emerges from the store pattern, so the same component serves
+Prefill, Decode, and any other model without per-point tuning.
+
+The same component is portable to Accel-Sim 2.0. Accel-Sim's L2 path already breaks
+every request into 32 B sector requests in
+`memory_sub_partition::breakdown_request_to_sector_requests`, and its
+`L2RequestCoalescer` already merges by `sector_addr` via `equal_range` — it is
+deliberately gated off for writes by `if (m_lrc && !(req->is_write()))`. Enabling a
+write coalescer there (or a sibling write-combining buffer beside the LRC) is the
+same mechanism this model needs, so a store-merge component is a shared, portable
+answer rather than a memgen-only patch.
+
+## 11. Per-step write comparison is too strict, but the whole-Decode gap is real
+
+The per-decode-step write split (`Decode1 ×0.8021`, `Decode2 ×2.2453`) reflects a
+hardware cold-start transient — the first decode step also drains the dirty data
+the prefill left resident, so hardware's own Decode1 and Decode2 dirty rates differ
+(15.10% vs 5.46%). Demanding a per-step match therefore treats the model's
+cold-start semantics as an error even when the combined range is correct. The
+right comparison scope is the combined `Decode` range, with the per-step split kept
+as a diagnostic for the transient, not as an admission gate.
+
+However, the combined Decode gap (+41.5%) is not a scope artefact: it is the store
+merge (×1.44) and modeled store stream (+17.45%) multiplying, both of which survive
+range pooling. Widening the comparison removes the transient term (×1.28) but not
+the other two, so the honest target is to close the merge and the modeled store
+stream first, and treat the dirty transient as a separately reported, currently
+uncalibrated residual rather than a parameter to fit.
