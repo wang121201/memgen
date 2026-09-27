@@ -210,7 +210,11 @@ everything else at the frozen default:
 | 0 (frozen) | 1,112,888 | 988,321 | 124,567 | 135,623 | 4,339,936 (+41.50%) |
 | 2 | 1,112,888 | 1,089,755 | 23,133 | 2,767 | 88,544 (−97.11%) |
 | 4 | 1,112,888 | 1,089,787 | 23,101 | **0** | **0** (−100.00%) |
+| 8 | 1,112,888 | 1,089,787 | 23,101 | **0** | **0** (−100.00%) |
 | hardware | 657,937 | — | — | 95,840 | 3,066,880 |
+
+The window saturates at `k=4`: `k=4` and `k=8` are identical, so the reachable
+values are exactly three, and hardware's is in none of them.
 
 The store stream and the L2 write requests are identical in all three runs, so the
 knob changes only the victim choice: DRAM read moves by 0.02%. What it does not do
@@ -252,4 +256,9 @@ Three consequences, and only the third is actionable here:
    in `Prefill`), while this replay sends 1,112,888 for the same 642 launches. An
    expansion whose store stream matches hardware's is the prerequisite for the
    per-range write acceptance; until then the write residual has a floor of
-   +17.45% that no cache candidate can claim to remove.
+   +17.45% that no cache candidate can claim to remove. The cache model is not the
+   layer that inflates it: the observation layer's own source-side counter
+   (`source_write_sectors` in `cache_observation.csv`) totals 1,112,888 for this
+   subset, equal to `write_sector_requests` and to `l2_write_requests`, so the
+   extra store sectors arrive in the generated address stream and are passed
+   through unchanged.
