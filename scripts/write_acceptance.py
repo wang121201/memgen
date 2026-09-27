@@ -11,6 +11,11 @@ joins three things that already exist:
   hardware side  the archived comparison's median and min/max per range
   mapping        the recorded `model_field` -> NCU metric pairs
 
+The model side is a continuous replay, so its `Decode` range is the union of the
+`Decode1` and `Decode2` kernels; the hardware `Decode` value is a separate
+measurement and is compared against that union rather than against the sum of the
+hardware steps.
+
 It prints the residual per range and, for the write path, the two factors the
 residual decomposes into: how many store sectors the model sent relative to
 hardware, and how many of them it evicted dirty.
@@ -73,6 +78,11 @@ def main(argv=None):
     for row in rows:
         grouped.setdefault(phases[int(row["kernel_id"])], []).append(row)
     model = {phase: totals(grouped[phase]) for phase in grouped}
+    # The replay is continuous, so its combined Decode range is the union of the
+    # two step kernels; hardware measures that range as its own protocol.
+    steps = [phase for phase in ("Decode1", "Decode2") if phase in grouped]
+    if len(steps) == 2:
+        model["Decode"] = totals(grouped["Decode1"] + grouped["Decode2"])
 
     data, hw = hardware_rows(args.comparison, args.workload)
     report = {}
@@ -96,7 +106,9 @@ def main(argv=None):
                 "hardware_min": row["hardware_min"],
                 "hardware_max": row["hardware_max"],
                 "error_percent": error,
-                "within_observed_range": row["within_observed_range"],
+                # Judged on this model's value, not the archived model's verdict.
+                "within_observed_range": row["hardware_min"] <= simulated <= row["hardware_max"],
+                "hardware_spread_percent": row["hardware_relative_range_percent"],
             }
 
     if args.json:
