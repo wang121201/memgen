@@ -365,13 +365,31 @@ files changed so that the store path can be *measured* instead of assumed:
 | `release/source/tools/memgen_hardware_config.h` | `l1_store_policy` is a profile field validated as `bypass` or `allocate` instead of a pinned `bypass`; the three `-memgen_*_policy` keys are accepted by both readers, so a legacy config may carry them without becoming a unified profile |
 | `release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc` | the legacy reader reads the three policy keys, the profile branch uses `p.l1_store_policy` instead of hard-coding `bypass`, and the values are validated after both branches |
 
+A third axis is measurable with the same rules: dirty data that survives inside a
+range is what decides DRAM write bytes per range, so
+`-memgen_l2_clean_first_k` selects a clean victim inside a window of the `k` least
+recently used entries of a cache set (0 keeps plain LRU, nothing is clamped above
+64, and L1 is not affected). It is off by default and inert when unset.
+
+Two levers were measured before assuming them. The dirty-drain knob
+(`-memgen_l2_dirty_drain`) is **inert on this workload**: the high watermark is
+never reached, so `l2_dirty_drain_events` and `l2_dirty_drain_sectors` are 0 in
+both the Decode subset and the full-model replay, and the knob cannot be the
+cause of any residual. The registry fields `l2_replacement` and
+`l2_clean_first_k` were also read: `l2_replacement` and `clean_first` appear
+nowhere in the engine sources, so the `q4`/`q16` clean-first experiments recorded
+in the archive came from a different candidate implementation and a windowed
+variant had to be implemented here to be measured at all.
+
 `release/current-core-manifest.json` was re-derived for both files, so
 `PASS_CURRENT_CACHE_CORE_IDENTITY` and `PASS_FROZEN_CPU_SMOKE` still pass: with an
 unset key the engine is byte-identical, which the smoke proves by its own frozen
 `kernel_summary.csv` hash. The smoke also gained `PASS_WRITE_PATH_POLICY`, which
 requires an allocating store path to show up in `l1_requests`, to leave the store
 sector count and DRAM read bytes untouched, and an invalid policy value to be
-refused rather than silently defaulted.
+refused rather than silently defaulted, and `PASS_CLEAN_FIRST_WINDOW`, which
+requires a window inside 0..64 to be accepted and a window outside it to be
+refused.
 
 No candidate is promoted by this pass: the frozen default stays `bypass`, no
 `release/config/*.config` value changed, and no accuracy claim is made. What

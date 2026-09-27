@@ -1,41 +1,41 @@
 {
-  "schema": "MEMGEN_CURRENT_CACHE_CORE_V1",
-  "derived_from_main": "03a986ef711b29b1e7557162af9af7ac93aaa75f",
-  "extracted_from_research": "281af31f52555e9d7a2a1c1982f5d94947102ded",
-  "hardware_accuracy_accepted": false,
-  "frozen_import_manifest": "release/release-manifest.json",
-  "files": [
-    {
-      "path": "release/config/RTX4000Ada.r4.config",
-      "bytes": 2367,
-      "sha256": "4ad47b9b6e3bc75add1846f5051d52f543dc68178b81f27c6d7b2670f1bc740d"
-    },
-    {
-      "path": "release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp",
-      "bytes": 71046,
-      "sha256": "52897eac9e79a103694e63ce17cbe1ad322b1f8735ddb07753ed38386f6f26e2"
-    },
-    {
-      "path": "release/source/tools/hyfiss_request_trace_backend_api_semantic.h",
-      "bytes": 3741,
-      "sha256": "1c24d750724a0327ecca8c8112a5db9645a9529d3fa1792fb3e49c1b13bbcfdb"
-    },
-    {
-      "path": "release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
-      "bytes": 238600,
-      "sha256": "0a5fdca340249a755356e0b76a8bae0e3b44a2f33d1310ac4f4ed4f278260019"
-    },
-    {
-      "path": "release/source/tools/memgen_hardware_config.h",
-      "bytes": 8916,
-      "sha256": "5f940a3468b14e04e6d786f4c3c24b2b34c674fd15a2f008fee43d5415ad3631"
-    },
-    {
-      "path": "release/source/tools/r4_l1_read_filter.h",
-      "bytes": 6180,
-      "sha256": "11466fc64af92d01c2a95dab81f2f16310d6bb2aad3c181490b91e727ef4317a"
-    }
-  ],
-  "scope": "identity of the six extracted or modified cache source/config files; not a full build-dependency manifest",
-  "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested. Make the write-path policies configurable: -memgen_l1_store_policy, -memgen_write_sector_policy and -memgen_dram_store_policy are read from the hardware configuration and applied after the profile block, with validated values and no effect when unset, so the store path can be measured instead of assumed while the frozen default (L1 bypass) stays byte-identical."
+ "schema": "MEMGEN_CURRENT_CACHE_CORE_V1",
+ "derived_from_main": "03a986ef711b29b1e7557162af9af7ac93aaa75f",
+ "extracted_from_research": "281af31f52555e9d7a2a1c1982f5d94947102ded",
+ "hardware_accuracy_accepted": false,
+ "frozen_import_manifest": "release/release-manifest.json",
+ "files": [
+  {
+   "path": "release/config/RTX4000Ada.r4.config",
+   "bytes": 2367,
+   "sha256": "4ad47b9b6e3bc75add1846f5051d52f543dc68178b81f27c6d7b2670f1bc740d"
+  },
+  {
+   "path": "release/source/tools/hbserve_profile_stream_cache_semantic_r17.cpp",
+   "bytes": 71046,
+   "sha256": "52897eac9e79a103694e63ce17cbe1ad322b1f8735ddb07753ed38386f6f26e2"
+  },
+  {
+   "path": "release/source/tools/hyfiss_request_trace_backend_api_semantic.h",
+   "bytes": 3741,
+   "sha256": "1c24d750724a0327ecca8c8112a5db9645a9529d3fa1792fb3e49c1b13bbcfdb"
+  },
+  {
+   "path": "release/source/tools/hyfiss_request_trace_generator_stream_r4_semantic.cc",
+   "bytes": 241066,
+   "sha256": "1591e59ec82e4bdb1f55c3cf22a6d8b92e090620d6b7ec0524650d1a3e3e9318"
+  },
+  {
+   "path": "release/source/tools/memgen_hardware_config.h",
+   "bytes": 9026,
+   "sha256": "ff7e1cd1a073e1c324f39cc302516844e9e00e22bf70a118e494618ff8bb8688"
+  },
+  {
+   "path": "release/source/tools/r4_l1_read_filter.h",
+   "bytes": 6180,
+   "sha256": "11466fc64af92d01c2a95dab81f2f16310d6bb2aad3c181490b91e727ef4317a"
+  }
+ ],
+ "scope": "identity of the six extracted or modified cache source/config files; not a full build-dependency manifest",
+ "extraction_changes": "Reject explicitly modeled cross-layer rebinding when original allocation context is requested. Make the write-path policies configurable: -memgen_l1_store_policy, -memgen_write_sector_policy and -memgen_dram_store_policy are read from the hardware configuration and applied after the profile block, with validated values and no effect when unset, so the store path can be measured instead of assumed while the frozen default (L1 bypass) stays byte-identical. Make the L2 victim preference measurable as well: -memgen_l2_clean_first_k selects a clean victim inside a window of the k least recently used entries (0 = plain LRU, the frozen default), is validated to 0..64, and leaves the request stream and counters untouched when unset."
 }

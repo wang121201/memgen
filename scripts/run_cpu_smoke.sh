@@ -99,5 +99,25 @@ print('PASS_WRITE_PATH_POLICY: l1_requests {} -> {}, l2_write_requests {} -> {},
                                          default['l2_write_requests'], configured['l2_write_requests']))
 PY
 
+# The victim preference is configurable too. The smoke fixture is too small to
+# show a retention difference, so the gate pins the contract instead of a number:
+# a valid window is accepted, and a value outside the documented range is refused
+# rather than silently clamped.
+mkdir -p "$out/cfw" "$out/cfbad"
+cp "$root/release/config/RTX4000Ada.paper-v1.config" "$out/cf.config"
+printf -- '-memgen_l2_clean_first_k 4\n' >> "$out/cf.config"
+"$out/build/hbserve" "${common[@]}" --hw-config "$out/cf.config" \
+  --stats "$out/cfw/source-stats.json" --output-dir "$out/cfw/model" --observe-cache false
+
+cp "$root/release/config/RTX4000Ada.paper-v1.config" "$out/cfbad.config"
+printf -- '-memgen_l2_clean_first_k 65\n' >> "$out/cfbad.config"
+if "$out/build/hbserve" "${common[@]}" --hw-config "$out/cfbad.config" \
+     --stats "$out/cfbad/source-stats.json" --output-dir "$out/cfbad/model" --observe-cache false \
+     >/dev/null 2>&1; then
+  echo "an out-of-range clean-first window was accepted" >&2
+  exit 1
+fi
+echo "PASS_CLEAN_FIRST_WINDOW: window 4 accepted, window 65 refused"
+
 python3 "$root/scripts/verify_archive.py"
 echo "PASS_FROZEN_CPU_SMOKE output=$out"

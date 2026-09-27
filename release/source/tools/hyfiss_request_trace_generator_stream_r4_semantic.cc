@@ -133,6 +133,9 @@ struct Options {
   std::string dram_store_policy = "writeback";
   bool l2_dirty_drain = true;
   bool l2_streaming_fill = false;
+  // Victim-selection window that prefers a clean line among the k least
+  // recently used entries. Zero keeps plain LRU, which is the frozen default.
+  unsigned l2_clean_first_k = 0;
   uint64_t l2_dirty_drain_latency = 0;
   bool l2_dirty_drain_latency_set = false;
   uint64_t l2_dirty_drain_max_sectors_per_kernel = 0;
@@ -212,6 +215,11 @@ struct HwParams {
   std::string l1_store_policy;
   std::string write_sector_policy;
   std::string dram_store_policy;
+  // Dirty-writeback timing decides DRAM store bytes per range, so a candidate
+  // must be able to set these; empty keeps the compiled default.
+  std::string l2_dirty_drain;
+  std::string l2_streaming_fill;
+  std::string l2_clean_first_k;
 };
 
 struct LaneAddress {
@@ -601,6 +609,9 @@ HwParams read_hw_params(const fs::path &path,
   hw.l1_store_policy = get_string(cfg, "-memgen_l1_store_policy", "");
   hw.write_sector_policy = get_string(cfg, "-memgen_write_sector_policy", "");
   hw.dram_store_policy = get_string(cfg, "-memgen_dram_store_policy", "");
+  hw.l2_dirty_drain = get_string(cfg, "-memgen_l2_dirty_drain", "");
+  hw.l2_streaming_fill = get_string(cfg, "-memgen_l2_streaming_fill", "");
+  hw.l2_clean_first_k = get_string(cfg, "-memgen_l2_clean_first_k", "");
   return hw;
 }
 
@@ -1039,6 +1050,10 @@ struct DiagnosticDirtyLimitResult {
 class SectorLruCache {
 public:
   SectorLruCache() = default;
+
+  // Prefer a clean victim inside this window of least recently used entries so
+  // dirty data survives longer; zero disables the search and keeps plain LRU.
+  void set_clean_first_window(unsigned window) { clean_first_window_ = window; }
   SectorLruCache(uint64_t size_bytes, unsigned line_size, unsigned assoc,
                  SetIndexFunction set_index_function = SetIndexFunction::Linear) {
     reset(size_bytes, line_size, assoc, set_index_function);
@@ -1415,6 +1430,8 @@ public:
   }
 
 private:
+  unsigned clean_first_window_ = 0;
+
   struct LineEntry {
     uint64_t tag = 0;
     uint32_t valid_sectors = 0;
@@ -1488,6 +1505,20 @@ private:
       capture_eviction(*victim, set, sector_size, evicted);
       dq.erase(std::next(victim).base());
     };
+
+    // Clean-first window: scan the least recently used entries and take the
+    // first clean one that has no outstanding fill. Dirty lines keep their data
+    // resident, which is how hardware delays evictions past a range boundary.
+    unsigned scanned = 0;
+    for (auto victim = dq.rbegin();
+         victim != dq.rend() && scanned < clean_first_window_;
+         ++victim, ++scanned) {
+      refresh(*victim, now);
+      if (victim->reserved_sectors == 0 && victim->dirty_sectors == 0) {
+        evict_at(victim);
+        return;
+      }
+    }
 
     for (auto victim = dq.rbegin(); victim != dq.rend(); ++victim) {
       refresh(*victim, now);
@@ -4261,7 +4292,7 @@ void apply_hw_options(Options &opt, const HwParams &hw) {
     opt.l1_store_policy=p.l1_store_policy;opt.write_sector_policy=p.write_sector_policy;
     opt.dram_store_policy=p.dram_store_policy;opt.preserve_l1=false;
     opt.preserve_l2=p.preserve_l2;opt.flush_l2_on_reset=false;
-    opt.l2_dirty_drain=false;opt.l2_streaming_fill=false;
+    opt.l2_dirty_drain=false;opt.l2_streaming_fill=false;opt.l2_clean_first_k=0;
     opt.l1_fill_latency_set=opt.l2_fill_latency_set=true;
     opt.l1_fill_latency=opt.l2_fill_latency=0;
     opt.l2_dirty_drain_latency_set=true;opt.l2_dirty_drain_latency=0;
@@ -4291,6 +4322,20 @@ void apply_hw_options(Options &opt, const HwParams &hw) {
   if (!hw.l1_store_policy.empty()) opt.l1_store_policy = hw.l1_store_policy;
   if (!hw.write_sector_policy.empty()) opt.write_sector_policy = hw.write_sector_policy;
   if (!hw.dram_store_policy.empty()) opt.dram_store_policy = hw.dram_store_policy;
+  if (!hw.l2_dirty_drain.empty()) opt.l2_dirty_drain = hw.l2_dirty_drain == "1";
+  if (!hw.l2_streaming_fill.empty()) opt.l2_streaming_fill = hw.l2_streaming_fill == "1";
+  if (hw.l2_dirty_drain.size() && hw.l2_dirty_drain != "0" && hw.l2_dirty_drain != "1")
+    throw std::runtime_error("-memgen_l2_dirty_drain must be 0 or 1");
+  if (hw.l2_streaming_fill.size() && hw.l2_streaming_fill != "0" && hw.l2_streaming_fill != "1")
+    throw std::runtime_error("-memgen_l2_streaming_fill must be 0 or 1");
+  if (!hw.l2_clean_first_k.empty()) {
+    char *end = nullptr;
+    const long k = std::strtol(hw.l2_clean_first_k.c_str(), &end, 10);
+    if (end == hw.l2_clean_first_k.c_str() || *end != '\0' || k < 0 || k > 64)
+      throw std::runtime_error(
+          "-memgen_l2_clean_first_k must be an integer between 0 and 64");
+    opt.l2_clean_first_k = static_cast<unsigned>(k);
+  }
   if (opt.l1_store_policy != "bypass" && opt.l1_store_policy != "allocate")
     throw std::runtime_error("-memgen_l1_store_policy must be bypass or allocate");
   if (opt.write_sector_policy != "line-miss-only" && opt.write_sector_policy != "all")
@@ -4572,6 +4617,8 @@ int run_from_sm_trace_source(
     for (unsigned p = 0; p < l2_partitions; ++p)
       l2_caches.emplace_back(l2_size_per_partition, opt.l2_line_size,
                              opt.l2_assoc, opt.l2_set_index);
+    for (auto &cache : l2_caches)
+      cache.set_clean_first_window(opt.l2_clean_first_k);
 
     uint64_t kernel_base = 0;
     uint64_t total_records = 0;
