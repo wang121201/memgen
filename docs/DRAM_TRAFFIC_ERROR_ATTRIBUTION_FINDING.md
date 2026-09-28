@@ -413,3 +413,43 @@ range pooling. Widening the comparison removes the transient term (×1.28) but n
 the other two, so the honest target is to close the merge and the modeled store
 stream first, and treat the dirty transient as a separately reported, currently
 uncalibrated residual rather than a parameter to fit.
+
+## 12. Store-merge sweep: the mechanism works, but must be measured on native sectors
+
+`-memgen_store_merge_window` was swept over the 642-kernel Decode subset
+(`out/subset-decode`, the same stream section 3 measured). `write_sector_requests`
+stays 1,112,888 at every window (the store stream is upstream of the merge); the
+L2 write count moves:
+
+| window | l2_write_requests | merge factor (l2w/ws) | dram_store_bytes |
+| ---: | ---: | ---: | ---: |
+| 0 (frozen) | 1,112,888 | 1.0000 | 4,339,936 |
+| 4 | 1,068,248 | 0.9599 | 4,336,736 |
+| 16 | 970,776 | 0.8723 | 4,328,800 |
+| 64 | 837,144 | 0.7522 | 4,307,552 |
+| 256 | 737,176 | 0.6624 | 4,233,824 |
+| hardware | 657,937 | 0.6943 (1.44:1) | 3,066,880 |
+
+The merge grows with the window and does not saturate by 256, which is expected:
+the mechanism merges same-32B-sector stores however far apart they are, and the
+window is a buffer capacity, not a fitted constant. The sweep confirms the
+mechanism is real and monotone, but **the numbers cannot be compared with
+hardware's 1.44:1 yet**, for two reasons:
+
+1. **The denominator is wrong.** This stream carries the +17.45% modeled store
+   surplus (1,112,888 vs hardware's 947,560 native sectors), and modeled sectors
+   repeat object-walk addresses far more than native ones, so they merge more
+   readily. The merge factor must be measured on a native store stream (native-full
+   capture) before it can be read against hardware's 1.44:1.
+2. **The merge granularity is unverified.** The sweep merges same-32B-sector byte
+   masks (sector cache byte-level write coalescing). Hardware's 30.6% store merge
+   could be the same sector-level merge, or a 128B-line-level merge across sectors;
+   the NCU `l1tex` sector count versus the L2 write-request count does not by itself
+   decide which. Until the granularity is pinned, the mechanism is a candidate, not
+   a validated hardware match.
+
+The correct order is therefore: close the native store stream first (priority 1,
+native-full), then re-sweep the merge on native sectors and compare against the
+1.44:1 hardware ratio (priority 2). The two are independent factors and must not be
+tuned together, or a window that compensates the modeled surplus looks calibrated
+on one point and is wrong everywhere else.
