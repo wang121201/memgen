@@ -107,9 +107,14 @@ def main():
         need({r['layer_id'] for r in rows if r['role']==role and r['phase']==phase and r['layer_id']>=0}==set(range(contract['layers'])),'Original layer census incomplete')
     plan,bindings,counts=select(rows,a.layer,a.capture_mode);selected=sum(bool(r['fit_ctas']) for r in plan)
     need(selected<=32768,'Task-private sampler supports at most 32768 selected kernels per process')
+    # A native-full plan selects every CTA of every launch, so its record stream
+    # is far larger than the sparse single-layer plan's; the sampler's own cap is
+    # 1e9 records (compile_plan.py), so the plan states the larger bound it needs
+    # instead of inheriting the sparse 12M ceiling.
+    max_records=200_000_000 if a.capture_mode=='native-full' else 12_000_000
     result=dict(schema='SG_NATIVE_PACKET_SAMPLE_PLAN_V1',capture_mode=a.capture_mode,
         native_full_model=a.capture_mode=='native-full',source_observer_receipt_sha256=sha(a.journal/'finish.json'),
-        max_wire_bytes=8<<30,max_received_records=12_000_000,max_selected_kernels=selected,launches=plan)
+        max_wire_bytes=8<<30,max_received_records=max_records,max_selected_kernels=selected,launches=plan)
     a.output.mkdir(parents=True,exist_ok=False)
     for n,v in [('sample-plan.json',result),('layer-bindings.json',dict(schema='SGLANG_LAYER_PROFILE_BINDINGS_V1',input_contract=contract,
         capture_mode=a.capture_mode,native_full_model=a.capture_mode=='native-full',

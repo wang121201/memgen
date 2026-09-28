@@ -12,7 +12,7 @@
 #include "flush_ledger.h"
 
 __device__ __managed__ uint32_t sg_sample_cta_count=0;
-static constexpr uint32_t SG_MAX_SELECTED_CTAS=8192;
+static constexpr uint32_t SG_MAX_SELECTED_CTAS=65536;
 __device__ __managed__ uint64_t sg_sample_cta_ids[SG_MAX_SELECTED_CTAS];
 __device__ __managed__ uint32_t sg_sample_entry_function=0;
 __device__ __managed__ uint32_t sg_entry_calls[SG_MAX_SELECTED_CTAS*32],sg_entry_masks[SG_MAX_SELECTED_CTAS*32];

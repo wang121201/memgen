@@ -86,6 +86,12 @@ def main():
         HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',MAX_JOBS='1')
     upstream_base=Path('/home/xmu/nvidiagds/codex-runs/hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r10/third_party')
     env.update(SG_HBSERVE_SOURCE_ROOT=str(upstream_base/'hbserve'),SG_MEMORYINST_CODEC=str(upstream_base/'hbserve_memory_template.py'))
+    # The fitter replays each accepted kernel through the frozen engine, whose
+    # prebuilt bin/hbserve is not shipped. Build it from this tree's source and
+    # name it, so the fitter does not depend on the deleted external snapshot.
+    import followthrough
+    engine=followthrough.build_engine(a.output/'engine'/'hbserve')
+    env['SG_MEMGEN_ENGINE']=str(engine.resolve())
     child_env=dict(env,CUDA_VISIBLE_DEVICES='')
     raw_read,raw_write=os.pipe();projection_read,projection_write=os.pipe()
     children=[];files=[];owned_births={};start=time.monotonic();result=dict(status='STARTED',full_raw_trace_bytes=0,

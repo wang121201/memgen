@@ -28,13 +28,13 @@
     },
     {
       "name": "make_sample_plan.py",
-      "bytes": 7260,
-      "sha256": "d2c2e8c9b6ad3d38d318a6c71b1953b8ab9eb49211e11785e7a2c542b191d80c"
+      "bytes": 7635,
+      "sha256": "abf3104314b4aa10f14755d84082b4bda3b2d7f1ece5f2d5e74656c9b33955c2"
     },
     {
       "name": "sample_pipeline.py",
-      "bytes": 10361,
-      "sha256": "50e5558be73de144f8e8e7f4526a260bca9d370ba890212f729d02f7b5353fcc"
+      "bytes": 10741,
+      "sha256": "222b66dcfec0712d842722d09df6942f5dc285a2c2c519528f6668d14b5bb787"
     },
     {
       "name": "expand_profiles.py",

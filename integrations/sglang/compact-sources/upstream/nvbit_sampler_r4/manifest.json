@@ -31,8 +31,8 @@
       "sha256": "e61b0704fb2964630558ff1258d69f5f75c705d421d2843d1c6e957b912468ae"
     },
     "packet_stream.py": {
-      "bytes": 13268,
-      "sha256": "43fa43fed93478d127a4f98837f85d2b662031398822b14d58b6a3200ad128d0"
+      "bytes": 13270,
+      "sha256": "8d6c9342c52015dba929d41325767d787dddc215f193b4af5657be3f58ba44e2"
     },
     "ram_capture.py": {
       "bytes": 2626,
@@ -43,8 +43,8 @@
       "sha256": "059c26047caea0c0884bea2ee73ad83d0b3ccb158eba1b78930767634e28b42e"
     },
     "sampler_runtime.h": {
-      "bytes": 21660,
-      "sha256": "9e35b7f3b62dda8f0ebf8dd269fb2651f0272f72e77992d1242f6ff616969323"
+      "bytes": 21661,
+      "sha256": "61e37971885d4698f8d52723f1380e56fd938ae5265d0cd9f393dd80c12539f4"
     },
     "stable_instrumentation.inc": {
       "bytes": 13619,
@@ -121,7 +121,8 @@
     "Bind V2 flush ledger to executed and packet CTA censuses",
     "Raise private total capture ceiling to 512MiB for bounded four-kernel window; per-frame ABI and per-kernel decoder limits unchanged",
     "Align C++ Writer.open ceiling with Python 512MiB envelope; add host pipe admission and no-partial-write overflow fixture before CUDA capture",
-    "M32 fresh-copy Python parser AND C++ PipeWriter wire ceiling1GiB, ABI616B and all predicate/transport checks unchanged; plan budget mandatory"
+    "M32 fresh-copy Python parser AND C++ PipeWriter wire ceiling1GiB, ABI616B and all predicate/transport checks unchanged; plan budget mandatory",
+    "Raise MAX_SELECTED_CTAS / SG_MAX_SELECTED_CTAS from 8192 to 65536 so a native-full plan can select a whole large-grid kernel (gemvx has 37984 CTAs); the device arrays grow to ~16.5 MiB managed memory and the wire cap MAX_CTAS is already 65536."
   ],
   "actual_form_source": {
     "bytes": 16380,

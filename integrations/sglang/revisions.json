@@ -39,9 +39,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "3eaaa94735744aa899724c996c0d36a560624ca795ab32765cb070e93483e97d",
       "historical_bytes": 8431,
-      "current_sha256": "50e5558be73de144f8e8e7f4526a260bca9d370ba890212f729d02f7b5353fcc",
-      "current_bytes": 10361,
-      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child. Later revision: read SG_TEMPLATE_MODEL_POLICY, validate it against the adapter's own MODEL_POLICIES list, drop it from the child environment and pass it to the fitter as an explicit --model-policy. Later revision: add opt-in native-full capture, requiring every launch and every CTA with no holdout; sparse remains the default and unchanged.",
+      "current_sha256": "222b66dcfec0712d842722d09df6942f5dc285a2c2c519528f6668d14b5bb787",
+      "current_bytes": 10741,
+      "reason": "Call matrix_workload.add_arguments instead of repeating the choice tuples, and validate the (model, prefill, decode) triple in the parent process. The duplicated gate is what previously rejected a declared point before it reached host.py; per-axis choices alone cannot see a pair such as P32D128, which would otherwise fail only inside the host child. Later revision: read SG_TEMPLATE_MODEL_POLICY, validate it against the adapter's own MODEL_POLICIES list, drop it from the child environment and pass it to the fitter as an explicit --model-policy. Later revision: add opt-in native-full capture, requiring every launch and every CTA with no holdout; sparse remains the default and unchanged. Later revision: build the frozen replay engine from this tree and name it with SG_MEMGEN_ENGINE, so the fitter no longer depends on the deleted external snapshot.",
       "record": "docs/BRANCH_AND_ACCEPTANCE_CONTRACT.md section 3.1; docs/EXPANSION_MECHANISM_AND_REFUSALS.md section 1"
     },
     {
@@ -52,9 +52,9 @@
       "historical_manifest": "memgen-adapter/deployment-files.json",
       "historical_sha256": "61a52e7e50b132e860c8a67fed84d5e2aaa8f68bcb6567303d63428d7ddb9234",
       "historical_bytes": 6708,
-      "current_sha256": "d2c2e8c9b6ad3d38d318a6c71b1953b8ab9eb49211e11785e7a2c542b191d80c",
-      "current_bytes": 7260,
-      "reason": "Add opt-in native-full capture planning: every launch receives its complete CTA grid and no holdout, while the default sparse single-layer plan remains unchanged.",
+      "current_sha256": "abf3104314b4aa10f14755d84082b4bda3b2d7f1ece5f2d5e74656c9b33955c2",
+      "current_bytes": 7635,
+      "reason": "Add opt-in native-full capture planning: every launch receives its complete CTA grid and no holdout, while the default sparse single-layer plan remains unchanged. Later revision: a native-full plan states a 200M record bound instead of the sparse 12M ceiling, because it selects every CTA of every launch.",
       "record": "docs/EXPANSION_MECHANISM_AND_REFUSALS.md native full-model capture"
     },
     {
