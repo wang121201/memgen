@@ -108,7 +108,7 @@ def main():
         return c
     try:
         post=spawn('profiles',[a.python,'-B',str(a.upstream/'full_source_postprocess.py'),'--output',str(a.output/'profiles'),
-            '--transport-receipt',str(a.output/'consumer.json'),'--model-policy',policy],child_env,stdin=projection_read)
+            '--transport-receipt',str(a.output/'consumer.json'),'--plan',str(a.plan),'--model-policy',policy],child_env,stdin=projection_read)
         os.close(projection_read);projection_read=None
         consumer=spawn('consumer',[a.python,'-B',str(a.upstream/'nvbit_sampler_r4/stream_consumer.py'),
             '--read-fd',str(raw_read),'--max-wire-bytes',str(plan['max_wire_bytes']),'--plan',str(a.plan),

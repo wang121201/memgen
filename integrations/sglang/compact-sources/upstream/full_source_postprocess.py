@@ -5,9 +5,34 @@ import sglang_sample_to_packed as p
 # The adapter owns the policy list; this driver only chooses from it.
 from memory_projection import MODEL_POLICIES
 
+def capture_limits(plan):
+ # The plan is the single source of truth for how many records the sampler may
+ # emit: a sparse single-layer plan states 12M, a native-full plan states 200M,
+ # because it selects every CTA of every launch instead of one layer's CTAs.
+ # Deriving the replay limits from it keeps the two ceilings from drifting; the
+ # historical hard-coded 12M silently truncated a native-full stream into an
+ # empty replay. A missing/legacy plan keeps the historical sparse defaults.
+ records=int(plan.get('max_received_records',12000000)) if plan else 12000000
+ assert 1<=records<=1_000_000_000,'plan record ceiling'
+ if plan is not None:
+  assert 1024<=int(plan.get('max_wire_bytes',8<<30))<=8<<30,'plan wire ceiling'
+ if records<=12000000:
+  # The sparse single-layer contract is unchanged: 12M records, 512MiB encoded,
+  # 1M per kernel, 24GiB decoded. Only a native-full plan raises these.
+  return dict(max_records=12000000,max_kernel_records=1000000,
+              max_encoded_bytes=512<<20,max_decoded_bytes=24<<30)
+ # A native-full plan selects every CTA of the largest launch, so one kernel can
+ # hold the whole record bound; scale the encoded ceiling with the record bound
+ # and keep the decoded ceiling at its historical 24GiB (one kernel at a time).
+ return dict(max_records=records,max_kernel_records=records,
+             max_encoded_bytes=max(512<<20,min(64<<30,records*512)),
+             max_decoded_bytes=24<<30)
+
+
 def main():
- a=argparse.ArgumentParser();a.add_argument('--output',type=Path,required=True);a.add_argument('--transport-receipt',type=Path,required=True);a.add_argument('--model-policy',choices=MODEL_POLICIES,default='strict');a=a.parse_args()
+ a=argparse.ArgumentParser();a.add_argument('--output',type=Path,required=True);a.add_argument('--transport-receipt',type=Path,required=True);a.add_argument('--plan',type=Path);a.add_argument('--model-policy',choices=MODEL_POLICIES,default='strict');a=a.parse_args()
  a.output.mkdir(parents=True);p.frozen_gate();rows=[];offset=0;profile_bytes=0
+ plan=json.loads(a.plan.read_text()) if a.plan else None;limits=capture_limits(plan)
  pack=a.output/'profiles.pack';index=a.output/'profiles.index.jsonl'
  # Every row retains an actual launch identity. No copy from another layer,
  # zero filling rejected launches, or source-count-based traffic injection.
@@ -34,7 +59,7 @@ def main():
  try:
   assert stat.S_ISFIFO(os.fstat(0).st_mode)
   from postprocess_samples import analyze
-  result=analyze(sys.stdin.buffer,a.transport_receipt,max_records=12000000,max_encoded_bytes=512<<20,max_kernel_records=1000000,max_decoded_bytes=24<<30,model_policy=a.model_policy,on_decoded_capture=decoded,compile_native_templates=False)
+  result=analyze(sys.stdin.buffer,a.transport_receipt,model_policy=a.model_policy,on_decoded_capture=decoded,compile_native_templates=False,**limits)
   assert result['replay_closed'] and result['transport_qualified']
   for row in rows:
    if row['status'].startswith('PROVISIONAL_'):row.update(status='PASS_PROFILE_EXACT_SAMPLES',replay_admitted=True)
