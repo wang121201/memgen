@@ -453,3 +453,29 @@ native-full), then re-sweep the merge on native sectors and compare against the
 1.44:1 hardware ratio (priority 2). The two are independent factors and must not be
 tuned together, or a window that compensates the modeled surplus looks calibrated
 on one point and is wrong everywhere else.
+
+## 13. L2 writeback granularity is 32 B, and the native store stream is not in the archive
+
+Two clarifications pin the merge mechanism and its test precondition.
+
+**The L2 writeback granularity is 32 B, not 128 B.** Section 2 already records
+`DRAM bytes per L2 read miss is 32.00` in the model and `32.01–32.07` in hardware,
+and the L2 is a sector cache (one 128 B line with four independently tracked 32 B
+sectors). This settles the merge granularity: the store merge is a **same-32B-sector
+byte-mask merge** (sector-cache byte-level write coalescing), not a 128B-line
+cross-sector merge. The `-memgen_store_merge_window` component keys on the 32 B
+sector address, which is the correct granularity, so the unverified-granularity
+caveat in section 12 is resolved: the sweep's merge granularity is right.
+
+**The native store stream is not in this archive.** The archived comparison's
+native model column (947,560 L1 store sectors, 0.0001% aligned) was replayed from
+`/home/xmu/nvidiagds/codex-runs/memgen-qwen-scaling-20260922-r1/evaluation/qwen1p5b-P32D2-replay/`,
+which no longer exists; only the aggregate `comparison.json` was archived. The
+in-repo `out/subset-decode` carries the modeled surplus (1,112,888), and filtering
+it to the 444 exact launches (`PASS_MODELED_LAYER_PROFILE_BINDING`, 222 per step)
+yields 858,808 store sectors, which is still −9.4% below hardware's 947,560 because
+the sampler refused the store classes of the 700 uncovered launches. So there is no
+native 947,560-sector stream available to sweep against hardware's 1.44:1 without a
+fresh native-full capture (priority 1). The merge mechanism is implemented and its
+granularity is correct; its numerical validation against hardware is blocked on the
+native stream, not on the mechanism.
