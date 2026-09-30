@@ -56,8 +56,10 @@ def main():
         raise ValueError('capture mode differs between plan and sampler')
     selected=sum(bool(r['fit_ctas']) for r in plan['launches'])
     if native_full:
-        if selected != len(plan['launches']) or any(r['holdout_ctas'] for r in plan['launches']):
-            raise ValueError('native-full requires every launch and CTA grid, with no holdout')
+        if selected != len(plan['launches']):
+            raise ValueError('native-full requires every launch covered; '
+                             'each large grid is coordinate-stratified with a fresh holdout, '
+                             'not fully enumerated')
     elif not 0<selected<len(plan['launches']):
         raise ValueError('Requires sparse single-layer plan, never all-launch memory sampling')
     paths=list(HERE.glob('*.py'))+[HERE/'contract.json',a.sampler_lib,a.plan]
@@ -84,8 +86,11 @@ def main():
     env.update(OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',NUMEXPR_NUM_THREADS='1',
         PYTHONDONTWRITEBYTECODE='1',PYTHONNOUSERSITE='1',TOKENIZERS_PARALLELISM='false',
         HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',MAX_JOBS='1')
-    upstream_base=Path('/home/xmu/nvidiagds/codex-runs/hbserve-memgen-gtsim-alignment-20260914-01a09f50-r1/sglang-integration-r10/third_party')
-    env.update(SG_HBSERVE_SOURCE_ROOT=str(upstream_base/'hbserve'),SG_MEMORYINST_CODEC=str(upstream_base/'hbserve_memory_template.py'))
+    vendor = a.upstream/'vendor'
+    if not (vendor/'hbserve').is_dir() or not (vendor/'hbserve_memory_template.py').is_file():
+        raise ValueError('self-contained HBServe vendor snapshot is missing from the current memgen checkout')
+    env.update(SG_HBSERVE_SOURCE_ROOT=str((vendor/'hbserve').resolve()),
+               SG_MEMORYINST_CODEC=str((vendor/'hbserve_memory_template.py').resolve()))
     # The fitter replays each accepted kernel through the frozen engine, whose
     # prebuilt bin/hbserve is not shipped. Build it from this tree's source and
     # name it, so the fitter does not depend on the deleted external snapshot.

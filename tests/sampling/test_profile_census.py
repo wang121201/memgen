@@ -13,7 +13,11 @@ import unittest
 ROOT=Path(__file__).resolve().parents[2]
 UP=ROOT/'integrations/sglang/compact-sources/upstream'
 sys.path.insert(0,str(UP))
+sys.path.insert(0,str(UP/'template_adapter_r4'))
 from profile_census import count_profile
+from memory_projection import project_record
+from hbserve_adapter import SampleCollector
+import sglang_sample_to_packed as packed
 spec=importlib.util.spec_from_file_location('rules',ROOT/'release/workflow/hyfiss_sampled_sass_trace_profile_rules_r15.py')
 rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
 
@@ -86,5 +90,57 @@ class Census(unittest.TestCase):
     def test_does_not_modify_profile(self):
         p=profile(dict(intercept=65537,cta_x_stride=32));before=copy.deepcopy(p)
         self.check_profile(p);self.assertEqual(p,before)
+
+    def test_validated_ldgsts_uses_observed_source_mask(self):
+        begin=dict(schema='SG_KERNEL_SAMPLE_BEGIN_V1',grid=[1,1,1],block=[32,1,1],
+            fit_ctas=[0],holdout_ctas=[],source_launch_key='launch-1',code_sha256='a'*64)
+        record=dict(schema='SG_MEMORY_PROJECTION_RECORD_V1',source_launch_key='launch-1',
+            code_sha256='a'*64,ref_count=2,active_mask=3,predicate_mask=3,effective_mask=3,
+            projection_kind='async_global_read',source_control_kind='validated_sm89_ldgsts',
+            transfer_width=16,transfer_policy=1,opcode='LDGSTS.E.BYPASS.128',width=16,
+            is_load=False,is_store=False,source_read_mask=1,
+            refs=[dict(global_mask=0,local_mask=0,shared_mask=3,addresses=[0]*32),
+                  dict(global_mask=3,local_mask=0,shared_mask=0,addresses=[4096,8192]+[0]*30)],
+            original_received_ordinal=1,cta_warp_id=0,actual_sm=0,clock64=7,cta=[0,0,0],
+            function_id=1,pc=16)
+        direction,width,mask,ranges,is_async=project_record(record)
+        self.assertEqual((direction,width,mask,is_async),('load',16,1,True))
+        collector=SampleCollector(begin)
+        collector.record(record)
+        frame=collector.samples[0,0][0]
+        self.assertEqual(frame['effective_guard_mask'],3)
+        self.assertEqual(frame['mask'],1)
+        self.assertEqual(packed.normalize(collector.samples)[0][0]['mask'],'0x1')
+
+    def test_shared_only_record_uses_effective_guard_for_no_global_census(self):
+        begin=dict(schema='SG_KERNEL_SAMPLE_BEGIN_V1',grid=[1,1,1],block=[32,1,1],
+            fit_ctas=[0],holdout_ctas=[],source_launch_key='launch-shared',code_sha256='b'*64)
+        record=dict(schema='SG_MEMORY_PROJECTION_RECORD_V1',source_launch_key='launch-shared',
+            code_sha256='b'*64,ref_count=1,active_mask=1,predicate_mask=1,effective_mask=1,
+            projection_kind='ordinary_memory_operands',opcode='LD.E.32',width=4,is_load=True,is_store=False,
+            refs=[dict(global_mask=0,local_mask=0,shared_mask=1,addresses=[4096]+[0]*31)],
+            original_received_ordinal=1,cta_warp_id=0,actual_sm=0,clock64=7,cta=[0,0,0],
+            function_id=1,pc=16)
+        collector=SampleCollector(begin)
+        collector.record(record)
+        frame=collector.samples[0,0][0]
+        self.assertEqual((frame['mask'],frame['effective_guard_mask']),(0,1))
+        census=packed.projection_record_census(collector)
+        self.assertEqual(census['observed_shared_only_records'],1)
+        self.assertEqual(census['no_global_effective_nonzero_records'],1)
+        self.assertEqual(census['no_global_effective_zero_records'],0)
+
+    def test_atomic_is_one_native_rmw_record(self):
+        record=dict(schema='SG_MEMORY_PROJECTION_RECORD_V1',ref_count=1,active_mask=1,
+            predicate_mask=1,effective_mask=1,projection_kind='ordinary_memory_operands',
+            opcode='ATOMG.E.ADD.STRONG.GPU',width=4,is_load=True,is_store=True,
+            refs=[dict(global_mask=1,local_mask=0,shared_mask=0,addresses=[4096]+[0]*31)])
+        direction,width,mask,ranges,is_async=project_record(record)
+        self.assertEqual((direction,width,mask,is_async),('atomic',4,1,False))
+        frames={(0,0):[dict(lanes=[dict(lane=0,addr=4096,is_local=0)],
+            op=ord('A'),opcode=record['opcode'],mem_width=4,mask=1,pc=32)]}
+        normalized=packed.normalize(frames)[0]
+        self.assertEqual(len(normalized),1)
+        self.assertEqual(packed.direction_width(normalized[0]['opcode']),('A',4))
 
 if __name__=='__main__':unittest.main()

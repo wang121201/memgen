@@ -575,7 +575,7 @@ def main() -> int:
                         help='refuse stops when a class has no admitted template (default); '
                              'modeled completes the full model with an explicit numeric_modeled label')
     parser.add_argument('--capture-mode', choices=('sparse', 'native-full'), default='sparse',
-                        help='native-full samples every launch and CTA; modeled continuation is explicit')
+                        help='native-full samples every launch with native addresses; large grids are coordinate-stratified, and modeled continuation is explicit')
     parser.add_argument('--model-policy', choices=MODEL_POLICIES, default='strict',
                         help='which sampled memory records the projection admits; strict '
                              '(default) refuses predicated global reads, the two ldg_source_predicate '

@@ -111,10 +111,13 @@ def project_record(record, model_policy='strict'):
         need(kind in ('ordinary', 'global_memory', 'ordinary_memory_operands'),
              'unsupported/unqualified projection kind (including predicated read candidate)')
         need(len(refs) == 1, 'ordinary multi-reference instruction not admitted')
-        need(isinstance(record['is_load'], bool) and isinstance(record['is_store'], bool) and
-             record['is_load'] != record['is_store'], 'RMW/atomic or directionless memory op not admitted')
-        need(record['opcode'].split('.')[0] in ('LDG', 'STG', 'LD', 'ST'),
-             'ordinary opcode not admitted as simple load/store')
+        need(isinstance(record['is_load'], bool) and isinstance(record['is_store'], bool),
+             'memory direction metadata unavailable')
+        stem = record['opcode'].split('.')[0]
+        atomic = record['is_load'] and record['is_store']
+        need((atomic and stem in ('ATOM', 'ATOMG', 'RED')) or
+             (record['is_load'] != record['is_store'] and stem in ('LDG', 'STG', 'LD', 'ST')),
+             'direction/opcode combination not admitted')
         ref, width = refs[0], record['width']
         need(width in (1, 2, 4, 8, 16), 'unsupported memory width')
         if ref['shared_mask']:
@@ -128,7 +131,7 @@ def project_record(record, model_policy='strict'):
                 if shared >> lane & 1: uint(ref['addresses'][lane])
             return ('load' if record['is_load'] else 'store'), width, 0, [], False
         need(ref['local_mask'] == 0, 'local ordinary reference remains outside global projection')
-        direction = 'load' if record['is_load'] else 'store'
+        direction = 'atomic' if atomic else 'load' if record['is_load'] else 'store'
         mask = uint(ref['global_mask'], 32)
         need(mask & ~(effective & predicate) == 0, 'global mask outside effective predicate')
     need(len(ref['addresses']) == 32, 'exactly32 lane addresses required')

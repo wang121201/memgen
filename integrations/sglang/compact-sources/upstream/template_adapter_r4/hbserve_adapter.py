@@ -17,8 +17,11 @@ from storage_windows import StorageWindows
 
 HERE = Path(__file__).resolve().parent
 FROZEN = HERE.parents[1] / 'hbserve-stream'
-HBSERVE = Path(os.environ.get('SG_HBSERVE_SOURCE_ROOT', FROZEN / 'sources/hbserve')).resolve()
-CODEC = Path(os.environ.get('SG_MEMORYINST_CODEC', FROZEN / 'sources/memgen/hbserve-q8-template-r3/hbserve_memory_template.py')).resolve()
+# The runnable workflow is self-contained in this memgen checkout.  Do not
+# silently import an HBServe or codec snapshot from another project/worktree.
+VENDOR = HERE.parents[0] / 'vendor'
+HBSERVE = (VENDOR / 'hbserve').resolve()
+CODEC = (VENDOR / 'hbserve_memory_template.py').resolve()
 CODEC_SHA = 'c4b90ea4f5739452db5e24222bbc2a6d549f6f8b2e19de59f902500b0d9184be'
 GENERATOR = HBSERVE / 'hbserve/traces/_reference/phase_aware_cta_generator.py'
 GENERATOR_SHA = '74bc9dbc352dfa41c4c673d37335275b052e3a8a83c5c61fbc61dd2c1fed7570'
@@ -104,9 +107,11 @@ class SampleCollector:
                 addr = ranges[len(lanes)]['offset_bytes']
                 lanes.append({'lane': lane, 'ref_id': 1 if async_read else 0, 'addr': addr,
                               'is_local': 0, 'local_offset': 0})
+        op = {'load': 'R', 'store': 'W', 'atomic': 'A'}[direction]
         m = {'kernel_id': 0, 'block_id': cta, 'sm_id': record['actual_sm'], 'seq': ordinal,
-             'pc': record['pc'], 'opcode': record['opcode'], 'mask': mask if self.qualified_projection is not None else record['effective_mask'],
-             'timestamp': ordinal, 'mem_width': width, 'op': ord('R' if direction == 'load' else 'W'),
+             'pc': record['pc'], 'opcode': record['opcode'], 'mask': mask,
+             'effective_guard_mask': record['effective_mask'],
+             'timestamp': ordinal, 'mem_width': width, 'op': ord(op),
              'has_space_metadata': 1, 'capture_seq': 0, 'full_clock': record['clock64'],
              'local_warp_owner': 0, 'cta_warp': record['cta_warp_id'], 'function_id': record['function_id'],
              'lanes': lanes}
@@ -152,7 +157,7 @@ class CompiledNativeTemplate:
             'engine': 'existing_HBServe_PreparedPhaseGenerator/generated_bundle_records',
             'MemoryInst_codec_sha256': CODEC_SHA, 'exact_anchor': self.exact,
             'HBServe_generator_sha256': GENERATOR_SHA,
-            'semantics_compared': ['PC', 'opcode', 'effective_guard_mask', 'width', 'read_or_write',
+            'semantics_compared': ['PC', 'opcode', 'effective_guard_mask', 'projected_global_lane_mask', 'width', 'read_write_or_atomic',
                 'global_projection_reference_and_lane', 'virtual_address', 'function', 'CTA_warp', 'per_warp_order'],
             'whole_hardware_instruction_trace': False, 'physical_SM_or_timing_reproduced': False,
             'omitted_static_memory_classes': end['omitted_static_memory_classes'],

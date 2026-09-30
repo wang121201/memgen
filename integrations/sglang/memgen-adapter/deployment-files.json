@@ -28,13 +28,13 @@
     },
     {
       "name": "make_sample_plan.py",
-      "bytes": 7635,
-      "sha256": "abf3104314b4aa10f14755d84082b4bda3b2d7f1ece5f2d5e74656c9b33955c2"
+      "bytes": 11884,
+      "sha256": "59df667a73e0c3c1fd44a86a343dd0146adf939ad6104a708b96a6b35eb9c88c"
     },
     {
       "name": "sample_pipeline.py",
-      "bytes": 10762,
-      "sha256": "40bbec2d2e0d4f90ff75e0dc383a66bb0a8d22a2a57188d67ce99300047717be"
+      "bytes": 10958,
+      "sha256": "0980626cc7e6d4b2588fff87e444946aad4623b07c3f816de8f4b3f2ecc70755"
     },
     {
       "name": "expand_profiles.py",
@@ -53,8 +53,8 @@
     },
     {
       "name": "followthrough.py",
-      "bytes": 9112,
-      "sha256": "bcd3419141beb2e0ce30f5183c758d751e762babfc510d0c13f492373216a672"
+      "bytes": 9396,
+      "sha256": "3e4d708d1cae347a0dc752e7958a073174746fc615f4f5c9239dd8ad13729e1a"
     },
     {
       "name": "profile_cache.py",
@@ -68,8 +68,8 @@
     },
     {
       "name": "prepare_compact_sources.py",
-      "bytes": 5057,
-      "sha256": "869b9c5fc62449693a2d9d71509450ad2371378032dc69e274d2c9cf6eec3197"
+      "bytes": 5058,
+      "sha256": "0d23352f78809bbf5f29a0332a2a7db809ce811863023a9aa66813b8f4020dd5"
     }
   ]
 }

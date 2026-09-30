@@ -62,6 +62,43 @@ def intervals(profile):
         ctas=[0,2] if cls['class_id']=='active' else [1]
         cls.update(domain_cta_count=len(ctas),ctas=ctas,independent_holdout_ctas=[],observed_domain_complete=True)
 
+
+def store_merge_fixture(out):
+    """A smoke variant whose active class issues two partial stores to the same
+    32-byte sector: the first covers the even 4-byte blocks, the second the odd
+    ones (base offset +4). Together they cover the sector, so a write-combining
+    window merges the two partial L2 writes into one. This is the two-partial-
+    store fixture the store-merge mechanism was built against."""
+    context = make_fixture(out)
+    original = ROOT / 'release/fixtures/smoke/profiles.pack.jsonl'
+    profiles = [json.loads(line) for line in original.read_text().splitlines()]
+    for profile in profiles:
+        if profile['kernel']['name'] != 'smoke_structural':
+            continue
+        for sc in profile['structural_classes']:
+            if sc['class_id'] != 'active':
+                continue
+            stg = next(e for e in sc['template'] if e['opcode'] == 'STG.E.32')
+            stg['groups'][0]['pairs'] = ['8:31']  # partial: even 4-byte blocks
+            stg2 = copy.deepcopy(stg)
+            stg2.update(ordinal=2, pc='30')
+            for k in stg2['address_rules'][0]['bases_by_cta']:
+                stg2['address_rules'][0]['bases_by_cta'][k] += 4  # odd 4-byte blocks
+            sc['template'].append(stg2)
+    rows = []; offset = 0
+    with (out / 'variant.pack').open('xb') as f:
+        for i, profile in enumerate(profiles, 1):
+            raw = (json.dumps(profile) + '\n').encode()
+            f.write(raw)
+            rows.append(dict(kernel_id=i, path=str(out / 'variant.pack'), offset=offset,
+                             bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest(),
+                             status=profile['status']))
+            offset += len(raw)
+    (out / 'profiles.index.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in rows))
+    context['profile_index_sha256'] = sha(out / 'profiles.index.jsonl')
+    (out / 'context.json').write_text(json.dumps(context))
+    return context
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
@@ -153,6 +190,36 @@ def main():
         run('placement-mismatch',front('placement-mismatch',fixture/'context.json',ROOT/'release/fixtures/smoke/configs/issue.config'),False)
         run('producer-cancel',[out/'test_r4_producer_cancel',fixture,config,fixture/'context.json',out/'cancel'])
         base_fixture=fixture
+        # Store merge: two partial stores to one 32-byte sector must become one
+        # L2 write under a write-combining window, and must stay two when the
+        # window is zero (the frozen store path). The store-sector stream itself
+        # never moves; only the L2 write count does. The window is a write-path
+        # policy knob, so it is swept on the legacy paper-v1 config (the unified
+        # r4 schema pins store_merge_window to its frozen default 0).
+        sm_fixture=out/'store-merge-fixture';store_merge_fixture(sm_fixture)
+        paper=ROOT/'release/config/RTX4000Ada.paper-v1.config'
+        def store_merge_front(name,window):
+            dest=out/name;dest.mkdir()
+            cfg=out/(name+'.config');cfg.write_text(paper.read_text())
+            if window:cfg.write_text(cfg.read_text()+'\n-memgen_store_merge_window %d\n'%window)
+            return [binary,'--mode','memgen','--profile-index',sm_fixture/'profiles.index.jsonl',
+                '--app-config',sm_fixture/'app.config','--issue-config',sm_fixture/'issue.config',
+                '--hw-config',cfg,'--stats',dest/'source.json','--output-dir',dest/'model']
+        run('store-merge-off',store_merge_front('store-merge-off',0))
+        run('store-merge-on',store_merge_front('store-merge-on',8))
+        def write_totals(name):
+            rows=list(csv.DictReader((out/name/'model/kernel_summary.csv').open()))
+            return (sum(int(r['write_sector_requests']) for r in rows),
+                    sum(int(r['l2_write_requests']) for r in rows),
+                    sum(int(r['write_partial_sector_requests']) for r in rows))
+        ws_off,l2w_off,part_off=write_totals('store-merge-off')
+        ws_on,l2w_on,part_on=write_totals('store-merge-on')
+        assert part_off>0 and part_on>0,'store-merge fixture must issue partial stores'
+        assert ws_off==ws_on,'store sector stream must not move with the merge window'
+        assert l2w_off==ws_off,'window 0 leaves every partial store as its own L2 write'
+        assert l2w_on<l2w_off,'write-combining window must merge partial L2 writes'
+        result.update(store_merge=dict(write_sectors=ws_off,l2_write_off=l2w_off,
+                                       l2_write_on=l2w_on,partial_sectors=part_off))
         mutations={
             'interval-valid':lambda p:None,
             'interval-hole':lambda p:p['structural_class_selector']['intervals'][1].update(start=2),

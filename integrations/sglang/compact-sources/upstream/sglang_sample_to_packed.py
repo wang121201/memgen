@@ -59,8 +59,9 @@ def frozen_gate():
   assert hashlib.sha256((F/row['path']).read_bytes()).hexdigest()==row['sha256'],'frozen payload drift: '+row['path']
 @functools.lru_cache(maxsize=128)
 def direction_width(opcode):
- direction='R' if opcode.startswith('LDG') else 'W' if opcode.startswith('STG') else None
- assert direction is not None,'opcode outside explicit global load/store projection'
+ stem=opcode.split('.',1)[0]
+ direction='R' if stem in ['LDG','LDGSTS'] else 'W' if stem=='STG' else 'A' if stem in ['ATOM','ATOMG','RED'] else None
+ assert direction is not None,'opcode outside explicit global load/store/atomic projection'
  width=next((bits//8 for bits in [128,64,32,16,8] if any('.'+prefix+str(bits) in opcode for prefix in ['U','S','B',''])),4)
  return direction,width
 
@@ -100,7 +101,13 @@ def projection_record_census(collector):
     result['active_global_records']+=1
    else:
     result['no_global_lane_records']+=1
-    result['no_global_effective_nonzero_records' if m['mask'] else 'no_global_effective_zero_records']+=1
+    # ``mask`` is the projected global-source mask.  It is intentionally zero
+    # for a proven shared-only instruction, even when its hardware guard has
+    # active lanes.  Keep the no-global census tied to that original guard;
+    # otherwise every shared-only record is misclassified as effective-zero.
+    effective_guard = m.get('effective_guard_mask', m['mask'])
+    assert type(effective_guard) is int and 0 <= effective_guard < 1 << 32
+    result['no_global_effective_nonzero_records' if effective_guard else 'no_global_effective_zero_records']+=1
  assert result['decoded_records']==collector.count
  shared=dict(getattr(collector,'shared_only_census',{}))
  result['observed_shared_only_records']=shared.get('records',0)
@@ -120,7 +127,7 @@ def normalize(samples):
   if frames:out[cta] # Observed zero-global activity is not an absent CTA.
   for m in frames:
    if not m['lanes']:continue
-   assert m['op'] in [ord('R'),ord('W')]
+   assert m['op'] in [ord('R'),ord('W'),ord('A')]
    opcode=global_opcode(m['opcode']);direction,width=direction_width(opcode)
    assert ord(direction)==m['op'] and width==m['mem_width'],'native direction/width differs from backend opcode semantics'
    assert all(x['is_local']==0 for x in m['lanes'])
@@ -253,7 +260,8 @@ def fit(collector,begin,end=None,transport=None,timings=None):
  # sample-address validation above and generated profile remain unchanged.
  census=count_profile(profile,sys.modules[__name__])
  expected={key:census[key] for key in ('mem_insts','lane_accesses','read_sector_requests',
-  'write_sector_requests','native_read_lane_bytes','native_write_lane_bytes')}
+  'write_sector_requests','atomic_sector_requests','native_read_lane_bytes',
+  'native_write_lane_bytes','native_atomic_lane_bytes')}
  profile.update(status='PASS_NATIVE_CTA_PACKED_EXACT_SAMPLES',independent_source_census=expected,
   source={'kind':'bounded_native_dynamic_CTA_pipe','launch':begin,'raw_trace_saved':False},sampling={'training_ctas':train,'holdout_ctas':hold,'complete_grid_no_extrapolation':complete,'checked_instructions':checked,'structural_class_count':len(groups),'certified_packetless_ctas':sorted(packetless),'packetless_scope':'instrumented memory classes only; not all hardware L2 clients'},model={'ordering':'CTA round robin across 48 SMs; canonical per-warp order; physical cross-warp arrival NOT captured','cache_entry':'COLD_ISOLATED_KERNEL_DIAGNOSTIC','prefix_replayed':False,'complete_model':False})
  profile['shared_only_projection_census']=dict(getattr(collector,'shared_only_census',{}))
@@ -291,8 +299,8 @@ def run_model(out,profile,placements=None):
  for field,value in profile.get('native_reference_digest',{}).items():assert source[field]==value,'C++ native-reference order/address digest mismatch: '+field
  with (out/'model/kernel_summary.csv').open() as f:rows=list(csv.DictReader(f));assert len(rows)==1
  census=profile['independent_source_census']
- for field in ['mem_insts','lane_accesses','read_sector_requests','write_sector_requests']:assert int(rows[0][field])==census[field],field+' independent source census mismatch'
- assert int(rows[0]['sector_requests'])==census['read_sector_requests']+census['write_sector_requests']
+ for field in ['mem_insts','lane_accesses','read_sector_requests','write_sector_requests','atomic_sector_requests']:assert int(rows[0][field])==census[field],field+' independent source census mismatch'
+ assert int(rows[0]['sector_requests'])==census['read_sector_requests']+census['write_sector_requests']+census['atomic_sector_requests']
  observation=json.loads((out/'model/cache_observation.json').read_text())
  for field in ['classification_residual_bytes','resident_residual_bytes','producer_trigger_emission_residual_bytes']:assert observation[field]==0
  return {'source':source,'kernel_summary':rows[0],'expected_generated_instructions':expected,'independent_source_census':census,'source_sector_residual_B':0}

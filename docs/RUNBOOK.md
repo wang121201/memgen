@@ -246,13 +246,17 @@ fraction of it was modelled:
   --model qwen25_1p5b --prefill-length 32 --decode-steps 2 --gpu-index 1
 ```
 
-Measured on the two collected runs: P32D2 closes at 2060/2060 launches (1360
-exact + 700 modeled, 34.0 % of launches = 2.2 % of bytes) and P128D2 at 2172/2172
-(1162 + 1010, 46.5 % of launches = 7.1 % of bytes). The estimate is dominated by
-the cutlass/ampere GEMM classes that carry the traffic, the largest of them on
-the measured census basis. What a modeled row may not claim — and the two ways a
-modeled issue could silently be the wrong size — is in
-[the expansion finding](EXPANSION_MECHANISM_AND_REFUSALS.md) section 5.
+The older P32D2/P128D2 modeled counts that were recorded here are historical
+evidence only and must not be reused as the current native-full result. In the
+latest native-full admission before the current run, P32D2 selected 2060
+launches: 1892 profiles were accepted and 168 were rejected (8.16% of selected
+launches), so that run did not execute cache replay under the refusing policy.
+The active full-model posture is `--model-uncovered modeled`; its final exact
+and modeled counts must be read from that run's `expanded/manifest.json` and
+`finish.json`, not copied from this historical paragraph. What a modeled row
+may not claim — and the two ways a modeled issue could silently be the wrong
+size — is in [the expansion finding](EXPANSION_MECHANISM_AND_REFUSALS.md)
+section 5.
 
 **Budgets are hard limits, not estimates.** A stage that exceeds its budget is
 killed: the census job and the whole of job 2 are bounded by `run_job.py`

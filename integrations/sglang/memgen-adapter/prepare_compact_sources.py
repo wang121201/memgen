@@ -72,7 +72,7 @@ def main():
    'build.py':plan_capacity,'compile_plan.py':plan_capacity,'stream_consumer.py':plan_capacity,
    'packet_stream.py':lambda s:replace_one(s,'MAX_KERNELS = 4096','MAX_KERNELS = 32768')})
  result=dict(status='PASS_PRIVATE_SOURCE_PREPARED_NOT_BUILT',observer=o,sampler=s,
-  original_sources_modified=False,GPU_executed=False,dynamic_wire_cap_unchanged=8<<30,
+  original_sources_modified=False,GPU_executed=False,dynamic_wire_cap_unchanged=16<<30,
   postprocess_record_cap_unchanged=12000000,warning='Host metadata bounds are capacities only; runtime budgets remain explicit.')
  (a.output/'prepare.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
 

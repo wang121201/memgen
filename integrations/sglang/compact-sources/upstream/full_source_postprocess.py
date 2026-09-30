@@ -8,23 +8,27 @@ from memory_projection import MODEL_POLICIES
 def capture_limits(plan):
  # The plan is the single source of truth for how many records the sampler may
  # emit: a sparse single-layer plan states 12M, a native-full plan states 200M,
- # because it selects every CTA of every launch instead of one layer's CTAs.
+ # because it selects every launch rather than one layer's launches.  Large
+ # grids remain coordinate-stratified; this is not a full-CTA raw trace.
  # Deriving the replay limits from it keeps the two ceilings from drifting; the
  # historical hard-coded 12M silently truncated a native-full stream into an
  # empty replay. A missing/legacy plan keeps the historical sparse defaults.
  records=int(plan.get('max_received_records',12000000)) if plan else 12000000
  assert 1<=records<=1_000_000_000,'plan record ceiling'
  if plan is not None:
-  assert 1024<=int(plan.get('max_wire_bytes',8<<30))<=8<<30,'plan wire ceiling'
+  assert 1024<=int(plan.get('max_wire_bytes',16<<30))<=16<<30,'plan wire ceiling'
  if records<=12000000:
   # The sparse single-layer contract is unchanged: 12M records, 512MiB encoded,
   # 1M per kernel, 24GiB decoded. Only a native-full plan raises these.
   return dict(max_records=12000000,max_kernel_records=1000000,
               max_encoded_bytes=512<<20,max_decoded_bytes=24<<30)
- # A native-full plan selects every CTA of the largest launch, so one kernel can
- # hold the whole record bound; scale the encoded ceiling with the record bound
- # and keep the decoded ceiling at its historical 24GiB (one kernel at a time).
- return dict(max_records=records,max_kernel_records=records,
+ # A native-full plan selects every launch, but each large grid is coordinate-
+ # stratified, so no single kernel holds the whole record bound. The per-kernel
+ # ceiling stays at the historical 1M (the largest stratified kernel is ~97K
+ # records: cutlass gemm 17 CTAs x 5707 records/CTA); only the total record bound
+ # and the encoded ceiling scale with the plan. Setting max_kernel_records to the
+ # total bound is wrong: it trips SampleCollector's own 1M per-kernel budget.
+ return dict(max_records=records,max_kernel_records=1000000,
              max_encoded_bytes=max(512<<20,min(64<<30,records*512)),
              max_decoded_bytes=24<<30)
 

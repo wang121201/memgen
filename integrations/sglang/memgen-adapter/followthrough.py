@@ -74,7 +74,7 @@ def main():
  p.add_argument('--model-uncovered',choices=('refuse','modeled'),default='refuse',
   help='modeled lets a class with no admitted template complete the full model with an explicit numeric_modeled label')
  p.add_argument('--capture-mode',choices=('sparse','native-full'),default='sparse',
-  help='native-full captures every launch and CTA; it never uses layer expansion')
+  help='native-full covers every launch with native addresses (large grids coordinate-stratified); it never uses layer expansion')
  p.add_argument('--python',default='/home/xmu/sgl/bin/python')
  p.add_argument('--sample-seconds',type=int,default=7200);p.add_argument('--memgen-seconds',type=int,default=21600,
   help='accepted for compatibility; the replay has no wall-clock deadline')
@@ -123,7 +123,10 @@ def main():
     full_native_address_coverage=sample.get('full_native_address_coverage',False),
     profiles_accepted=sample.get('profiles_accepted'),profiles_rejected=sample.get('profiles_rejected'),
     hardware_accuracy_accepted=False)
-  done=True
+   # Refuse is the explicit sample-only admission point.  Modeled completion
+   # must continue into expansion and cache replay; an unconditional done=True
+   # here silently turned every full-inference request into a sample-only run.
+   done=True
   if not done:
    done=run('expand',[a.python,'-B',str(HERE/'expand_profiles.py'),'--sample-output',str(a.output/'sample'),
     '--layer-bindings',str(a.output/'plan/layer-bindings.json'),'--output',str(a.output/'expanded'),

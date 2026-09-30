@@ -34,7 +34,7 @@ struct NoSigpipe {
 struct Writer {
   int fd=-1;uint64_t bytes=0,limit=0;EVP_MD_CTX* hash=nullptr;bool closed=false;
   void open(int inherited_fd,uint64_t cap){
-    require(fd==-1&&cap>=1024&&cap<=(8ull<<30),"pipe/budget state");
+    require(fd==-1&&cap>=1024&&cap<=(16ull<<30),"pipe/budget state");
     struct stat st{};require(fstat(inherited_fd,&st)==0&&S_ISFIFO(st.st_mode),"sample output must be a pipe, never a regular file");
     int flags=fcntl(inherited_fd,F_GETFL);require(flags>=0&&(flags&O_ACCMODE)==O_WRONLY,"sample pipe requires write endpoint");
     // The controller creates a dedicated pipe; this owned endpoint is set
